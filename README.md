@@ -100,12 +100,14 @@ Add a task:
 
 ```bash
 egdo add "Buy milk"
+egdo add "[chores] Do the dishes"
 ```
 
 List today’s active tasks:
 
 ```bash
 egdo list
+egdo list --tag chores
 ```
 
 Mark a task complete:
@@ -119,6 +121,7 @@ You can also target a specific date:
 ```bash
 egdo add "Write release notes" --date 2026-04-03
 egdo list --date 2026-04-03
+egdo list --tag idiom-app --date 2026-04-03
 egdo done 2 --date 2026-04-03
 ```
 
@@ -149,6 +152,8 @@ Adds a task to the selected day.
 
 ```bash
 egdo add "Call dentist"
+egdo add "[chores] Do the dishes"
+egdo add "[personal][chores][home] Do the dishes"
 egdo add "Fix parser bug" --date 2026-04-03
 ```
 
@@ -157,6 +162,7 @@ Behavior:
 - uses today by default
 - creates the daily file if it does not exist
 - first performs rollover for unfinished tasks from the most recent earlier day
+- preserves any leading bracket tags as plain text in the task body
 
 ### `egdo list`
 
@@ -164,6 +170,7 @@ Lists active tasks for the selected day.
 
 ```bash
 egdo list
+egdo list --tag chores
 egdo list --date 2026-04-03
 ```
 
@@ -172,13 +179,14 @@ Behavior:
 - uses today by default
 - first performs rollover for unfinished tasks from the most recent earlier day
 - shows only incomplete tasks
+- `--tag` filters by leading bracket tags such as `[chores]` or `[home]`
 - numbers tasks so you can complete them with `done`
 
 Example output:
 
 ```text
 2026-04-03  /path/to/your/notes/egdo/2026/04/2026-04-03.md
-1. Buy milk (created 2026-04-03)
+1. [chores] Buy milk (created 2026-04-03)
 2. Call dentist (created 2026-04-03)
 ```
 
@@ -227,15 +235,13 @@ Meeting notes and other freeform writing.
 
 <!-- EGDO:START -->
 
-- [ ] Buy milk
+- [ ] [chores] Buy milk
   - created: 2026-04-03
   - completed:
-  - origin: 2026-04-03
 
 - [x] Ship package
   - created: 2026-04-02
   - completed: 2026-04-03
-  - origin: 2026-04-02
 
 <!-- EGDO:END -->
 ```
@@ -244,7 +250,12 @@ Field meanings:
 
 - `created`: the date the task was originally created
 - `completed`: the date the task was completed, blank until done
-- `origin`: the day the task first entered the system; this stays stable across rollover
+
+Tag convention:
+
+- leading bracket groups are treated as tags for filtering
+- `[personal][chores][home] Do the dishes` has tags `personal`, `chores`, and `home`
+- brackets later in the task text are treated as normal text
 
 You can also add a minimal manual item inside the managed section:
 
@@ -290,7 +301,7 @@ You should avoid:
 
 Notes on normalization:
 
-- if a manual open task is missing `created` or `origin`, `egdo` fills them from the file date
+- if a manual open task is missing `created`, `egdo` fills it from the file date
 - if a manual completed task is missing `completed`, `egdo` fills it from the file date
 - if a task already has metadata, `egdo` preserves it unless another command changes task state
 

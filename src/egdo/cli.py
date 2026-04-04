@@ -23,6 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_parser = subparsers.add_parser("list", help="List active tasks")
     list_parser.add_argument("--date", dest="target_date")
+    list_parser.add_argument("--tag")
 
     done_parser = subparsers.add_parser("done", help="Complete a task")
     done_parser.add_argument("index", type=int)
@@ -48,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "list":
-            tasks = list_tasks(config.notes_dir, target_date)
+            tasks = list_tasks(config.notes_dir, target_date, tag=args.tag)
             daily_path = file_path(config.notes_dir, target_date)
             print(f"{target_date.isoformat()}  {daily_path}")
             if not tasks:

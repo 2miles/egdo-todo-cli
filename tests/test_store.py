@@ -52,11 +52,11 @@ class StoreTests(unittest.TestCase):
     def test_list_rolls_forward_unfinished_tasks(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
-            add_task(notes_dir, date(2026, 4, 3), "Buy milk")
+            add_task(notes_dir, date(2026, 4, 3), "[chores] Buy milk")
 
             tasks = list_tasks(notes_dir, date(2026, 4, 4))
 
-            self.assertEqual([task.text for task in tasks], ["Buy milk"])
+            self.assertEqual([task.text for task in tasks], ["[chores] Buy milk"])
             previous_state = ensure_state(file_path(notes_dir, date(2026, 4, 3)))
             self.assertEqual(previous_state.tasks, [])
 
@@ -71,17 +71,49 @@ class StoreTests(unittest.TestCase):
             self.assertEqual(len(first), 1)
             self.assertEqual(len(second), 1)
 
+    def test_list_filters_by_leading_tag(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 3)
+            add_task(notes_dir, target_date, "[personal][chores][home] Do the dishes")
+            add_task(notes_dir, target_date, "[work] Fix parser bug")
+            add_task(notes_dir, target_date, "Plain task")
+
+            tasks = list_tasks(notes_dir, target_date, tag="chores")
+
+            self.assertEqual([task.text for task in tasks], ["[personal][chores][home] Do the dishes"])
+
+    def test_tag_filter_is_case_insensitive(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 3)
+            add_task(notes_dir, target_date, "[Personal][Chores] Do the dishes")
+
+            tasks = list_tasks(notes_dir, target_date, tag="chores")
+
+            self.assertEqual([task.text for task in tasks], ["[Personal][Chores] Do the dishes"])
+
+    def test_non_leading_brackets_do_not_count_as_tags(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 3)
+            add_task(notes_dir, target_date, "Fix parser for [bracketed] syntax")
+
+            tasks = list_tasks(notes_dir, target_date, tag="bracketed")
+
+            self.assertEqual(tasks, [])
+
     def test_done_marks_task_complete_in_current_file(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
-            add_task(notes_dir, date(2026, 4, 3), "Buy milk")
+            add_task(notes_dir, date(2026, 4, 3), "[chores] Buy milk")
             list_tasks(notes_dir, date(2026, 4, 4))
 
             task = complete_task(notes_dir, date(2026, 4, 4), 1)
 
             self.assertEqual(task.completed, date(2026, 4, 4))
             content = file_path(notes_dir, date(2026, 4, 4)).read_text(encoding="utf-8")
-            self.assertIn("- [x] Buy milk", content)
+            self.assertIn("- [x] [chores] Buy milk", content)
             self.assertIn("completed: 2026-04-04", content)
 
     def test_done_uses_current_day_active_index(self) -> None:
@@ -137,9 +169,7 @@ class StoreTests(unittest.TestCase):
             self.assertEqual([task.text for task in tasks], ["Manual task"])
             content = path.read_text(encoding="utf-8")
             self.assertIn("created: 2026-04-03", content)
-            self.assertIn("origin: 2026-04-03", content)
             self.assertIn("completed:", content)
-
     def test_manual_completed_task_without_completed_date_is_normalized(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
@@ -168,7 +198,6 @@ class StoreTests(unittest.TestCase):
             self.assertEqual(len(state.tasks), 1)
             self.assertEqual(state.tasks[0].completed, target_date)
             self.assertEqual(state.tasks[0].created, target_date)
-            self.assertEqual(state.tasks[0].origin, target_date)
 
     def test_managed_heading_is_not_duplicated_on_rewrite(self) -> None:
         with TemporaryDirectory() as tmp:

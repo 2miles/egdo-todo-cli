@@ -15,14 +15,17 @@ class Task:
     text: str
     created: date
     completed: date | None
-    origin: date
 
     @property
     def done(self) -> bool:
         return self.completed is not None
 
-    def key(self) -> tuple[str, date, date]:
-        return (self.text, self.created, self.origin)
+    @property
+    def tags(self) -> tuple[str, ...]:
+        return _parse_leading_tags(self.text)
+
+    def key(self) -> tuple[str, date]:
+        return (self.text, self.created)
 
 
 @dataclass(slots=True)
@@ -61,21 +64,15 @@ def parse_task_block(lines: list[str], default_date: date | None) -> tuple[Task,
         key, value = payload.split(":", 1)
         metadata[key.strip()] = value.strip()
 
-    created = _parse_date(metadata.get("created"))
-    origin = _parse_date(metadata.get("origin"))
-    completed = _parse_date(metadata.get("completed"))
     normalized = False
+
+    created = _parse_date(metadata.get("created"))
+    completed = _parse_date(metadata.get("completed"))
 
     if created is None:
         if default_date is None:
             raise ValueError(f"Task is missing required created date: {lines}")
         created = default_date
-        normalized = True
-
-    if origin is None:
-        if default_date is None:
-            raise ValueError(f"Task is missing required origin date: {lines}")
-        origin = created
         normalized = True
 
     if done and completed is None:
@@ -86,7 +83,7 @@ def parse_task_block(lines: list[str], default_date: date | None) -> tuple[Task,
     if not done:
         completed = None
 
-    return Task(text=text, created=created, completed=completed, origin=origin), normalized
+    return Task(text=text, created=created, completed=completed), normalized
 
 
 def parse_file(content: str, default_date: date | None = None) -> FileState:
@@ -155,19 +152,23 @@ def add_task(notes_dir: Path, target_date: date, text: str) -> Task:
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
-    task = Task(text=text, created=target_date, completed=None, origin=target_date)
+    task = Task(text=text, created=target_date, completed=None)
     state.tasks.append(task)
     write_state(path, state)
     return task
 
 
-def list_tasks(notes_dir: Path, target_date: date) -> list[Task]:
+def list_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> list[Task]:
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
     if state.normalized:
         write_state(path, state)
-    return [task for task in state.tasks if not task.done]
+    tasks = [task for task in state.tasks if not task.done]
+    if tag is None:
+        return tasks
+    normalized_tag = tag.strip().lower()
+    return [task for task in tasks if normalized_tag in task.tags]
 
 
 def complete_task(notes_dir: Path, target_date: date, index: int) -> Task:
@@ -214,7 +215,6 @@ def rollover(notes_dir: Path, target_date: date) -> None:
                     text=task.text,
                     created=task.created,
                     completed=None,
-                    origin=task.origin,
                 )
             )
 
@@ -272,7 +272,6 @@ def _render_task(task: Task) -> str:
             f"- [{status}] {task.text}",
             f"  - created: {task.created.isoformat()}",
             f"  - completed: {completed}",
-            f"  - origin: {task.origin.isoformat()}",
         ]
     )
 
@@ -281,3 +280,19 @@ def _parse_date(value: str | None) -> date | None:
     if not value:
         return None
     return date.fromisoformat(value)
+
+
+def _parse_leading_tags(text: str) -> tuple[str, ...]:
+    tags: list[str] = []
+    remaining = text.lstrip()
+    while remaining.startswith("["):
+        closing = remaining.find("]")
+        if closing <= 1:
+            break
+        tag = remaining[1:closing].strip().lower()
+        if not tag:
+            break
+        if tag not in tags:
+            tags.append(tag)
+        remaining = remaining[closing + 1 :]
+    return tuple(tags)
