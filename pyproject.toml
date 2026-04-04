@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "egdo"
+version = "0.1.0"
+description = "Markdown-backed CLI todo manager for daily notes."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Miles" }
+]
+dependencies = []
+
+[project.scripts]
+egdo = "egdo.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
