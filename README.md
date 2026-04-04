@@ -61,7 +61,7 @@ python3 -m venv ~/.venvs/tools
 Install `egdo` from this repo into that environment:
 
 ```bash
-~/.venvs/tools/bin/pip install -e /path/to/egdo
+~/.venvs/tools/bin/pip install -e /path/to/egdo-todo-cli
 ```
 
 Then add the tools environment to your shell `PATH`:
