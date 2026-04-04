@@ -1,1 +1,1 @@
-# egdo currently uses only the Python standard library.
+rich>=14,<15

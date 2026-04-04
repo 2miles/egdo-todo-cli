@@ -32,25 +32,7 @@ Most CLI todo tools either hide data behind a database or assume the app is the 
 
 ## Installation
 
-Clone the repo, create a local virtual environment in `.venv`, activate it, and install the project there:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-```
-
-This creates the `egdo` command inside the virtual environment from the local checkout.
-
-If you want to deactivate the environment later:
-
-```bash
-deactivate
-```
-
-## Global Install For Personal Use
-
-If you want `egdo` available from anywhere on your machine without activating the repo-local `.venv`, use a dedicated personal tools virtual environment.
+If you want `egdo` available from anywhere on your machine, use a dedicated personal tools virtual environment.
 
 Create it once:
 
@@ -84,12 +66,6 @@ When to run the install command again:
 
 ## Quick Start
 
-Make sure your virtual environment is active first:
-
-```bash
-source .venv/bin/activate
-```
-
 Initialize `egdo` with your notes path:
 
 ```bash
@@ -116,15 +92,6 @@ Mark a task complete:
 egdo done 1
 ```
 
-You can also target a specific date:
-
-```bash
-egdo add "Write release notes" --date 2026-04-03
-egdo list --date 2026-04-03
-egdo list --tag idiom-app --date 2026-04-03
-egdo done 2 --date 2026-04-03
-```
-
 ## Commands
 
 ### `egdo init`
@@ -148,13 +115,12 @@ Arguments:
 
 ### `egdo add`
 
-Adds a task to the selected day.
+Adds a task to today’s active list.
 
 ```bash
 egdo add "Call dentist"
 egdo add "[chores] Do the dishes"
 egdo add "[personal][chores][home] Do the dishes"
-egdo add "Fix parser bug" --date 2026-04-03
 ```
 
 Behavior:
@@ -166,12 +132,11 @@ Behavior:
 
 ### `egdo list`
 
-Lists active tasks for the selected day.
+Lists active tasks for today.
 
 ```bash
 egdo list
 egdo list --tag chores
-egdo list --date 2026-04-03
 ```
 
 Behavior:
@@ -185,18 +150,19 @@ Behavior:
 Example output:
 
 ```text
-2026-04-03  /path/to/your/notes/egdo/2026/04/2026-04-03.md
-1. [chores] Buy milk (created 2026-04-03)
-2. Call dentist (created 2026-04-03)
+Thu, Apr 3rd  /path/to/your/notes/egdo/2026/04/2026-04-03.md
+
+---
+1. [chores] Buy milk (Thu, Apr 3rd)
+2. Call dentist (Thu, Apr 3rd)
 ```
 
 ### `egdo done`
 
-Marks a numbered active task complete in the selected day’s file.
+Marks a numbered active task complete in today’s file.
 
 ```bash
 egdo done 1
-egdo done 2 --date 2026-04-03
 ```
 
 Behavior:
@@ -256,6 +222,7 @@ Tag convention:
 - leading bracket groups are treated as tags for filtering
 - `[personal][chores][home] Do the dishes` has tags `personal`, `chores`, and `home`
 - brackets later in the task text are treated as normal text
+- tag colors are assigned once and stored in config so they stay stable across lists
 
 You can also add a minimal manual item inside the managed section:
 
@@ -316,13 +283,27 @@ todos_root = "egdo"
 
 `notes_root` points at your notes directory. `todos_root` is the directory inside that notes directory where `egdo` writes daily files.
 
+### Tag Colors
+
+Tag colors are stored separately in the same config file and control how leading bracket tags render in the terminal.
+
+```toml
+[tag_colors]
+minecraft = "green"
+chores = "blue"
+important = "bold red"
+```
+
+`tag_colors` stores persistent terminal color assignments for tags discovered while listing tasks.
+
+Style values use Rich style names such as `green`, `blue`, `magenta`, `bright_yellow`, or `bold red`. If a configured tag style is invalid, `egdo list` warns and replaces it with the next palette color.
+
 ## Development
 
-Create and activate the project environment:
+If you are using the same global tools environment for development, reinstall after dependency or packaging changes:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+~/.venvs/tools/bin/pip install -e /path/to/egdo-todo-cli
 ```
 
 Run the test suite:
@@ -331,10 +312,10 @@ Run the test suite:
 python3 -m unittest discover -s tests
 ```
 
-Install in editable mode:
+Compile the source tree:
 
 ```bash
-pip install -e .
+python3 -m compileall src
 ```
 
 Freeze dependencies if you want to record the current environment state:
@@ -343,7 +324,7 @@ Freeze dependencies if you want to record the current environment state:
 pip freeze > requirements.txt
 ```
 
-Right now `egdo` has no third-party runtime dependencies, so `requirements.txt` is intentionally minimal.
+`egdo` currently uses `rich` for terminal styling, so `requirements.txt` stays small but is no longer standard-library-only.
 
 ## Current Scope
 
