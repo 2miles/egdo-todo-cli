@@ -205,6 +205,32 @@ def delete_task(notes_dir: Path, target_date: date, index: int) -> Task:
     raise RuntimeError("Active task disappeared before deletion")
 
 
+def tag_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) -> Task:
+    rollover(notes_dir, target_date)
+    path = file_path(notes_dir, target_date)
+    state = ensure_state(path)
+    active = [task for task in state.tasks if not task.done]
+    if index < 1 or index > len(active):
+        raise IndexError(f"Task index {index} is out of range")
+
+    selected_key = active[index - 1].key()
+    normalized_tags = _normalize_tags(tags)
+    if not normalized_tags:
+        raise ValueError("At least one non-empty tag is required")
+
+    for task in state.tasks:
+        if task.key() == selected_key and not task.done:
+            existing_tags, body = _split_leading_tags_and_body(task.text)
+            merged_tags = list(existing_tags)
+            for tag in normalized_tags:
+                if tag not in merged_tags:
+                    merged_tags.append(tag)
+            task.text = "".join(f"[{tag}]" for tag in merged_tags) + f" {body}"
+            write_state(path, state)
+            return task
+    raise RuntimeError("Active task disappeared before tagging")
+
+
 def rollover(notes_dir: Path, target_date: date) -> None:
     target_path = file_path(notes_dir, target_date)
     target_state = ensure_state(target_path)
@@ -300,6 +326,11 @@ def _parse_date(value: str | None) -> date | None:
 
 
 def _parse_leading_tags(text: str) -> tuple[str, ...]:
+    tags, _ = _split_leading_tags_and_body(text)
+    return tuple(tags)
+
+
+def _split_leading_tags_and_body(text: str) -> tuple[list[str], str]:
     tags: list[str] = []
     remaining = text.lstrip()
     while remaining.startswith("["):
@@ -312,4 +343,18 @@ def _parse_leading_tags(text: str) -> tuple[str, ...]:
         if tag not in tags:
             tags.append(tag)
         remaining = remaining[closing + 1 :]
-    return tuple(tags)
+    body = remaining.lstrip()
+    if not body:
+        body = text.strip()
+    return tags, body
+
+
+def _normalize_tags(tags: list[str]) -> list[str]:
+    normalized: list[str] = []
+    for tag in tags:
+        value = tag.strip().strip("[]").strip().lower()
+        if not value:
+            continue
+        if value not in normalized:
+            normalized.append(value)
+    return normalized

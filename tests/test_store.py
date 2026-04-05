@@ -17,6 +17,7 @@ from egdo.store import (
     ensure_state,
     file_path,
     list_tasks,
+    tag_task,
 )
 
 
@@ -152,6 +153,28 @@ class StoreTests(unittest.TestCase):
 
             state = ensure_state(file_path(notes_dir, date(2026, 4, 4)))
             self.assertEqual([task.text for task in state.tasks], ["Buy milk"])
+
+    def test_tag_adds_one_or_more_tags_to_task(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 3)
+            add_task(notes_dir, target_date, "Do the dishes")
+
+            task = tag_task(notes_dir, target_date, 1, ["chores", "home"])
+
+            self.assertEqual(task.text, "[chores][home] Do the dishes")
+            tasks = list_tasks(notes_dir, target_date, tag="home")
+            self.assertEqual([item.text for item in tasks], ["[chores][home] Do the dishes"])
+
+    def test_tag_preserves_existing_tags_and_ignores_duplicates(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 3)
+            add_task(notes_dir, target_date, "[chores] Do the dishes")
+
+            task = tag_task(notes_dir, target_date, 1, ["home", "chores", "[home]"])
+
+            self.assertEqual(task.text, "[chores][home] Do the dishes")
 
     def test_manual_edit_inside_section_remains_parseable(self) -> None:
         with TemporaryDirectory() as tmp:

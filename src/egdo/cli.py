@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 
 from egdo.config import CONFIG_PATH, load_config, save_config, write_config
-from egdo.store import add_task, complete_task, delete_task, list_tasks
+from egdo.store import add_task, complete_task, delete_task, list_tasks, tag_task
 from rich.console import Console
 from rich.errors import StyleSyntaxError
 from rich.style import Style
@@ -47,12 +47,12 @@ class _EgdoArgumentParser(argparse.ArgumentParser):
     def format_help(self) -> str:
         help_text = super().format_help()
         help_text = help_text.replace(
-            f"usage: {self.prog} [-h] {{init,add,list,done,delete}} ...",
+            f"usage: {self.prog} [-h] {{init,add,list,done,delete,tag}} ...",
             f"usage: {self.prog} [-h] COMMAND ...",
             1,
         )
         help_text = help_text.replace("positional arguments:", "commands:")
-        help_text = help_text.replace("  {init,add,list,done,delete}", "  COMMAND", 1)
+        help_text = help_text.replace("  {init,add,list,done,delete,tag}", "  COMMAND", 1)
         if "options:" in help_text and "Run `egdo COMMAND --help`" not in help_text:
             help_text = help_text.replace(
                 "options:\n",
@@ -72,7 +72,8 @@ def build_parser() -> argparse.ArgumentParser:
             "  egdo list\n"
             "  egdo list --tag chores\n"
             "  egdo done 1\n"
-            "  egdo delete 2"
+            "  egdo delete 2\n"
+            "  egdo tag 3 chores home"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -124,6 +125,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     delete_parser.add_argument("index", type=int, help="Task number from `egdo list`")
 
+    tag_parser = subparsers.add_parser(
+        "tag",
+        help="Add tag(s) to a task",
+        description="Add one or more leading bracket tags to a task using the index shown by `egdo list`.",
+        epilog="Example:\n  egdo tag 3 chores home",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    tag_parser.add_argument("index", type=int, help="Task number from `egdo list`")
+    tag_parser.add_argument("tags", nargs="+", help="One or more tags to add")
+
     return parser
 
 
@@ -171,6 +182,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "delete":
             task = delete_task(config.notes_dir, target_date, args.index)
             console.print(f"Deleted [{target_date.isoformat()}] {task.text}")
+            return 0
+
+        if args.command == "tag":
+            task = tag_task(config.notes_dir, target_date, args.index, args.tags)
+            console.print(f"Tagged [{target_date.isoformat()}] {task.text}")
             return 0
     except Exception as exc:  # noqa: BLE001
         print(str(exc), file=sys.stderr)

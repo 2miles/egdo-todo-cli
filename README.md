@@ -28,7 +28,7 @@ Most CLI todo tools either hide data behind a database or assume the app is the 
 - Automatic carry-forward for unfinished tasks
 - Completion timestamps
 - Human-editable files with metadata normalization for manual checklist entries
-- Minimal CLI with `add`, `list`, `done`, `delete`, and `init`
+- Minimal CLI with `add`, `list`, `done`, `delete`, `tag`, and `init`
 
 ## Installation
 
@@ -96,6 +96,12 @@ Delete a task:
 
 ```bash
 egdo delete 2
+```
+
+Add tags to a task:
+
+```bash
+egdo tag 3 chores home
 ```
 
 ## Commands
@@ -190,6 +196,22 @@ Behavior:
 - uses today by default
 - deletes by the numeric index shown in `egdo list`
 - removes the task entirely instead of marking it complete
+
+### `egdo tag`
+
+Adds one or more tags to a numbered active task in today’s file.
+
+```bash
+egdo tag 3 chores
+egdo tag 3 chores home
+```
+
+Behavior:
+
+- uses today by default
+- updates the task by the numeric index shown in `egdo list`
+- stores tags as leading bracket groups such as `[chores][home]`
+- ignores duplicate tags and normalizes tag names to lowercase
 
 ## File Layout
 
@@ -356,6 +378,7 @@ Version 1 intentionally keeps the surface area small:
 - `list`
 - `done`
 - `delete`
+- `tag`
 
 Not included yet:
 
