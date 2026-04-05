@@ -14,23 +14,32 @@ from rich.text import Text
 
 console = Console()
 HEADER_DATE_STYLE = "bold cyan"
+SEPARATOR_STYLE = "dim"
+SEPARATOR_TEXT = "────────────────────────────────────────"
+
+## Available colors: https://rich.readthedocs.io/en/stable/appendix/colors.html
 TAG_STYLES = (
-    "green",
-    "blue",
-    "magenta",
-    "yellow",
-    "red",
-    "bright_black",
-    "bright_blue",
-    "bright_green",
-    "bright_magenta",
-    "bright_red",
-    "bright_yellow",
-    "bold green",
-    "bold blue",
-    "bold magenta",
-    "bold yellow",
-    "bold red",
+    "medium_orchid3",
+    "medium_orchid",
+    "dark_goldenrod",
+    "rosy_brown",
+    "grey63",
+    "medium_purple2",
+    "medium_purple1",
+    "dark_khaki",
+    "navajo_white3",
+    "grey69",
+    "light_steel_blue3",
+    "light_steel_blue",
+    "dark_olive_green3",
+    "dark_sea_green3",
+    "light_cyan3",
+    "light_sky_blue1",
+    "green_yellow",
+    "dark_olive_green2",
+    "pale_green1",
+    "dark_sea_green2",
+    "pale_turquoise1",
 )
 
 
@@ -72,13 +81,15 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "list":
             tasks = list_tasks(config.notes_dir, target_date, tag=args.tag)
-            daily_path = file_path(config.notes_dir, target_date)
-            tag_styles, updated, warnings = _build_tag_styles((task.text for task in tasks), config.tag_colors)
+            tag_styles, updated, warnings = _build_tag_styles(
+                (task.text for task in tasks), config.tag_colors
+            )
             if updated:
                 config.tag_colors = tag_styles
                 save_config(config)
-            console.print(_render_list_header(target_date, daily_path))
-            console.print(Text("---", style="dim"))
+            console.print()
+            console.print(_render_list_header(target_date))
+            console.print(Text(SEPARATOR_TEXT, style=SEPARATOR_STYLE))
             for warning in warnings:
                 console.print(Text(warning, style="yellow"))
             if not tasks:
@@ -110,15 +121,15 @@ def _format_display_date(value: date) -> str:
     return f"{value.strftime('%a, %b')} {value.day}{_ordinal_suffix(value.day)}"
 
 
-def _render_list_header(target_date: date, daily_path: Path) -> Text:
+def _render_list_header(target_date: date) -> Text:
     header = Text()
     header.append(_format_display_date(target_date), style=HEADER_DATE_STYLE)
-    header.append("  ")
-    header.append(str(daily_path), style="dim")
     return header
 
 
-def _render_task_line(index: int, task_text: str, created: date, tag_styles: dict[str, str]) -> Text:
+def _render_task_line(
+    index: int, task_text: str, created: date, tag_styles: dict[str, str]
+) -> Text:
     tags, body = _split_leading_tags(task_text)
     line = Text()
     line.append(f"{index}. ", style="dim")

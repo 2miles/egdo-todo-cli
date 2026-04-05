@@ -287,6 +287,8 @@ todos_root = "egdo"
 
 Tag colors are stored separately in the same config file and control how leading bracket tags render in the terminal.
 
+Available colors: https://rich.readthedocs.io/en/stable/appendix/colors.html
+
 ```toml
 [tag_colors]
 minecraft = "green"

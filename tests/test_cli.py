@@ -26,9 +26,9 @@ class CliTests(unittest.TestCase):
     def test_render_list_header_plain_text(self) -> None:
         output = StringIO()
         console = Console(file=output, force_terminal=False, color_system=None)
-        console.print(_render_list_header(date(2026, 4, 4), Path("/tmp/2026-04-04.md")))
+        console.print(_render_list_header(date(2026, 4, 4)))
 
-        self.assertEqual(output.getvalue(), "Sat, Apr 4th  /tmp/2026-04-04.md\n")
+        self.assertEqual(output.getvalue(), "Sat, Apr 4th\n")
 
     def test_render_task_line_plain_text(self) -> None:
         output = StringIO()
