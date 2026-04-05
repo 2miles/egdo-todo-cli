@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 
 from egdo.config import CONFIG_PATH, load_config, save_config, write_config
-from egdo.store import add_note, add_task, complete_task, delete_task, list_tasks, tag_task
+from egdo.store import add_note, add_task, complete_task, create_task, delete_task, list_tasks, tag_task
 from rich.console import Console
 from rich.errors import StyleSyntaxError
 from rich.style import Style
@@ -46,19 +46,20 @@ TAG_STYLES = (
 class _EgdoArgumentParser(argparse.ArgumentParser):
     def format_help(self) -> str:
         help_text = super().format_help()
-        help_text = help_text.replace(
-            f"usage: {self.prog} [-h] {{init,add,list,done,delete,tag,note}} ...",
-            f"usage: {self.prog} [-h] COMMAND ...",
-            1,
-        )
-        help_text = help_text.replace("positional arguments:", "commands:")
-        help_text = help_text.replace("  {init,add,list,done,delete,tag,note}", "  COMMAND", 1)
-        if "options:" in help_text and "Run `egdo COMMAND --help`" not in help_text:
+        if self.prog == "egdo":
             help_text = help_text.replace(
-                "options:\n",
-                "Run `egdo COMMAND --help` for command-specific usage.\n\noptions:\n",
+                f"usage: {self.prog} [-h] {{init,add,list,done,delete,tag,note}} ...",
+                f"usage: {self.prog} [-h] COMMAND ...",
                 1,
             )
+            help_text = help_text.replace("positional arguments:", "commands:")
+            help_text = help_text.replace("  {init,add,list,done,delete,tag,note}", "  COMMAND", 1)
+            if "options:" in help_text and "Run `egdo COMMAND --help`" not in help_text:
+                help_text = help_text.replace(
+                    "options:\n",
+                    "Run `egdo COMMAND --help` for command-specific usage.\n\noptions:\n",
+                    1,
+                )
         return help_text
 
 
@@ -69,6 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Manage a rolling markdown-backed todo list.\n\n"
             "Common commands:\n"
             "  egdo add \"[chores] Do laundry\"\n"
+            "  egdo add --done \"Call dad\"\n"
             "  egdo list\n"
             "  egdo list --tag chores\n"
             "  egdo done 1\n"
@@ -94,10 +96,11 @@ def build_parser() -> argparse.ArgumentParser:
         "add",
         help="Add a task",
         description="Add a task to today's rolling list.",
-        epilog='Examples:\n  egdo add "Buy milk"\n  egdo add "[chores] Do laundry"',
+        epilog='Examples:\n  egdo add "Buy milk"\n  egdo add "[chores] Do laundry"\n  egdo add --done "Call dad"',
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     add_parser.add_argument("text", help="Task text to add")
+    add_parser.add_argument("--done", action="store_true", help="Create the task already completed")
 
     list_parser = subparsers.add_parser(
         "list",
@@ -160,8 +163,9 @@ def main(argv: list[str] | None = None) -> int:
         target_date = date.today()
 
         if args.command == "add":
-            task = add_task(config.notes_dir, target_date, args.text)
-            console.print(f"Added [{task.created.isoformat()}] {task.text}")
+            task = create_task(config.notes_dir, target_date, args.text, done=args.done)
+            action = "Added" if not args.done else "Added done"
+            console.print(f"{action} [{task.created.isoformat()}] {task.text}")
             return 0
 
         if args.command == "list":

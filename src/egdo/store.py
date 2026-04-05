@@ -128,11 +128,15 @@ def write_state(path: Path, state: FileState) -> None:
 
 
 def add_task(notes_dir: Path, target_date: date, text: str) -> Task:
+    return create_task(notes_dir, target_date, text, done=False)
+
+
+def create_task(notes_dir: Path, target_date: date, text: str, done: bool) -> Task:
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
     day = state.days.setdefault(target_date, DayState())
-    task = Task(text=text, created=target_date, done=False)
+    task = Task(text=text, created=target_date, done=done)
     day.tasks.append(task)
     write_state(path, state)
     return task

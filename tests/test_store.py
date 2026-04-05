@@ -12,6 +12,7 @@ from egdo.store import (
     add_note,
     add_task,
     complete_task,
+    create_task,
     delete_task,
     ensure_state,
     file_path,
@@ -35,6 +36,17 @@ class StoreTests(unittest.TestCase):
             self.assertIn("## Apr-05 Sun", content)
             self.assertIn("### Tasks", content)
             self.assertIn("- [ ] Buy milk (04-05)", content)
+
+    def test_create_task_can_start_completed(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+
+            task = create_task(notes_dir, target_date, "Call dad", done=True)
+
+            self.assertTrue(task.done)
+            content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
+            self.assertIn("- [x] Call dad (04-05)", content)
 
     def test_month_file_path_uses_year_and_month(self) -> None:
         notes_dir = Path("/tmp/notes")

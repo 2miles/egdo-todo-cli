@@ -79,6 +79,7 @@ Add a task:
 ```bash
 egdo add "Buy milk"
 egdo add "[chores] Do the dishes"
+egdo add --done "Call dad"
 ```
 
 List today’s active tasks:
@@ -141,6 +142,7 @@ Adds a task to today’s active list.
 egdo add "Call dentist"
 egdo add "[chores] Do the dishes"
 egdo add "[personal][chores][home] Do the dishes"
+egdo add --done "Call dad"
 ```
 
 Behavior:
@@ -149,6 +151,7 @@ Behavior:
 - creates the monthly file and day section if they do not exist
 - first performs rollover for unfinished tasks from the most recent earlier day
 - preserves any leading bracket tags as plain text in the task body
+- `--done` creates the task already completed
 
 ### `egdo list`
 
