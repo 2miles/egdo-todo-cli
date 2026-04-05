@@ -10,7 +10,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from rich.console import Console
 
-from egdo.cli import _build_tag_styles, _format_display_date, _render_list_header, _render_task_line
+from egdo.cli import (
+    _build_tag_styles,
+    _format_display_date,
+    _render_list_header,
+    _render_separator,
+    _render_task_line,
+    _style_wrapped_task_line,
+)
 
 
 class CliTests(unittest.TestCase):
@@ -30,12 +37,58 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(output.getvalue(), "Sat, Apr 4th\n")
 
+    def test_render_separator_uses_requested_width(self) -> None:
+        output = StringIO()
+        console = Console(file=output, force_terminal=False, color_system=None)
+        console.print(_render_separator(12))
+
+        self.assertEqual(output.getvalue(), "────────────\n")
+
     def test_render_task_line_plain_text(self) -> None:
         output = StringIO()
         console = Console(file=output, force_terminal=False, color_system=None)
-        console.print(_render_task_line(3, "[minecraft] Add sorter", date(2026, 4, 4), {"minecraft": "green"}))
+        console.print(
+            _render_task_line(3, "[minecraft] Add sorter", date(2026, 4, 4), {"minecraft": "green"})
+        )
 
         self.assertEqual(output.getvalue(), "3. [minecraft] Add sorter (Sat, Apr 4th)\n")
+
+    def test_render_task_line_wraps_with_indented_continuation(self) -> None:
+        output = StringIO()
+        console = Console(file=output, force_terminal=False, color_system=None)
+        console.print(
+            _render_task_line(
+                1,
+                "[minecraft] Add dripstone farm overflow protection and sorter",
+                date(2026, 4, 4),
+                {"minecraft": "green"},
+                wrap_width=40,
+            )
+        )
+
+        self.assertEqual(
+            output.getvalue(),
+            "1. [minecraft] Add dripstone farm\n"
+            "   overflow protection and sorter\n"
+            "   (Sat, Apr 4th)\n",
+        )
+
+    def test_style_wrapped_task_line_dims_date_when_date_is_only_continuation_content(self) -> None:
+        styled = _style_wrapped_task_line(
+            "   (Sat, Apr 4th)",
+            "1. ",
+            " (Sat, Apr 4th)",
+            {"minecraft": "green"},
+        )
+
+        self.assertEqual(styled.plain, "   (Sat, Apr 4th)")
+        self.assertEqual(len(styled.spans), 2)
+        self.assertEqual(styled.spans[0].style, "dim")
+        self.assertEqual(styled.spans[0].start, 0)
+        self.assertEqual(styled.spans[0].end, 3)
+        self.assertEqual(styled.spans[1].style, "dim")
+        self.assertEqual(styled.spans[1].start, 3)
+        self.assertEqual(styled.spans[1].end, len(styled.plain))
 
     def test_build_tag_styles_assigns_distinct_colors_until_palette_runs_out(self) -> None:
         styles, updated, warnings = _build_tag_styles(

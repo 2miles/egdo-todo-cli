@@ -4,10 +4,11 @@ import argparse
 from datetime import date
 from pathlib import Path
 import sys
+import textwrap
 
 from egdo.config import CONFIG_PATH, load_config, save_config, write_config
 from egdo.store import add_note, add_task, complete_task, create_task, delete_task, list_tasks, tag_task
-from rich.console import Console
+from rich.console import Console, Group
 from rich.errors import StyleSyntaxError
 from rich.style import Style
 from rich.text import Text
@@ -16,7 +17,6 @@ from rich_argparse import RawDescriptionRichHelpFormatter
 console = Console()
 HEADER_DATE_STYLE = "bold cyan"
 SEPARATOR_STYLE = "dim"
-SEPARATOR_TEXT = "────────────────────────────────────────"
 
 ## Available colors: https://rich.readthedocs.io/en/stable/appendix/colors.html
 TAG_STYLES = (
@@ -163,16 +163,17 @@ def main(argv: list[str] | None = None) -> int:
             if updated:
                 config.tag_colors = tag_styles
                 save_config(config)
+            wrap_width = _task_wrap_width(console)
             console.print()
             console.print(_render_list_header(target_date))
-            console.print(Text(SEPARATOR_TEXT, style=SEPARATOR_STYLE))
+            console.print(_render_separator(wrap_width))
             for warning in warnings:
                 console.print(Text(warning, style="yellow"))
             if not tasks:
                 console.print(Text("No active tasks.", style="dim"))
                 return 0
             for idx, task in enumerate(tasks, start=1):
-                console.print(_render_task_line(idx, task.text, task.created, tag_styles))
+                console.print(_render_task_line(idx, task.text, task.created, tag_styles, wrap_width=wrap_width))
             return 0
 
         if args.command == "done":
@@ -218,19 +219,38 @@ def _render_list_header(target_date: date) -> Text:
     return header
 
 
+def _render_separator(width: int) -> Text:
+    return Text("─" * max(1, width), style=SEPARATOR_STYLE)
+
+
 def _render_task_line(
-    index: int, task_text: str, created: date, tag_styles: dict[str, str]
-) -> Text:
+    index: int, task_text: str, created: date, tag_styles: dict[str, str], wrap_width: int = 88
+) -> Group:
     tags, body = _split_leading_tags(task_text)
-    line = Text()
-    line.append(f"{index}. ", style="dim")
-    for tag in tags:
-        line.append(f"[{tag}]", style=tag_styles.get(tag.lower(), TAG_STYLES[0]))
-    if tags and body:
-        line.append(" ")
-    line.append(body, style="default")
-    line.append(f" ({_format_display_date(created)})", style="dim")
-    return line
+    label = "".join(f"[{tag}]" for tag in tags)
+    if label and body:
+        label = f"{label} {body}"
+    elif body:
+        label = body
+    date_text = f" ({_format_display_date(created)})"
+    initial_indent = f"{index}. "
+    subsequent_indent = " " * len(initial_indent)
+    wrapped_lines = textwrap.wrap(
+        label,
+        width=max(20, wrap_width),
+        initial_indent=initial_indent,
+        subsequent_indent=subsequent_indent,
+        break_long_words=False,
+        break_on_hyphens=False,
+    )
+    if not wrapped_lines:
+        wrapped_lines = [initial_indent.rstrip()]
+    available = max(0, max(20, wrap_width) - len(wrapped_lines[-1]))
+    if len(date_text) <= available:
+        wrapped_lines[-1] = f"{wrapped_lines[-1]}{date_text}"
+    else:
+        wrapped_lines.append(f"{subsequent_indent}{date_text.strip()}")
+    return Group(*[_style_wrapped_task_line(line, initial_indent, date_text, tag_styles) for line in wrapped_lines])
 
 
 def _split_leading_tags(task_text: str) -> tuple[list[str], str]:
@@ -246,6 +266,42 @@ def _split_leading_tags(task_text: str) -> tuple[list[str], str]:
         tags.append(tag)
         remaining = remaining[closing + 1 :]
     return tags, remaining.lstrip()
+
+
+def _style_wrapped_task_line(
+    line: str, initial_indent: str, date_text: str, tag_styles: dict[str, str]
+) -> Text:
+    if line.startswith(initial_indent):
+        prefix = initial_indent
+    else:
+        prefix = " " * len(initial_indent)
+
+    content = line[len(prefix) :]
+    date_suffix = ""
+    if content.endswith(date_text):
+        date_suffix = date_text
+        content = content[: -len(date_suffix)]
+    else:
+        stripped_date = date_text.strip()
+        if content == stripped_date:
+            date_suffix = stripped_date
+            content = ""
+
+    tags, body = _split_leading_tags(content)
+    styled = Text()
+    styled.append(prefix, style="dim")
+    for tag in tags:
+        styled.append(f"[{tag}]", style=tag_styles.get(tag.lower(), TAG_STYLES[0]))
+    if tags and body:
+        styled.append(" ")
+    styled.append(body, style="default")
+    if date_suffix:
+        styled.append(date_suffix, style="dim")
+    return styled
+
+
+def _task_wrap_width(current_console: Console) -> int:
+    return max(40, min(current_console.size.width, 96))
 
 
 def _build_tag_styles(
