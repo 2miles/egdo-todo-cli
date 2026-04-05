@@ -11,7 +11,7 @@ requires-python = ">=3.10"
 authors = [
   { name = "Miles" }
 ]
-dependencies = ["rich>=14,<15"]
+dependencies = ["rich>=14,<15", "rich-argparse>=1.7,<2"]
 
 [project.scripts]
 egdo = "egdo.cli:main"

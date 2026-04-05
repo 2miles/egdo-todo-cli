@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.errors import StyleSyntaxError
 from rich.style import Style
 from rich.text import Text
+from rich_argparse import RawDescriptionRichHelpFormatter
 
 console = Console()
 HEADER_DATE_STYLE = "bold cyan"
@@ -42,52 +43,38 @@ TAG_STYLES = (
     "pale_turquoise1",
 )
 
-
-class _EgdoArgumentParser(argparse.ArgumentParser):
-    def format_help(self) -> str:
-        help_text = super().format_help()
-        if self.prog == "egdo":
-            help_text = help_text.replace(
-                f"usage: {self.prog} [-h] {{init,add,list,done,delete,tag,note}} ...",
-                f"usage: {self.prog} [-h] COMMAND ...",
-                1,
-            )
-            help_text = help_text.replace("positional arguments:", "commands:")
-            help_text = help_text.replace("  {init,add,list,done,delete,tag,note}", "  COMMAND", 1)
-            if "options:" in help_text and "Run `egdo COMMAND --help`" not in help_text:
-                help_text = help_text.replace(
-                    "options:\n",
-                    "Run `egdo COMMAND --help` for command-specific usage.\n\noptions:\n",
-                    1,
-                )
-        return help_text
-
-
 def build_parser() -> argparse.ArgumentParser:
-    parser = _EgdoArgumentParser(
+    parser = argparse.ArgumentParser(
         prog="egdo",
-        description=(
-            "Manage a rolling markdown-backed todo list.\n\n"
-            "Common commands:\n"
-            "  egdo add \"[chores] Do laundry\"\n"
-            "  egdo add --done \"Call dad\"\n"
+        description="Manage a rolling markdown-backed todo list.",
+        epilog=(
+            "Examples:\n"
+            '  egdo add "Do laundry"\n'
+            '  egdo add --done "Call dad"\n'
             "  egdo list\n"
             "  egdo list --tag chores\n"
             "  egdo done 1\n"
             "  egdo delete 2\n"
             "  egdo tag 3 chores home\n"
-            '  egdo note "Need to test villager trading setup"'
+            '  egdo note "Need to test villager trading setup"\n\n'
+            "Run `egdo COMMAND --help` for command-specific usage."
         ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=RawDescriptionRichHelpFormatter,
     )
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(
+        title="commands",
+        dest="command",
+        metavar="COMMAND",
+        required=True,
+        parser_class=argparse.ArgumentParser,
+    )
 
     init_parser = subparsers.add_parser(
         "init",
         help="Create egdo config",
         description="Create the egdo config file that points at your notes directory.",
         epilog='Example:\n  egdo init --notes-root /Users/miles/Notes --todos-root egdo',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=RawDescriptionRichHelpFormatter,
     )
     init_parser.add_argument("--notes-root", required=True)
     init_parser.add_argument("--todos-root", default="egdo")
@@ -96,8 +83,8 @@ def build_parser() -> argparse.ArgumentParser:
         "add",
         help="Add a task",
         description="Add a task to today's rolling list.",
-        epilog='Examples:\n  egdo add "Buy milk"\n  egdo add "[chores] Do laundry"\n  egdo add --done "Call dad"',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='Examples:\n  egdo add "Buy milk"\n  egdo add "Do laundry"\n  egdo add --done "Call dad"',
+        formatter_class=RawDescriptionRichHelpFormatter,
     )
     add_parser.add_argument("text", help="Task text to add")
     add_parser.add_argument("--done", action="store_true", help="Create the task already completed")
@@ -107,7 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="List active tasks",
         description="List today's active tasks. Use --tag to filter by leading bracket tags.",
         epilog='Examples:\n  egdo list\n  egdo list --tag chores',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=RawDescriptionRichHelpFormatter,
     )
     list_parser.add_argument("--tag", help="Show only tasks with this leading bracket tag")
 
@@ -116,7 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Complete a task",
         description="Mark a task complete using the index shown by `egdo list`.",
         epilog="Example:\n  egdo done 1",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=RawDescriptionRichHelpFormatter,
     )
     done_parser.add_argument("index", type=int, help="Task number from `egdo list`")
 
@@ -125,7 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Delete a task",
         description="Delete a task using the index shown by `egdo list`.",
         epilog="Example:\n  egdo delete 2",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=RawDescriptionRichHelpFormatter,
     )
     delete_parser.add_argument("index", type=int, help="Task number from `egdo list`")
 
@@ -134,7 +121,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Add tag(s) to a task",
         description="Add one or more leading bracket tags to a task using the index shown by `egdo list`.",
         epilog="Example:\n  egdo tag 3 chores home",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=RawDescriptionRichHelpFormatter,
     )
     tag_parser.add_argument("index", type=int, help="Task number from `egdo list`")
     tag_parser.add_argument("tags", nargs="+", help="One or more tags to add")
@@ -144,7 +131,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Add a note for today",
         description="Append a note to today's Notes section.",
         epilog='Example:\n  egdo note "Need to test villager trading setup"',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        formatter_class=RawDescriptionRichHelpFormatter,
     )
     note_parser.add_argument("text", help="Note text to append")
 
