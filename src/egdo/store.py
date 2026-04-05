@@ -188,6 +188,23 @@ def complete_task(notes_dir: Path, target_date: date, index: int) -> Task:
     raise RuntimeError("Active task disappeared before completion")
 
 
+def delete_task(notes_dir: Path, target_date: date, index: int) -> Task:
+    rollover(notes_dir, target_date)
+    path = file_path(notes_dir, target_date)
+    state = ensure_state(path)
+    active = [task for task in state.tasks if not task.done]
+    if index < 1 or index > len(active):
+        raise IndexError(f"Task index {index} is out of range")
+
+    selected_key = active[index - 1].key()
+    for idx, task in enumerate(state.tasks):
+        if task.key() == selected_key and not task.done:
+            removed = state.tasks.pop(idx)
+            write_state(path, state)
+            return removed
+    raise RuntimeError("Active task disappeared before deletion")
+
+
 def rollover(notes_dir: Path, target_date: date) -> None:
     target_path = file_path(notes_dir, target_date)
     target_state = ensure_state(target_path)

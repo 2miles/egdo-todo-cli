@@ -13,6 +13,7 @@ from egdo.store import (
     SECTION_START,
     add_task,
     complete_task,
+    delete_task,
     ensure_state,
     file_path,
     list_tasks,
@@ -128,6 +129,29 @@ class StoreTests(unittest.TestCase):
             completed = {task.text: task.completed for task in state.tasks}
             self.assertIsNone(completed["Buy milk"])
             self.assertEqual(completed["Ship box"], date(2026, 4, 4))
+
+    def test_delete_removes_task_from_current_file(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            add_task(notes_dir, date(2026, 4, 3), "Buy milk")
+            add_task(notes_dir, date(2026, 4, 3), "Ship box")
+
+            task = delete_task(notes_dir, date(2026, 4, 3), 1)
+
+            self.assertEqual(task.text, "Buy milk")
+            tasks = list_tasks(notes_dir, date(2026, 4, 3))
+            self.assertEqual([remaining.text for remaining in tasks], ["Ship box"])
+
+    def test_delete_uses_current_day_active_index(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            add_task(notes_dir, date(2026, 4, 3), "Buy milk")
+            add_task(notes_dir, date(2026, 4, 4), "Ship box")
+
+            delete_task(notes_dir, date(2026, 4, 4), 2)
+
+            state = ensure_state(file_path(notes_dir, date(2026, 4, 4)))
+            self.assertEqual([task.text for task in state.tasks], ["Buy milk"])
 
     def test_manual_edit_inside_section_remains_parseable(self) -> None:
         with TemporaryDirectory() as tmp:

@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 
 from egdo.config import CONFIG_PATH, load_config, save_config, write_config
-from egdo.store import add_task, complete_task, file_path, list_tasks
+from egdo.store import add_task, complete_task, delete_task, list_tasks
 from rich.console import Console
 from rich.errors import StyleSyntaxError
 from rich.style import Style
@@ -60,6 +60,9 @@ def build_parser() -> argparse.ArgumentParser:
     done_parser = subparsers.add_parser("done", help="Complete a task")
     done_parser.add_argument("index", type=int)
 
+    delete_parser = subparsers.add_parser("delete", help="Delete a task")
+    delete_parser.add_argument("index", type=int)
+
     return parser
 
 
@@ -102,6 +105,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "done":
             task = complete_task(config.notes_dir, target_date, args.index)
             console.print(f"Completed [{target_date.isoformat()}] {task.text}")
+            return 0
+
+        if args.command == "delete":
+            task = delete_task(config.notes_dir, target_date, args.index)
+            console.print(f"Deleted [{target_date.isoformat()}] {task.text}")
             return 0
     except Exception as exc:  # noqa: BLE001
         print(str(exc), file=sys.stderr)
