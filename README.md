@@ -26,7 +26,6 @@ Most CLI todo tools either hide data behind a database or assume the app is the 
 - One daily file per date
 - Per-month folder layout
 - Automatic carry-forward for unfinished tasks
-- Completion timestamps
 - Human-editable files with metadata normalization for manual checklist entries
 - Minimal CLI with `add`, `list`, `done`, `delete`, `tag`, and `init`
 
@@ -180,7 +179,6 @@ Behavior:
 
 - uses today by default
 - completes by the numeric index shown in `egdo list`
-- stamps the task with the completion date
 - keeps the completed task in that day’s file as part of the archive
 
 ### `egdo delete`
@@ -243,20 +241,17 @@ Meeting notes and other freeform writing.
 <!-- EGDO:START -->
 
 - [ ] [chores] Buy milk
-  - created: 2026-04-03
-  - completed:
+  - 2026-04-03
 
 - [x] Ship package
-  - created: 2026-04-02
-  - completed: 2026-04-03
+  - 2026-04-02
 
 <!-- EGDO:END -->
 ```
 
 Field meanings:
 
-- `created`: the date the task was originally created
-- `completed`: the date the task was completed, blank until done
+- indented ISO date line: the date the task was originally created
 
 Tag convention:
 
@@ -309,8 +304,7 @@ You should avoid:
 
 Notes on normalization:
 
-- if a manual open task is missing `created`, `egdo` fills it from the file date
-- if a manual completed task is missing `completed`, `egdo` fills it from the file date
+- if a manual open task is missing its date line, `egdo` fills it from the file date
 - if a task already has metadata, `egdo` preserves it unless another command changes task state
 
 ## Configuration

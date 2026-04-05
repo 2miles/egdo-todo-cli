@@ -113,10 +113,10 @@ class StoreTests(unittest.TestCase):
 
             task = complete_task(notes_dir, date(2026, 4, 4), 1)
 
-            self.assertEqual(task.completed, date(2026, 4, 4))
+            self.assertTrue(task.done)
             content = file_path(notes_dir, date(2026, 4, 4)).read_text(encoding="utf-8")
             self.assertIn("- [x] [chores] Buy milk", content)
-            self.assertIn("completed: 2026-04-04", content)
+            self.assertNotIn("completed:", content)
 
     def test_done_uses_current_day_active_index(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -127,9 +127,9 @@ class StoreTests(unittest.TestCase):
             complete_task(notes_dir, date(2026, 4, 4), 2)
 
             state = ensure_state(file_path(notes_dir, date(2026, 4, 4)))
-            completed = {task.text: task.completed for task in state.tasks}
-            self.assertIsNone(completed["Buy milk"])
-            self.assertEqual(completed["Ship box"], date(2026, 4, 4))
+            done_state = {task.text: task.done for task in state.tasks}
+            self.assertFalse(done_state["Buy milk"])
+            self.assertTrue(done_state["Ship box"])
 
     def test_delete_removes_task_from_current_file(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -215,9 +215,10 @@ class StoreTests(unittest.TestCase):
 
             self.assertEqual([task.text for task in tasks], ["Manual task"])
             content = path.read_text(encoding="utf-8")
-            self.assertIn("created: 2026-04-03", content)
-            self.assertIn("completed:", content)
-    def test_manual_completed_task_without_completed_date_is_normalized(self) -> None:
+            self.assertIn("  - 2026-04-03", content)
+            self.assertNotIn("completed:", content)
+
+    def test_manual_completed_task_without_metadata_is_parseable(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
             target_date = date(2026, 4, 3)
@@ -243,8 +244,8 @@ class StoreTests(unittest.TestCase):
             self.assertEqual(tasks, [])
             state = ensure_state(path)
             self.assertEqual(len(state.tasks), 1)
-            self.assertEqual(state.tasks[0].completed, target_date)
             self.assertEqual(state.tasks[0].created, target_date)
+            self.assertTrue(state.tasks[0].done)
 
     def test_managed_heading_is_not_duplicated_on_rewrite(self) -> None:
         with TemporaryDirectory() as tmp:

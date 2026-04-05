@@ -14,11 +14,7 @@ SECTION_END = "<!-- EGDO:END -->"
 class Task:
     text: str
     created: date
-    completed: date | None
-
-    @property
-    def done(self) -> bool:
-        return self.completed is not None
+    done: bool
 
     @property
     def tags(self) -> tuple[str, ...]:
@@ -53,21 +49,17 @@ def parse_task_block(lines: list[str], default_date: date | None) -> tuple[Task,
     else:
         text = first[len("- [ ] ") :]
 
-    metadata: dict[str, str] = {}
+    created = None
     for line in lines[1:]:
         stripped = line.strip()
         if not stripped.startswith("- "):
             continue
         payload = stripped[2:]
-        if ":" not in payload:
-            continue
-        key, value = payload.split(":", 1)
-        metadata[key.strip()] = value.strip()
+        parsed_date = _parse_date(payload)
+        if parsed_date is not None:
+            created = parsed_date
 
     normalized = False
-
-    created = _parse_date(metadata.get("created"))
-    completed = _parse_date(metadata.get("completed"))
 
     if created is None:
         if default_date is None:
@@ -75,15 +67,7 @@ def parse_task_block(lines: list[str], default_date: date | None) -> tuple[Task,
         created = default_date
         normalized = True
 
-    if done and completed is None:
-        if default_date is None:
-            raise ValueError(f"Completed task is missing completion date: {lines}")
-        completed = default_date
-        normalized = True
-    if not done:
-        completed = None
-
-    return Task(text=text, created=created, completed=completed), normalized
+    return Task(text=text, created=created, done=done), normalized
 
 
 def parse_file(content: str, default_date: date | None = None) -> FileState:
@@ -152,7 +136,7 @@ def add_task(notes_dir: Path, target_date: date, text: str) -> Task:
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
-    task = Task(text=text, created=target_date, completed=None)
+    task = Task(text=text, created=target_date, done=False)
     state.tasks.append(task)
     write_state(path, state)
     return task
@@ -182,7 +166,7 @@ def complete_task(notes_dir: Path, target_date: date, index: int) -> Task:
     selected_key = active[index - 1].key()
     for task in state.tasks:
         if task.key() == selected_key and not task.done:
-            task.completed = target_date
+            task.done = True
             write_state(path, state)
             return task
     raise RuntimeError("Active task disappeared before completion")
@@ -257,7 +241,7 @@ def rollover(notes_dir: Path, target_date: date) -> None:
                 Task(
                     text=task.text,
                     created=task.created,
-                    completed=None,
+                    done=False,
                 )
             )
 
@@ -309,12 +293,10 @@ def _render_section(tasks: Iterable[Task]) -> str:
 
 def _render_task(task: Task) -> str:
     status = "x" if task.done else " "
-    completed = task.completed.isoformat() if task.completed else ""
     return "\n".join(
         [
             f"- [{status}] {task.text}",
-            f"  - created: {task.created.isoformat()}",
-            f"  - completed: {completed}",
+            f"  - {task.created.isoformat()}",
         ]
     )
 
