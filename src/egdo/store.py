@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
-from typing import Iterable
+import re
 
-SECTION_HEADING = "## Egdo"
-SECTION_START = "<!-- EGDO:START -->"
-SECTION_END = "<!-- EGDO:END -->"
+DAY_HEADER_RE = re.compile(r"^## ([A-Za-z]{3})-(\d{2}) ([A-Za-z]{3})$")
+TASK_LINE_RE = re.compile(r"^- \[( |x)\] (.*?)(?: \((\d{2}-\d{2})\))?$")
+MONTH_FILE_RE = re.compile(r"^(\d{4})_(\d{2})_([a-z]{3})$")
+TASKS_HEADING = "### Tasks"
+NOTES_HEADING = "### Notes"
 
 
 @dataclass(slots=True)
@@ -25,130 +27,135 @@ class Task:
 
 
 @dataclass(slots=True)
+class DayState:
+    tasks: list[Task] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class FileState:
     prefix: str
-    tasks: list[Task]
-    suffix: str
+    days: dict[date, DayState]
     normalized: bool = False
 
 
 def file_path(notes_dir: Path, target_date: date) -> Path:
-    return notes_dir / f"{target_date:%Y}" / f"{target_date:%m}" / f"{target_date:%Y-%m-%d}.md"
+    month_name = target_date.strftime("%b").lower()
+    return notes_dir / f"{target_date:%Y}" / f"{target_date:%Y_%m}_{month_name}.md"
 
 
-def parse_task_block(lines: list[str], default_date: date | None) -> tuple[Task, bool]:
-    if not lines:
-        raise ValueError("Empty task block")
-    first = lines[0]
-    if not first.startswith("- ["):
-        raise ValueError(f"Invalid task line: {first}")
+def parse_file(content: str, default_year: int | None = None) -> FileState:
+    lines = content.splitlines()
+    prefix_lines: list[str] = []
+    days: dict[date, DayState] = {}
+    current_date: date | None = None
+    current_day: DayState | None = None
+    section: str | None = None
 
-    done = first.startswith("- [x] ")
-    if done:
-        text = first[len("- [x] ") :]
-    else:
-        text = first[len("- [ ] ") :]
-
-    created = None
-    for line in lines[1:]:
-        stripped = line.strip()
-        if not stripped.startswith("- "):
-            continue
-        payload = stripped[2:]
-        parsed_date = _parse_date(payload)
-        if parsed_date is not None:
-            created = parsed_date
-
-    normalized = False
-
-    if created is None:
-        if default_date is None:
-            raise ValueError(f"Task is missing required created date: {lines}")
-        created = default_date
-        normalized = True
-
-    return Task(text=text, created=created, done=done), normalized
-
-
-def parse_file(content: str, default_date: date | None = None) -> FileState:
-    if SECTION_START not in content or SECTION_END not in content:
-        return FileState(prefix=content, tasks=[], suffix="", normalized=False)
-
-    start = content.index(SECTION_START)
-    end = content.index(SECTION_END)
-    if end < start:
-        raise ValueError("Invalid egdo markers")
-
-    prefix = _strip_managed_heading(content[:start])
-    section = content[start + len(SECTION_START) : end]
-    suffix = content[end + len(SECTION_END) :]
-
-    lines = [line.rstrip("\n") for line in section.splitlines()]
-    tasks: list[Task] = []
-    normalized = False
-    current: list[str] = []
     for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            if current:
-                task, task_normalized = parse_task_block(current, default_date)
-                tasks.append(task)
-                normalized = normalized or task_normalized
-                current = []
+        header = DAY_HEADER_RE.match(line)
+        if header:
+            if default_year is None:
+                raise ValueError("Month file year is required to parse day headers")
+            month = datetime.strptime(header.group(1), "%b").month
+            day_of_month = int(header.group(2))
+            current_date = date(default_year, month, day_of_month)
+            current_day = days.setdefault(current_date, DayState())
+            section = None
             continue
-        if line.startswith("- ["):
-            if current:
-                task, task_normalized = parse_task_block(current, default_date)
-                tasks.append(task)
-                normalized = normalized or task_normalized
-            current = [line]
-        elif current:
-            current.append(line)
-    if current:
-        task, task_normalized = parse_task_block(current, default_date)
-        tasks.append(task)
-        normalized = normalized or task_normalized
 
-    return FileState(prefix=prefix, tasks=tasks, suffix=suffix, normalized=normalized)
+        if current_day is None:
+            prefix_lines.append(line)
+            continue
+
+        if line == TASKS_HEADING:
+            section = "tasks"
+            continue
+        if line == NOTES_HEADING:
+            section = "notes"
+            continue
+
+        if section == "tasks":
+            if not line.strip():
+                continue
+            current_day.tasks.append(_parse_task_line(line, current_date))
+            continue
+
+        if section == "notes":
+            current_day.notes.append(line)
+            continue
+
+    return FileState(prefix="\n".join(prefix_lines), days=days, normalized=False)
 
 
 def render_file(state: FileState) -> str:
-    section = _render_section(state.tasks)
-    if SECTION_START in state.prefix or SECTION_END in state.suffix:
-        raise ValueError("Unexpected marker duplication")
-    if not state.prefix:
-        return section
-    return f"{state.prefix.rstrip()}\n\n{section}{state.suffix}"
+    sections: list[str] = []
+    prefix = state.prefix.strip()
+    if prefix:
+        sections.append(prefix)
+
+    populated_days = [
+        day_date
+        for day_date, day in state.days.items()
+        if day.tasks or _notes_have_content(day.notes)
+    ]
+    if populated_days:
+        for day_date in _day_range(min(populated_days), max(populated_days)):
+            day = state.days.get(day_date, DayState())
+            sections.append(_render_day(day_date, day))
+
+    if not sections:
+        return ""
+    return "\n\n".join(sections).rstrip() + "\n"
 
 
 def ensure_state(path: Path) -> FileState:
     if not path.exists():
-        return FileState(prefix="", tasks=[], suffix="")
-    return parse_file(path.read_text(encoding="utf-8"), default_date=_file_date_from_path(path))
+        return FileState(prefix="", days={})
+    return parse_file(path.read_text(encoding="utf-8"), default_year=_file_year_from_path(path))
 
 
 def write_state(path: Path, state: FileState) -> None:
+    if not state.prefix.strip():
+        state = FileState(prefix=_default_month_header(path), days=state.days, normalized=state.normalized)
+    content = render_file(state)
+    if not content:
+        if path.exists():
+            path.unlink()
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_file(state), encoding="utf-8")
+    path.write_text(content, encoding="utf-8")
 
 
 def add_task(notes_dir: Path, target_date: date, text: str) -> Task:
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
+    day = state.days.setdefault(target_date, DayState())
     task = Task(text=text, created=target_date, done=False)
-    state.tasks.append(task)
+    day.tasks.append(task)
     write_state(path, state)
     return task
 
 
-def list_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> list[Task]:
-    rollover(notes_dir, target_date)
+def add_note(notes_dir: Path, target_date: date, text: str) -> list[str]:
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
-    if state.normalized:
-        write_state(path, state)
-    tasks = [task for task in state.tasks if not task.done]
+    day = state.days.setdefault(target_date, DayState())
+    if day.notes and day.notes[-1].strip():
+        day.notes.append("")
+    day.notes.extend(text.splitlines() or [""])
+    write_state(path, state)
+    return day.notes
+
+
+def list_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> list[Task]:
+    rollover(notes_dir, target_date)
+    state = ensure_state(file_path(notes_dir, target_date))
+    day = state.days.get(target_date)
+    if day is None:
+        return []
+    tasks = [task for task in day.tasks if not task.done]
     if tag is None:
         return tasks
     normalized_tag = tag.strip().lower()
@@ -159,12 +166,13 @@ def complete_task(notes_dir: Path, target_date: date, index: int) -> Task:
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
-    active = [task for task in state.tasks if not task.done]
+    day = state.days.setdefault(target_date, DayState())
+    active = [task for task in day.tasks if not task.done]
     if index < 1 or index > len(active):
         raise IndexError(f"Task index {index} is out of range")
 
     selected_key = active[index - 1].key()
-    for task in state.tasks:
+    for task in day.tasks:
         if task.key() == selected_key and not task.done:
             task.done = True
             write_state(path, state)
@@ -176,14 +184,15 @@ def delete_task(notes_dir: Path, target_date: date, index: int) -> Task:
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
-    active = [task for task in state.tasks if not task.done]
+    day = state.days.setdefault(target_date, DayState())
+    active = [task for task in day.tasks if not task.done]
     if index < 1 or index > len(active):
         raise IndexError(f"Task index {index} is out of range")
 
     selected_key = active[index - 1].key()
-    for idx, task in enumerate(state.tasks):
+    for idx, task in enumerate(day.tasks):
         if task.key() == selected_key and not task.done:
-            removed = state.tasks.pop(idx)
+            removed = day.tasks.pop(idx)
             write_state(path, state)
             return removed
     raise RuntimeError("Active task disappeared before deletion")
@@ -193,7 +202,8 @@ def tag_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) ->
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
-    active = [task for task in state.tasks if not task.done]
+    day = state.days.setdefault(target_date, DayState())
+    active = [task for task in day.tasks if not task.done]
     if index < 1 or index > len(active):
         raise IndexError(f"Task index {index} is out of range")
 
@@ -202,7 +212,7 @@ def tag_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) ->
     if not normalized_tags:
         raise ValueError("At least one non-empty tag is required")
 
-    for task in state.tasks:
+    for task in day.tasks:
         if task.key() == selected_key and not task.done:
             existing_tags, body = _split_leading_tags_and_body(task.text)
             merged_tags = list(existing_tags)
@@ -218,93 +228,130 @@ def tag_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) ->
 def rollover(notes_dir: Path, target_date: date) -> None:
     target_path = file_path(notes_dir, target_date)
     target_state = ensure_state(target_path)
-    if any(not task.done for task in target_state.tasks):
+    target_day = target_state.days.get(target_date)
+    if target_day is not None and any(not task.done for task in target_day.tasks):
         return
 
-    previous_path = _find_latest_prior_file(notes_dir, target_date)
-    if previous_path is None:
-        if target_path.exists() or target_state.tasks:
-            write_state(target_path, target_state)
+    prior = _find_latest_prior_day(notes_dir, target_date)
+    if prior is None:
+        return
+    previous_path, previous_date = prior
+    if previous_path == target_path:
+        state = target_state
+        previous_day = state.days[previous_date]
+        day = state.days.setdefault(target_date, DayState())
+        carry = [task for task in previous_day.tasks if not task.done]
+        if not carry:
+            return
+        existing_keys = {task.key() for task in day.tasks}
+        for task in carry:
+            if task.key() not in existing_keys:
+                day.tasks.append(Task(text=task.text, created=task.created, done=False))
+        previous_day.tasks = [task for task in previous_day.tasks if task.done]
+        write_state(target_path, state)
         return
 
     previous_state = ensure_state(previous_path)
-    carry = [task for task in previous_state.tasks if not task.done]
+    previous_day = previous_state.days[previous_date]
+    carry = [task for task in previous_day.tasks if not task.done]
     if not carry:
-        if target_path.exists() or target_state.tasks:
-            write_state(target_path, target_state)
         return
 
-    existing_keys = {task.key() for task in target_state.tasks}
+    day = target_state.days.setdefault(target_date, DayState())
+    existing_keys = {task.key() for task in day.tasks}
     for task in carry:
         if task.key() not in existing_keys:
-            target_state.tasks.append(
-                Task(
-                    text=task.text,
-                    created=task.created,
-                    done=False,
-                )
-            )
+            day.tasks.append(Task(text=task.text, created=task.created, done=False))
 
-    previous_state.tasks = [task for task in previous_state.tasks if task.done]
+    previous_day.tasks = [task for task in previous_day.tasks if task.done]
     write_state(previous_path, previous_state)
     write_state(target_path, target_state)
 
 
-def _find_latest_prior_file(notes_dir: Path, target_date: date) -> Path | None:
+def _find_latest_prior_day(notes_dir: Path, target_date: date) -> tuple[Path, date] | None:
     if not notes_dir.exists():
         return None
 
-    candidates: list[Path] = []
+    latest: tuple[Path, date] | None = None
     for path in notes_dir.rglob("*.md"):
-        try:
-            file_date = datetime.strptime(path.stem, "%Y-%m-%d").date()
-        except ValueError:
+        if not _is_month_file(path):
             continue
-        if file_date < target_date:
-            candidates.append(path)
-    if not candidates:
+        state = ensure_state(path)
+        for day_date, day in state.days.items():
+            if day_date >= target_date:
+                continue
+            if not any(not task.done for task in day.tasks):
+                continue
+            if latest is None or day_date > latest[1]:
+                latest = (path, day_date)
+    return latest
+
+
+def _is_month_file(path: Path) -> bool:
+    return MONTH_FILE_RE.match(path.stem) is not None
+
+
+def _file_year_from_path(path: Path) -> int | None:
+    match = MONTH_FILE_RE.match(path.stem)
+    if match is None:
         return None
-    return max(candidates, key=lambda path: path.stem)
+    return int(match.group(1))
 
 
-def _file_date_from_path(path: Path) -> date | None:
-    try:
-        return datetime.strptime(path.stem, "%Y-%m-%d").date()
-    except ValueError:
-        return None
+def _default_month_header(path: Path) -> str:
+    match = MONTH_FILE_RE.match(path.stem)
+    if match is None:
+        return ""
+    return f"# {path.stem}"
 
 
-def _strip_managed_heading(prefix: str) -> str:
-    stripped = prefix.rstrip()
-    if not stripped.endswith(SECTION_HEADING):
-        return prefix
-    heading_start = stripped.rfind(SECTION_HEADING)
-    return stripped[:heading_start].rstrip()
-
-
-def _render_section(tasks: Iterable[Task]) -> str:
-    blocks = "\n\n".join(_render_task(task) for task in tasks)
-    if blocks:
-        blocks = f"\n\n{blocks}\n"
-    else:
-        blocks = "\n"
-    return f"{SECTION_HEADING}\n{SECTION_START}{blocks}{SECTION_END}\n"
+def _render_day(day_date: date, day: DayState) -> str:
+    lines = [f"## {day_date:%b-%d} {day_date.strftime('%a')}"]
+    if day.tasks:
+        lines.extend(["", TASKS_HEADING, ""])
+        lines.extend(_render_task(task) for task in day.tasks)
+    if _notes_have_content(day.notes):
+        lines.extend(["", NOTES_HEADING, ""])
+        lines.extend(day.notes)
+    return "\n".join(lines).rstrip()
 
 
 def _render_task(task: Task) -> str:
     status = "x" if task.done else " "
-    return "\n".join(
-        [
-            f"- [{status}] {task.text}",
-            f"  - {task.created.isoformat()}",
-        ]
-    )
+    return f"- [{status}] {task.text} ({task.created:%m-%d})"
 
 
-def _parse_date(value: str | None) -> date | None:
-    if not value:
-        return None
-    return date.fromisoformat(value)
+def _parse_task_line(line: str, section_date: date) -> Task:
+    match = TASK_LINE_RE.match(line)
+    if match is None:
+        raise ValueError(f"Invalid task line: {line}")
+    done = match.group(1) == "x"
+    text = match.group(2)
+    date_token = match.group(3)
+    created = _parse_compact_date(date_token, section_date) if date_token else section_date
+    return Task(text=text, created=created, done=done)
+
+
+def _parse_compact_date(value: str, section_date: date) -> date:
+    month = int(value[:2])
+    day = int(value[3:5])
+    candidate = date(section_date.year, month, day)
+    if candidate > section_date:
+        return date(section_date.year - 1, month, day)
+    return candidate
+
+
+def _notes_have_content(lines: list[str]) -> bool:
+    return any(line.strip() for line in lines)
+
+
+def _day_range(start: date, end: date) -> list[date]:
+    dates: list[date] = []
+    current = start
+    while current <= end:
+        dates.append(current)
+        current = current.fromordinal(current.toordinal() + 1)
+    return dates
 
 
 def _parse_leading_tags(text: str) -> tuple[str, ...]:

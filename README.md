@@ -1,12 +1,14 @@
 # egdo
 
-`egdo` is a Python CLI todo manager that stores tasks in markdown files inside a notes directory.
+`egdo` is a Python CLI todo manager that stores tasks and notes in monthly markdown files inside a notes directory.
 
 The model is simple:
 
-- each day has its own markdown file
+- each month has its own markdown file
+- each day is a section inside that month file
 - unfinished tasks move forward to the next day when you first access it
-- completed tasks stay in the file where you completed them
+- completed tasks stay on the day where you completed them
+- notes live alongside tasks for the same day
 - everything stays readable and editable by hand
 
 That gives you a working todo list and a historical archive at the same time.
@@ -23,11 +25,12 @@ Most CLI todo tools either hide data behind a database or assume the app is the 
 ## Features
 
 - Markdown-backed storage
-- One daily file per date
-- Per-month folder layout
+- One monthly file per month
+- Per-day sections inside each month file
 - Automatic carry-forward for unfinished tasks
+- Daily notes stored in the same file
 - Human-editable files with metadata normalization for manual checklist entries
-- Minimal CLI with `add`, `list`, `done`, `delete`, `tag`, and `init`
+- Minimal CLI with `add`, `list`, `done`, `delete`, `tag`, `note`, and `init`
 
 ## Installation
 
@@ -103,6 +106,12 @@ Add tags to a task:
 egdo tag 3 chores home
 ```
 
+Add a note for today:
+
+```bash
+egdo note "Need to test villager trading setup"
+```
+
 ## Commands
 
 ### `egdo init`
@@ -122,7 +131,7 @@ egdo init --notes-root /path/to/your/notes --todos-root egdo
 Arguments:
 
 - `--notes-root` required absolute or user-relative path to your notes directory
-- `--todos-root` path inside the notes directory where `egdo` stores daily files, default: `egdo`
+- `--todos-root` path inside the notes directory where `egdo` stores monthly files, default: `egdo`
 
 ### `egdo add`
 
@@ -137,7 +146,7 @@ egdo add "[personal][chores][home] Do the dishes"
 Behavior:
 
 - uses today by default
-- creates the daily file if it does not exist
+- creates the monthly file and day section if they do not exist
 - first performs rollover for unfinished tasks from the most recent earlier day
 - preserves any leading bracket tags as plain text in the task body
 
@@ -211,47 +220,67 @@ Behavior:
 - stores tags as leading bracket groups such as `[chores][home]`
 - ignores duplicate tags and normalizes tag names to lowercase
 
+### `egdo note`
+
+Appends a note to today’s Notes section.
+
+```bash
+egdo note "Need to test villager trading setup"
+```
+
+Behavior:
+
+- uses today by default
+- creates the monthly file and day section if they do not exist
+- appends each new note as a new paragraph in that day’s Notes section
+
 ## File Layout
 
 `egdo` stores files by year and month:
 
 ```text
-<notes-root>/<todos-root>/YYYY/MM/YYYY-MM-DD.md
+<notes-root>/<todos-root>/YYYY/YYYY_MM_mon.md
 ```
 
 Example:
 
 ```text
-/path/to/your/notes/egdo/2026/04/2026-04-03.md
+/path/to/your/notes/egdo/2026/2026_04_apr.md
 ```
 
 ## Markdown Format
 
-`egdo` only manages a dedicated section inside the file, so you can keep other notes above or below it.
+`egdo` stores each day as a section inside the month file.
 
-Example daily file:
+Example month file:
 
 ```markdown
-# Daily Note
+# 2026_04_apr
 
-Meeting notes and other freeform writing.
+## Apr-04 Sat
 
-## Egdo
+### Tasks
 
-<!-- EGDO:START -->
+- [x] [minecraft] Add sorter overflow protection (04-04)
+- [x] [chores] Do laundry (04-04)
 
-- [ ] [chores] Buy milk
-  - 2026-04-03
+### Notes
 
-- [x] Ship package
-  - 2026-04-02
+Need to test villager trading setup.
 
-<!-- EGDO:END -->
+## Apr-05 Sun
+
+## Apr-06 Mon
+
+### Tasks
+
+- [ ] [chores] Buy milk (04-04)
+- [ ] [home] Fix shelf (04-05)
 ```
 
 Field meanings:
 
-- indented ISO date line: the date the task was originally created
+- trailing `(MM-DD)`: the date the task originally entered the system
 
 Tag convention:
 
@@ -272,11 +301,11 @@ or:
 - [x] Paid invoice
 ```
 
-On first `egdo list`, `egdo add`, or any other command that reads and rewrites that file, `egdo` will normalize the item into the full metadata form using the file date.
+On first `egdo list`, `egdo add`, or any other command that reads and rewrites that file, `egdo` will normalize the item into the standard one-line task form using the day section date.
 
 ## Carry-Forward Behavior
 
-When you access a new day with `add` or `list`, `egdo` looks for the most recent earlier daily file and moves any unfinished tasks into the current day.
+When you access a new day with `add`, `list`, `done`, `delete`, or `tag`, `egdo` looks for the most recent earlier day section and moves any unfinished tasks into the current day.
 
 That means:
 
@@ -292,20 +321,20 @@ Manual editing is expected.
 
 You can safely:
 
-- change task text in the managed section
-- add simple checklist items inside the managed section without metadata
-- add notes outside the managed section
+- change task text inside a day’s Tasks section
+- add simple checklist items inside a Tasks section
+- edit or add text inside a day’s Notes section
 - open and edit the files directly in Obsidian
 
 You should avoid:
 
-- deleting the `<!-- EGDO:START -->` or `<!-- EGDO:END -->` markers
-- changing date formats away from `YYYY-MM-DD`
+- changing the `## Apr-05 Sun` day header format
+- changing task date suffixes away from `MM-DD`
 
 Notes on normalization:
 
-- if a manual open task is missing its date line, `egdo` fills it from the file date
-- if a task already has metadata, `egdo` preserves it unless another command changes task state
+- if a manual task is missing its trailing `(MM-DD)` date, `egdo` fills it from the day section date
+- if a task already has a valid trailing `(MM-DD)` date, `egdo` preserves it unless another command changes task state
 
 ## Configuration
 
@@ -316,7 +345,7 @@ notes_root = "/path/to/your/notes"
 todos_root = "egdo"
 ```
 
-`notes_root` points at your notes directory. `todos_root` is the directory inside that notes directory where `egdo` writes daily files.
+`notes_root` points at your notes directory. `todos_root` is the directory inside that notes directory where `egdo` writes monthly files.
 
 ### Tag Colors
 
@@ -373,12 +402,13 @@ Version 1 intentionally keeps the surface area small:
 - `done`
 - `delete`
 - `tag`
+- `note`
 
 Not included yet:
 
 - task editing from the CLI
 - archive commands
-- priorities or tags
+- priorities
 - recurring tasks
 - search or reporting
 
