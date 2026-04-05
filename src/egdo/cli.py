@@ -43,25 +43,86 @@ TAG_STYLES = (
 )
 
 
+class _EgdoArgumentParser(argparse.ArgumentParser):
+    def format_help(self) -> str:
+        help_text = super().format_help()
+        help_text = help_text.replace(
+            f"usage: {self.prog} [-h] {{init,add,list,done,delete}} ...",
+            f"usage: {self.prog} [-h] COMMAND ...",
+            1,
+        )
+        help_text = help_text.replace("positional arguments:", "commands:")
+        help_text = help_text.replace("  {init,add,list,done,delete}", "  COMMAND", 1)
+        if "options:" in help_text and "Run `egdo COMMAND --help`" not in help_text:
+            help_text = help_text.replace(
+                "options:\n",
+                "Run `egdo COMMAND --help` for command-specific usage.\n\noptions:\n",
+                1,
+            )
+        return help_text
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="egdo")
+    parser = _EgdoArgumentParser(
+        prog="egdo",
+        description=(
+            "Manage a rolling markdown-backed todo list.\n\n"
+            "Common commands:\n"
+            "  egdo add \"[chores] Do laundry\"\n"
+            "  egdo list\n"
+            "  egdo list --tag chores\n"
+            "  egdo done 1\n"
+            "  egdo delete 2"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    init_parser = subparsers.add_parser("init", help="Create egdo config")
+    init_parser = subparsers.add_parser(
+        "init",
+        help="Create egdo config",
+        description="Create the egdo config file that points at your notes directory.",
+        epilog='Example:\n  egdo init --notes-root /Users/miles/Notes --todos-root egdo',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     init_parser.add_argument("--notes-root", required=True)
     init_parser.add_argument("--todos-root", default="egdo")
 
-    add_parser = subparsers.add_parser("add", help="Add a task")
-    add_parser.add_argument("text")
+    add_parser = subparsers.add_parser(
+        "add",
+        help="Add a task",
+        description="Add a task to today's rolling list.",
+        epilog='Examples:\n  egdo add "Buy milk"\n  egdo add "[chores] Do laundry"',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    add_parser.add_argument("text", help="Task text to add")
 
-    list_parser = subparsers.add_parser("list", help="List active tasks")
-    list_parser.add_argument("--tag")
+    list_parser = subparsers.add_parser(
+        "list",
+        help="List active tasks",
+        description="List today's active tasks. Use --tag to filter by leading bracket tags.",
+        epilog='Examples:\n  egdo list\n  egdo list --tag chores',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    list_parser.add_argument("--tag", help="Show only tasks with this leading bracket tag")
 
-    done_parser = subparsers.add_parser("done", help="Complete a task")
-    done_parser.add_argument("index", type=int)
+    done_parser = subparsers.add_parser(
+        "done",
+        help="Complete a task",
+        description="Mark a task complete using the index shown by `egdo list`.",
+        epilog="Example:\n  egdo done 1",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    done_parser.add_argument("index", type=int, help="Task number from `egdo list`")
 
-    delete_parser = subparsers.add_parser("delete", help="Delete a task")
-    delete_parser.add_argument("index", type=int)
+    delete_parser = subparsers.add_parser(
+        "delete",
+        help="Delete a task",
+        description="Delete a task using the index shown by `egdo list`.",
+        epilog="Example:\n  egdo delete 2",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    delete_parser.add_argument("index", type=int, help="Task number from `egdo list`")
 
     return parser
 
