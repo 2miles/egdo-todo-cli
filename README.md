@@ -85,6 +85,7 @@ egdo add --done "Call dad"
 List today’s active tasks:
 
 ```bash
+egdo
 egdo list
 egdo list --tag chores
 ```
@@ -114,6 +115,8 @@ egdo note "Need to test villager trading setup"
 ```
 
 ## Commands
+
+Running `egdo` with no command is a shortcut for `egdo list`.
 
 ### `egdo init`
 
@@ -158,12 +161,14 @@ Behavior:
 Lists active tasks for today.
 
 ```bash
+egdo
 egdo list
 egdo list --tag chores
 ```
 
 Behavior:
 
+- running bare `egdo` is the same as `egdo list`
 - uses today by default
 - first performs rollover for unfinished tasks from the most recent earlier day
 - shows only incomplete tasks
@@ -258,8 +263,6 @@ Example:
 Example month file:
 
 ```markdown
-# 2026_04_apr
-
 ## Apr-04 Sat
 
 ### Tasks

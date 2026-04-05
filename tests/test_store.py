@@ -32,7 +32,6 @@ class StoreTests(unittest.TestCase):
             path = file_path(notes_dir, target_date)
             self.assertTrue(path.exists())
             content = path.read_text(encoding="utf-8")
-            self.assertIn("# 2026_04_apr", content)
             self.assertIn("## Apr-05 Sun", content)
             self.assertIn("### Tasks", content)
             self.assertIn("- [ ] Buy milk (04-05)", content)

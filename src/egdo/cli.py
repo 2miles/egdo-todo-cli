@@ -46,9 +46,10 @@ TAG_STYLES = (
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="egdo",
-        description="Manage a rolling markdown-backed todo list.",
+        description="Manage a rolling markdown-backed todo list. Run without a command to show today's active tasks.",
         epilog=(
             "Examples:\n"
+            "  egdo\n"
             '  egdo add "Do laundry"\n'
             '  egdo add --done "Call dad"\n'
             "  egdo list\n"
@@ -139,6 +140,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv:
+        argv = ["list"]
     parser = build_parser()
     args = parser.parse_args(argv)
 

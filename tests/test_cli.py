@@ -5,6 +5,7 @@ from io import StringIO
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -17,6 +18,7 @@ from egdo.cli import (
     _render_separator,
     _render_task_line,
     _style_wrapped_task_line,
+    main,
 )
 
 
@@ -139,6 +141,22 @@ class CliTests(unittest.TestCase):
         self.assertTrue(updated)
         self.assertEqual(len(warnings), 1)
         self.assertNotEqual(styles["minecraft"], "not-a-real-style")
+
+    def test_main_defaults_to_list_when_no_command_is_given(self) -> None:
+        with (
+            patch("egdo.cli.load_config") as load_config_mock,
+            patch("egdo.cli.list_tasks", return_value=[]),
+            patch("egdo.cli.console", Console(file=StringIO(), force_terminal=False, color_system=None)),
+        ):
+            load_config_mock.return_value = type(
+                "ConfigStub",
+                (),
+                {"notes_dir": Path("/tmp/notes"), "tag_colors": {}},
+            )()
+
+            exit_code = main([])
+
+        self.assertEqual(exit_code, 0)
 
 
 if __name__ == "__main__":

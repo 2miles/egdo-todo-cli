@@ -116,8 +116,6 @@ def ensure_state(path: Path) -> FileState:
 
 
 def write_state(path: Path, state: FileState) -> None:
-    if not state.prefix.strip():
-        state = FileState(prefix=_default_month_header(path), days=state.days, normalized=state.normalized)
     content = render_file(state)
     if not content:
         if path.exists():
@@ -300,13 +298,6 @@ def _file_year_from_path(path: Path) -> int | None:
     if match is None:
         return None
     return int(match.group(1))
-
-
-def _default_month_header(path: Path) -> str:
-    match = MONTH_FILE_RE.match(path.stem)
-    if match is None:
-        return ""
-    return f"# {path.stem}"
 
 
 def _render_day(day_date: date, day: DayState) -> str:
