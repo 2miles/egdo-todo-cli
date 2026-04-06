@@ -82,6 +82,8 @@ def parse_file(content: str, default_year: int | None = None) -> FileState:
             continue
 
         if section == "notes":
+            if not current_day.notes and not line.strip():
+                continue
             current_day.notes.append(line)
             continue
 

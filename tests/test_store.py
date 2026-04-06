@@ -161,6 +161,19 @@ class StoreTests(unittest.TestCase):
             self.assertIn("### Notes", content)
             self.assertIn("First note.\n\nSecond note.", content)
 
+    def test_add_note_does_not_accumulate_extra_blank_line_after_notes_heading_on_rewrite(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+
+            add_task(notes_dir, target_date, "Buy milk")
+            add_note(notes_dir, target_date, "First note.")
+            list_tasks(notes_dir, target_date)
+
+            content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
+            self.assertIn("- [ ] Buy milk (04-05)\n\n### Notes\n\nFirst note.", content)
+            self.assertNotIn("### Notes\n\n\nFirst note.", content)
+
     def test_manual_month_file_is_parseable(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
@@ -190,7 +203,7 @@ class StoreTests(unittest.TestCase):
             state = ensure_state(path)
 
             self.assertEqual([task.text for task in tasks], ["[chores] Buy milk"])
-            self.assertEqual(state.days[target_date].notes, ["", "Need to remember cat meds."])
+            self.assertEqual(state.days[target_date].notes, ["Need to remember cat meds."])
 
     def test_rollover_across_month_boundary_keeps_original_created_date(self) -> None:
         with TemporaryDirectory() as tmp:
