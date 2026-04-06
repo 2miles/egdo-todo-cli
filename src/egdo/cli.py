@@ -81,10 +81,22 @@ def build_parser() -> argparse.ArgumentParser:
         "add",
         help="Add a task",
         description="Add a task to today's rolling list.",
-        epilog='Examples:\n  egdo add "Buy milk"\n  egdo add "Do laundry"\n  egdo add --done "Call dad"',
+        epilog=(
+            'Examples:\n  egdo add "Buy milk"\n'
+            '  egdo add --tag chores --tag home "Do laundry"\n'
+            '  egdo add "[chores] Do laundry"\n'
+            '  egdo add --done "Call dad"'
+        ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     add_parser.add_argument("text", help="Task text to add")
+    add_parser.add_argument(
+        "-t",
+        "--tag",
+        action="append",
+        default=[],
+        help="Add a leading tag. Repeat for multiple tags.",
+    )
     add_parser.add_argument("--done", action="store_true", help="Create the task already completed")
 
     list_parser = subparsers.add_parser(
@@ -94,7 +106,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="Examples:\n  egdo list\n  egdo list --tag chores",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    list_parser.add_argument("--tag", help="Show only tasks with this leading bracket tag")
+    list_parser.add_argument("-t", "--tag", help="Show only tasks with this leading bracket tag")
 
     future_parser = subparsers.add_parser(
         "future",
@@ -112,7 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     future_subparsers = future_parser.add_subparsers(dest="future_command", metavar="FUTURE_COMMAND")
-    future_parser.add_argument("--tag", help="Show only future tasks with this leading bracket tag")
+    future_parser.add_argument("-t", "--tag", help="Show only future tasks with this leading bracket tag")
 
     future_done_parser = future_subparsers.add_parser(
         "done",

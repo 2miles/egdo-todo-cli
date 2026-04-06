@@ -231,6 +231,58 @@ class CliTests(unittest.TestCase):
         edit_task_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, 2, "Buy oat milk")
         self.assertIn("Edited [2026-04-05] Buy oat milk", output.getvalue())
 
+    def test_main_add_command_merges_repeated_tags_into_task_text(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
+        )()
+        output = StringIO()
+        mocked_today = date(2026, 4, 6)
+        created_task = type(
+            "TaskStub", (), {"created": date(2026, 4, 6), "text": "[house][chores] Do the dishes"}
+        )()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.create_task", return_value=created_task) as create_task_mock,
+            patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["add", "--tag", "house", "--tag", "chores", "Do the dishes"])
+
+        self.assertEqual(exit_code, 0)
+        create_task_mock.assert_called_once_with(
+            Path("/tmp/notes/egdo"), mocked_today, "[house][chores] Do the dishes", done=False
+        )
+        self.assertIn("Added [2026-04-06] [house][chores] Do the dishes", output.getvalue())
+
+    def test_main_add_command_dedupes_inline_and_flag_tags(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
+        )()
+        mocked_today = date(2026, 4, 6)
+        created_task = type(
+            "TaskStub", (), {"created": date(2026, 4, 6), "text": "[house][chores] Do the dishes"}
+        )()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.create_task", return_value=created_task) as create_task_mock,
+            patch("egdo.cli.console", Console(file=StringIO(), force_terminal=False, color_system=None)),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["add", "--tag", "chores", "[house] Do the dishes"])
+
+        self.assertEqual(exit_code, 0)
+        create_task_mock.assert_called_once_with(
+            Path("/tmp/notes/egdo"), mocked_today, "[house][chores] Do the dishes", done=False
+        )
+
     def test_main_move_command_prints_destination(self) -> None:
         config = type(
             "ConfigStub",

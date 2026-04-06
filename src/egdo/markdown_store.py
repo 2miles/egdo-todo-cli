@@ -218,3 +218,19 @@ def normalize_tags(tags: list[str]) -> list[str]:
         if value not in normalized:
             normalized.append(value)
     return normalized
+
+
+def merge_tags_into_text(text: str, tags: list[str]) -> str:
+    normalized_tags = normalize_tags(tags)
+    if not normalized_tags:
+        return text
+
+    existing_tags, body = split_leading_tags_and_body(text)
+    merged_tags = list(existing_tags)
+    for tag in normalized_tags:
+        if tag not in merged_tags:
+            merged_tags.append(tag)
+    tag_prefix = "".join(f"[{tag}]" for tag in merged_tags)
+    if body:
+        return f"{tag_prefix} {body}"
+    return tag_prefix

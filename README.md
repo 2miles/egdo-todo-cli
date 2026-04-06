@@ -73,9 +73,9 @@ Common commands:
 
 ```bash
 egdo add "Buy milk"
-egdo add "[chores] Do the dishes"
+egdo add -t chores -t home "Do the dishes"
 egdo
-egdo list --tag chores
+egdo list -t chores
 egdo future
 egdo future done 1
 egdo done 1
@@ -91,6 +91,8 @@ egdo color chores
 Running `egdo` with no command is the same as `egdo list`.
 
 `egdo future unmove INDEX` takes a task from the `egdo future` view and puts it back on today's active list.
+
+You can create tags either from the CLI with repeated `-t` or `--tag` flags or by typing leading bracket tags directly in the markdown, such as `[chores][home] Do the dishes`.
 
 For the full command reference, see [docs/command-reference.md](/Users/miles/Code/Github/egdo-todo-cli/docs/command-reference.md).
 
@@ -132,6 +134,7 @@ You can safely:
 
 - change task text in a day’s `### Tasks` section
 - add simple checklist items in a `### Tasks` section
+- create tags by typing leading bracket groups such as `[chores]` or `[home]`
 - edit or add text in a day’s `### Notes` section
 - open and edit the files directly in any text editor
 

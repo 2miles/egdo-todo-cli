@@ -8,6 +8,7 @@ import termios
 import tty
 from typing import Any
 
+from egdo.markdown_store import merge_tags_into_text
 from egdo.render import TAG_STYLES
 from rich.console import Console
 from rich.errors import StyleSyntaxError
@@ -43,9 +44,10 @@ class HandlerDeps:
 
 def dispatch_command(args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps) -> int:
     if args.command == "add":
-        task = deps.create_task(config.root, target_date, args.text, done=args.done)
+        task_text = merge_tags_into_text(args.text, args.tag or [])
+        task = deps.create_task(config.root, target_date, task_text, done=args.done)
         action = "Added" if not args.done else "Added done"
-        console.print(f"{action} [{task.created.isoformat()}] {task.text}")
+        _print_task_message(console, action, task.created.isoformat(), task.text)
         return 0
 
     if args.command == "list":
@@ -56,66 +58,79 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
 
     if args.command == "future" and args.future_command == "done":
         task = deps.complete_future_task(config.root, target_date, args.index)
-        console.print(f"Completed [{target_date.isoformat()} <= {task.created.isoformat()}] {task.text}")
+        _print_task_message(
+            console,
+            "Completed",
+            f"{target_date.isoformat()} <= {task.created.isoformat()}",
+            task.text,
+        )
         return 0
 
     if args.command == "future" and args.future_command == "delete":
         task = deps.delete_future_task(config.root, target_date, args.index)
-        console.print(f"Deleted future [{task.created.isoformat()}] {task.text}")
+        _print_task_message(console, "Deleted future", task.created.isoformat(), task.text)
         return 0
 
     if args.command == "future" and args.future_command == "edit":
         task = deps.edit_future_task(config.root, target_date, args.index, args.text)
-        console.print(f"Edited future [{task.created.isoformat()}] {task.text}")
+        _print_task_message(console, "Edited future", task.created.isoformat(), task.text)
         return 0
 
     if args.command == "future" and args.future_command == "move":
         destination_date = deps.parse_future_date(args.when, target_date)
         task = deps.move_future_task(config.root, target_date, args.index, destination_date)
-        console.print(
-            f"Moved future [{task.created.isoformat()}] {task.text} -> {destination_date.isoformat()}"
+        _print_task_message(
+            console,
+            "Moved future",
+            task.created.isoformat(),
+            task.text,
+            suffix=f" -> {destination_date.isoformat()}",
         )
         return 0
 
     if args.command == "future" and args.future_command == "tag":
         task = deps.tag_future_task(config.root, target_date, args.index, args.tags)
-        console.print(f"Tagged future [{task.created.isoformat()}] {task.text}")
+        _print_task_message(console, "Tagged future", task.created.isoformat(), task.text)
         return 0
 
     if args.command == "future" and args.future_command == "unmove":
         task = deps.unmove_task(config.root, target_date, args.index)
-        console.print(f"Unmoved [{task.created.isoformat()}] {task.text} -> {target_date.isoformat()}")
+        _print_task_message(
+            console, "Unmoved", task.created.isoformat(), task.text, suffix=f" -> {target_date.isoformat()}"
+        )
         return 0
 
     if args.command == "done":
         task = deps.complete_task(config.root, target_date, args.index)
-        console.print(f"Completed [{target_date.isoformat()}] {task.text}")
+        _print_task_message(console, "Completed", target_date.isoformat(), task.text)
         return 0
 
     if args.command == "edit":
         task = deps.edit_task(config.root, target_date, args.index, args.text)
-        console.print(f"Edited [{task.created.isoformat()}] {task.text}")
+        _print_task_message(console, "Edited", task.created.isoformat(), task.text)
         return 0
 
     if args.command == "move":
         destination_date = deps.parse_future_date(args.when, target_date)
         task = deps.move_task(config.root, target_date, args.index, destination_date)
-        console.print(f"Moved [{task.created.isoformat()}] {task.text} -> {destination_date.isoformat()}")
+        _print_task_message(
+            console, "Moved", task.created.isoformat(), task.text, suffix=f" -> {destination_date.isoformat()}"
+        )
         return 0
 
     if args.command == "delete":
         task = deps.delete_task(config.root, target_date, args.index)
-        console.print(f"Deleted [{target_date.isoformat()}] {task.text}")
+        _print_task_message(console, "Deleted", target_date.isoformat(), task.text)
         return 0
 
     if args.command == "tag":
         task = deps.tag_task(config.root, target_date, args.index, args.tags)
-        console.print(f"Tagged [{target_date.isoformat()}] {task.text}")
+        _print_task_message(console, "Tagged", target_date.isoformat(), task.text)
         return 0
 
     if args.command == "note":
         deps.add_note(config.root, target_date, args.text)
-        console.print(f"Noted [{target_date.isoformat()}] {args.text}")
+        _print_task_message(console, "Noted", target_date.isoformat(), args.text)
         return 0
 
     if args.command == "color":
@@ -195,6 +210,16 @@ def handle_color(args: Any, config: Any, console: Console, deps: HandlerDeps) ->
     preview.append(f" -> {selected_style}", style="dim")
     console.print(Text("Saved tag color: ") + preview)
     return 0
+
+
+def _print_task_message(
+    console: Console, action: str, date_label: str, text: str, suffix: str = ""
+) -> None:
+    message = Text(f"{action} [{date_label}] ")
+    message.append(text)
+    if suffix:
+        message.append(suffix)
+    console.print(message)
 
 
 def build_tag_styles(
