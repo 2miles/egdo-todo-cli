@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import argparse
 from datetime import date
-import os
 from pathlib import Path
 import sys
-import termios
-import tty
 
 from egdo.config import CONFIG_PATH, load_config, save_config, write_config
 from egdo.dates import format_display_date as _format_display_date
 from egdo.dates import parse_future_date as _parse_future_date
+from egdo.handlers import HandlerDeps
+from egdo.handlers import build_tag_styles as _build_tag_styles
+from egdo.handlers import choose_tag_style_interactive as _choose_tag_style_interactive
+from egdo.handlers import dispatch_command
+from egdo.handlers import is_valid_style as _is_valid_style
+from egdo.handlers import normalize_tag_name as _normalize_tag_name
 from egdo.store import (
     add_note,
     add_task,
@@ -38,9 +41,6 @@ from egdo.render import split_leading_tags as _split_leading_tags
 from egdo.render import style_wrapped_task_line as _style_wrapped_task_line
 from egdo.render import task_wrap_width as _task_wrap_width
 from rich.console import Console
-from rich.errors import StyleSyntaxError
-from rich.style import Style
-from rich.text import Text
 from rich_argparse import RawDescriptionRichHelpFormatter
 
 console = Console()
@@ -281,158 +281,31 @@ def main(argv: list[str] | None = None) -> int:
 
         config = load_config()
         target_date = date.today()
-
-        if args.command == "add":
-            task = create_task(config.root, target_date, args.text, done=args.done)
-            action = "Added" if not args.done else "Added done"
-            console.print(f"{action} [{task.created.isoformat()}] {task.text}")
-            return 0
-
-        if args.command == "list":
-            tasks = list_tasks(config.root, target_date, tag=args.tag)
-            tag_styles, updated, warnings = _build_tag_styles(
-                (task.text for task in tasks), config.tag_colors
-            )
-            if updated:
-                config.tag_colors = tag_styles
-                save_config(config)
-            wrap_width = _task_wrap_width(console)
-            console.print()
-            console.print(_render_list_header(target_date))
-            console.print(_render_separator(wrap_width))
-            for warning in warnings:
-                console.print(Text(warning, style="yellow"))
-            if not tasks:
-                console.print(Text("No active tasks.", style="dim"))
-                return 0
-            for idx, task in enumerate(tasks, start=1):
-                console.print(
-                    _render_task_line(
-                        idx, task.text, task.created, tag_styles, wrap_width=wrap_width
-                    )
-                )
-            return 0
-
-        if args.command == "future" and args.future_command is None:
-            future_tasks = list_future_tasks(config.root, target_date, tag=args.tag)
-            tag_styles, updated, warnings = _build_tag_styles(
-                (task.text for _, task in future_tasks), config.tag_colors
-            )
-            if updated:
-                config.tag_colors = tag_styles
-                save_config(config)
-            wrap_width = _task_wrap_width(console)
-            console.print()
-            for warning in warnings:
-                console.print(Text(warning, style="yellow"))
-            if not future_tasks:
-                console.print(Text("No future tasks.", style="dim"))
-                return 0
-            current_day: date | None = None
-            for idx, (scheduled_date, task) in enumerate(future_tasks, start=1):
-                if scheduled_date != current_day:
-                    if current_day is not None:
-                        console.print()
-                    console.print(_render_list_header(scheduled_date))
-                    console.print(_render_separator(wrap_width))
-                    current_day = scheduled_date
-                console.print(
-                    _render_task_line(
-                        idx, task.text, task.created, tag_styles, wrap_width=wrap_width
-                    )
-                )
-            return 0
-
-        if args.command == "future" and args.future_command == "done":
-            task = complete_future_task(config.root, target_date, args.index)
-            console.print(
-                f"Completed [{target_date.isoformat()} <= {task.created.isoformat()}] {task.text}"
-            )
-            return 0
-
-        if args.command == "future" and args.future_command == "delete":
-            task = delete_future_task(config.root, target_date, args.index)
-            console.print(f"Deleted future [{task.created.isoformat()}] {task.text}")
-            return 0
-
-        if args.command == "future" and args.future_command == "edit":
-            task = edit_future_task(config.root, target_date, args.index, args.text)
-            console.print(f"Edited future [{task.created.isoformat()}] {task.text}")
-            return 0
-
-        if args.command == "future" and args.future_command == "move":
-            destination_date = _parse_future_date(args.when, target_date)
-            task = move_future_task(config.root, target_date, args.index, destination_date)
-            console.print(
-                f"Moved future [{task.created.isoformat()}] {task.text} -> {destination_date.isoformat()}"
-            )
-            return 0
-
-        if args.command == "future" and args.future_command == "tag":
-            task = tag_future_task(config.root, target_date, args.index, args.tags)
-            console.print(f"Tagged future [{task.created.isoformat()}] {task.text}")
-            return 0
-
-        if args.command == "future" and args.future_command == "unmove":
-            task = unmove_task(config.root, target_date, args.index)
-            console.print(
-                f"Unmoved [{task.created.isoformat()}] {task.text} -> {target_date.isoformat()}"
-            )
-            return 0
-
-        if args.command == "done":
-            task = complete_task(config.root, target_date, args.index)
-            console.print(f"Completed [{target_date.isoformat()}] {task.text}")
-            return 0
-
-        if args.command == "edit":
-            task = edit_task(config.root, target_date, args.index, args.text)
-            console.print(f"Edited [{task.created.isoformat()}] {task.text}")
-            return 0
-
-        if args.command == "move":
-            destination_date = _parse_future_date(args.when, target_date)
-            task = move_task(config.root, target_date, args.index, destination_date)
-            console.print(
-                f"Moved [{task.created.isoformat()}] {task.text} -> {destination_date.isoformat()}"
-            )
-            return 0
-
-        if args.command == "delete":
-            task = delete_task(config.root, target_date, args.index)
-            console.print(f"Deleted [{target_date.isoformat()}] {task.text}")
-            return 0
-
-        if args.command == "tag":
-            task = tag_task(config.root, target_date, args.index, args.tags)
-            console.print(f"Tagged [{target_date.isoformat()}] {task.text}")
-            return 0
-
-        if args.command == "note":
-            add_note(config.root, target_date, args.text)
-            console.print(f"Noted [{target_date.isoformat()}] {args.text}")
-            return 0
-
-        if args.command == "color":
-            tag = _normalize_tag_name(args.tag)
-            if not tag:
-                raise ValueError("Tag name cannot be empty")
-            if args.style:
-                selected_style = args.style.strip()
-                if not _is_valid_style(selected_style):
-                    raise ValueError(f"Invalid style: {selected_style}")
-            else:
-                selected_style = _choose_tag_style_interactive(tag, config.tag_colors.get(tag))
-                if selected_style is None:
-                    console.print("Canceled tag color update.")
-                    return 0
-            config.tag_colors[tag] = selected_style
-            save_config(config)
-            preview = Text()
-            preview.append(f"[{tag}]", style=selected_style)
-            preview.append(f" -> {selected_style}", style="dim")
-            console.print(Text("Saved tag color: ") + preview)
-            return 0
+        deps = HandlerDeps(
+            add_note=add_note,
+            complete_future_task=complete_future_task,
+            complete_task=complete_task,
+            create_task=create_task,
+            delete_future_task=delete_future_task,
+            delete_task=delete_task,
+            edit_future_task=edit_future_task,
+            edit_task=edit_task,
+            list_future_tasks=list_future_tasks,
+            list_tasks=list_tasks,
+            move_future_task=move_future_task,
+            move_task=move_task,
+            parse_future_date=_parse_future_date,
+            render_list_header=_render_list_header,
+            render_separator=_render_separator,
+            render_tag_style_picker=_render_tag_style_picker,
+            render_task_line=_render_task_line,
+            save_config=save_config,
+            tag_future_task=tag_future_task,
+            tag_task=tag_task,
+            task_wrap_width=_task_wrap_width,
+            unmove_task=unmove_task,
+        )
+        return dispatch_command(args, config, target_date, console, deps)
     except Exception as exc:  # noqa: BLE001
         print(str(exc), file=sys.stderr)
         return 1
@@ -445,98 +318,6 @@ def _run_init(root: Path) -> int:
     config_path = write_config(root=root, path=CONFIG_PATH)
     print(f"Wrote config to {config_path}")
     return 0
-
-
-def _build_tag_styles(
-    task_texts: list[str] | tuple[str, ...] | object, existing_styles: dict[str, str] | None = None
-) -> tuple[dict[str, str], bool, list[str]]:
-    styles = dict(existing_styles or {})
-    updated = False
-    warnings: list[str] = []
-    valid_assigned = [style for style in styles.values() if _is_valid_style(style)]
-    next_style = len(valid_assigned)
-    for task_text in task_texts:
-        tags, _ = _split_leading_tags(task_text)
-        for tag in tags:
-            normalized = tag.lower()
-            if normalized in styles:
-                if not _is_valid_style(styles[normalized]):
-                    styles[normalized] = TAG_STYLES[next_style % len(TAG_STYLES)]
-                    next_style += 1
-                    updated = True
-                    warnings.append(
-                        f"Invalid style for tag `{normalized}` in config. Reassigned it to `{styles[normalized]}`."
-                    )
-                continue
-            if normalized not in styles:
-                styles[normalized] = TAG_STYLES[next_style % len(TAG_STYLES)]
-                next_style += 1
-                updated = True
-    return styles, updated, warnings
-
-
-def _normalize_tag_name(tag: str) -> str:
-    return tag.strip().strip("[]").strip().lower()
-
-
-def _choose_tag_style_interactive(tag: str, current_style: str | None = None) -> str | None:
-    if not sys.stdin.isatty():
-        raise ValueError(
-            "Interactive color picker requires a TTY. Use `egdo color TAG --style STYLE`."
-        )
-
-    selected_index = TAG_STYLES.index(current_style) if current_style in TAG_STYLES else 0
-    with console.screen(hide_cursor=True) as screen:
-        screen.update(_render_tag_style_picker(tag, selected_index, current_style))
-        while True:
-            key = _read_picker_key()
-            if key == "up":
-                selected_index = (selected_index - 1) % len(TAG_STYLES)
-            elif key == "down":
-                selected_index = (selected_index + 1) % len(TAG_STYLES)
-            elif key == "enter":
-                return TAG_STYLES[selected_index]
-            elif key in {"escape", "quit"}:
-                return None
-            else:
-                continue
-            screen.update(_render_tag_style_picker(tag, selected_index, current_style))
-
-
-def _read_picker_key() -> str:
-    fd = sys.stdin.fileno()
-    original = termios.tcgetattr(fd)
-    try:
-        tty.setraw(fd)
-        first = os.read(fd, 1)
-        if first in {b"\r", b"\n"}:
-            return "enter"
-        if first in {b"k"}:
-            return "up"
-        if first in {b"j"}:
-            return "down"
-        if first in {b"q"}:
-            return "quit"
-        if first == b"\x1b":
-            second = os.read(fd, 1)
-            if second == b"[":
-                third = os.read(fd, 1)
-                if third == b"A":
-                    return "up"
-                if third == b"B":
-                    return "down"
-            return "escape"
-        return ""
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, original)
-
-
-def _is_valid_style(style: str) -> bool:
-    try:
-        Style.parse(style)
-    except StyleSyntaxError:
-        return False
-    return True
 
 
 if __name__ == "__main__":
