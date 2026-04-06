@@ -17,8 +17,7 @@ class ConfigTests(unittest.TestCase):
             path.write_text(
                 "\n".join(
                     [
-                        'notes_root = "/tmp/notes"',
-                        'todos_root = "egdo"',
+                        'root = "/tmp/notes/egdo"',
                         "",
                         "[tag_colors]",
                         'minecraft = "green"',
@@ -36,7 +35,7 @@ class ConfigTests(unittest.TestCase):
     def test_save_config_writes_tag_colors_table(self) -> None:
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "config.toml"
-            config = Config(notes_root=Path("/tmp/notes"), todos_root="egdo", tag_colors={"fun": "blue"})
+            config = Config(root=Path("/tmp/notes/egdo"), tag_colors={"fun": "blue"})
 
             save_config(config, path)
 
@@ -48,7 +47,7 @@ class ConfigTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "config.toml"
 
-            write_config(notes_root=Path("/tmp/notes"), todos_root="egdo", path=path)
+            write_config(root=Path("/tmp/notes/egdo"), path=path)
 
             config = load_config(path)
             self.assertEqual(config.tag_colors, {})

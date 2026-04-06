@@ -9,45 +9,35 @@ CONFIG_PATH = Path.home() / ".config" / "egdo" / "config.toml"
 
 @dataclass(slots=True)
 class Config:
-    notes_root: Path
-    todos_root: str
+    root: Path
     tag_colors: dict[str, str]
-
-    @property
-    def notes_dir(self) -> Path:
-        return self.notes_root / self.todos_root
 
 
 def load_config(path: Path = CONFIG_PATH) -> Config:
     if not path.exists():
         raise FileNotFoundError(
-            f"Config not found at {path}. Run `egdo init --notes-root /path/to/notes --todos-root egdo`."
+            f"Config not found at {path}. Run `egdo init --root /path/to/egdo`."
         )
 
     raw = _parse_toml(path.read_text(encoding="utf-8"))
 
     try:
-        notes_root = Path(raw["notes_root"]).expanduser()
-        todos_root = raw["todos_root"]
+        root = Path(raw["root"]).expanduser()
     except KeyError as exc:
         raise ValueError(f"Missing config key: {exc.args[0]}") from exc
 
     tag_colors = _parse_tag_colors(raw)
 
-    return Config(notes_root=notes_root, todos_root=todos_root, tag_colors=tag_colors)
+    return Config(root=root, tag_colors=tag_colors)
 
 
 def write_config(
-    notes_root: Path,
-    todos_root: str,
+    root: Path,
     path: Path = CONFIG_PATH,
     tag_colors: dict[str, str] | None = None,
 ) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    content = (
-        f'notes_root = "{notes_root.expanduser()}"\n'
-        f'todos_root = "{todos_root}"\n'
-    )
+    content = f'root = "{root.expanduser()}"\n'
     if tag_colors:
         content += "\n[tag_colors]\n"
         for tag, color in sorted(tag_colors.items()):
@@ -58,8 +48,7 @@ def write_config(
 
 def save_config(config: Config, path: Path = CONFIG_PATH) -> Path:
     return write_config(
-        notes_root=config.notes_root,
-        todos_root=config.todos_root,
+        root=config.root,
         path=path,
         tag_colors=config.tag_colors,
     )

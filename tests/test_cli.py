@@ -160,7 +160,7 @@ class CliTests(unittest.TestCase):
         config = type(
             "ConfigStub",
             (),
-            {"notes_dir": Path("/tmp/notes"), "tag_colors": {}, "notes_root": Path("/tmp"), "todos_root": "egdo"},
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
         )()
         output = StringIO()
 
@@ -180,7 +180,7 @@ class CliTests(unittest.TestCase):
         config = type(
             "ConfigStub",
             (),
-            {"notes_dir": Path("/tmp/notes"), "tag_colors": {}, "notes_root": Path("/tmp"), "todos_root": "egdo"},
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
         )()
 
         with (
@@ -196,7 +196,7 @@ class CliTests(unittest.TestCase):
         config = type(
             "ConfigStub",
             (),
-            {"notes_dir": Path("/tmp/notes"), "tag_colors": {}, "notes_root": Path("/tmp"), "todos_root": "egdo"},
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
         )()
         output = StringIO()
         mocked_today = date(2026, 4, 6)
@@ -212,7 +212,7 @@ class CliTests(unittest.TestCase):
             exit_code = main(["edit", "2", "Buy oat milk"])
 
         self.assertEqual(exit_code, 0)
-        edit_task_mock.assert_called_once_with(Path("/tmp/notes"), mocked_today, 2, "Buy oat milk")
+        edit_task_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, 2, "Buy oat milk")
         self.assertIn("Edited [2026-04-05] Buy oat milk", output.getvalue())
 
     def test_main_defaults_to_list_when_no_command_is_given(self) -> None:
@@ -224,7 +224,7 @@ class CliTests(unittest.TestCase):
             load_config_mock.return_value = type(
                 "ConfigStub",
                 (),
-                {"notes_dir": Path("/tmp/notes"), "tag_colors": {}},
+                {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
             )()
 
             exit_code = main([])

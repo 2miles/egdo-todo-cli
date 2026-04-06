@@ -94,12 +94,11 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser = subparsers.add_parser(
         "init",
         help="Create egdo config",
-        description="Create the egdo config file that points at your notes directory.",
-        epilog="Example:\n  egdo init --notes-root /Users/miles/Notes --todos-root egdo",
+        description="Create the egdo config file that points at your egdo storage directory.",
+        epilog="Example:\n  egdo init --root /Users/miles/Notes/egdo",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    init_parser.add_argument("--notes-root", required=True)
-    init_parser.add_argument("--todos-root", default="egdo")
+    init_parser.add_argument("--root", required=True, help="Directory where egdo stores its yearly files")
 
     add_parser = subparsers.add_parser(
         "add",
@@ -189,19 +188,19 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "init":
-            return _run_init(Path(args.notes_root).expanduser(), args.todos_root)
+            return _run_init(Path(args.root).expanduser())
 
         config = load_config()
         target_date = date.today()
 
         if args.command == "add":
-            task = create_task(config.notes_dir, target_date, args.text, done=args.done)
+            task = create_task(config.root, target_date, args.text, done=args.done)
             action = "Added" if not args.done else "Added done"
             console.print(f"{action} [{task.created.isoformat()}] {task.text}")
             return 0
 
         if args.command == "list":
-            tasks = list_tasks(config.notes_dir, target_date, tag=args.tag)
+            tasks = list_tasks(config.root, target_date, tag=args.tag)
             tag_styles, updated, warnings = _build_tag_styles(
                 (task.text for task in tasks), config.tag_colors
             )
@@ -226,27 +225,27 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "done":
-            task = complete_task(config.notes_dir, target_date, args.index)
+            task = complete_task(config.root, target_date, args.index)
             console.print(f"Completed [{target_date.isoformat()}] {task.text}")
             return 0
 
         if args.command == "edit":
-            task = edit_task(config.notes_dir, target_date, args.index, args.text)
+            task = edit_task(config.root, target_date, args.index, args.text)
             console.print(f"Edited [{task.created.isoformat()}] {task.text}")
             return 0
 
         if args.command == "delete":
-            task = delete_task(config.notes_dir, target_date, args.index)
+            task = delete_task(config.root, target_date, args.index)
             console.print(f"Deleted [{target_date.isoformat()}] {task.text}")
             return 0
 
         if args.command == "tag":
-            task = tag_task(config.notes_dir, target_date, args.index, args.tags)
+            task = tag_task(config.root, target_date, args.index, args.tags)
             console.print(f"Tagged [{target_date.isoformat()}] {task.text}")
             return 0
 
         if args.command == "note":
-            add_note(config.notes_dir, target_date, args.text)
+            add_note(config.root, target_date, args.text)
             console.print(f"Noted [{target_date.isoformat()}] {args.text}")
             return 0
 
@@ -278,8 +277,8 @@ def main(argv: list[str] | None = None) -> int:
     return 2
 
 
-def _run_init(notes_root: Path, todos_root: str) -> int:
-    config_path = write_config(notes_root=notes_root, todos_root=todos_root, path=CONFIG_PATH)
+def _run_init(root: Path) -> int:
+    config_path = write_config(root=root, path=CONFIG_PATH)
     print(f"Wrote config to {config_path}")
     return 0
 
