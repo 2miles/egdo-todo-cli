@@ -1,40 +1,32 @@
 # egdo
 
-`egdo` is a markdown-backed CLI todo manager for daily notes.
+`egdo` is a markdown-backed CLI todo manager built for people who want their tasks in normal files.
 
-It stores tasks and notes in plain monthly markdown files inside your notes directory, so you can use it from the terminal, open the same files in a text editor and still edit everything by hand when needed.
+It keeps daily tasks and notes in plain monthly markdown files. You use it from the terminal, but the data stays readable and editable without the app.
 
 ## Why
 
-Most CLI todo tools either hide data behind a database or assume the app is the only thing editing it. `egdo` is built around readable markdown files so you can:
+Most CLI todo tools either hide data behind a database or assume the app owns the data. `egdo` takes the opposite approach:
 
-- use the CLI from a terminal
-- keep your tasks in normal files
-- edit them manually when needed
-- maintain a durable archive of what you did over time
+- tasks live in normal markdown files
+- you can edit them by hand when needed
+- unfinished work rolls forward automatically
+- completed work stays where it happened
+- your todo list doubles as a long-term archive
 
-## How It Works
+In practice:
 
 - each month has one markdown file
 - each day is a section inside that file
-- unfinished tasks roll forward the first time you access a new day
-- completed tasks stay on the day where you completed them
 - notes live alongside tasks for the same day
+- tags use leading bracket groups such as `[chores]` or `[home]`
+- tag colors stay stable in the terminal once assigned
 
-That gives you a working todo list and a historical record at the same time.
-
-## Features
-
-- markdown-backed storage
-- automatic carry-forward for unfinished tasks
-- daily notes in the same file as tasks
-- leading bracket tags such as `[chores]` or `[home]`
-- persistent tag colors in the terminal
-- human-editable files
+The result is a todo list that stays lightweight without throwing away history.
 
 ## Installation
 
-If you want `egdo` available from anywhere on your machine, use a dedicated personal tools virtual environment.
+If you want `egdo` available from anywhere on your machine, install it into a small personal tools virtual environment.
 
 ```bash
 python3 -m venv ~/.venvs/tools
@@ -53,7 +45,7 @@ Put that line in `~/.zshrc`, then reload your shell:
 source ~/.zshrc
 ```
 
-If you change project dependencies later, run the editable install command again.
+If project dependencies change later, run the editable install command again.
 
 ## Quick Start
 
@@ -65,13 +57,13 @@ egdo init --root /path/to/egdo
 
 - `--root` is the directory where `egdo` stores its yearly files
 
-If you use Obsidian, a typical setup might look like:
+Example:
 
 ```text
 root: /Users/you/Notes/egdo
 ```
 
-That would make `egdo` store files under:
+That stores files under:
 
 ```text
 /Users/you/Notes/egdo/2026/2026_04_apr.md
@@ -96,7 +88,7 @@ Running `egdo` with no command is the same as `egdo list`.
 
 For the full command reference, see [docs/command-reference.md](/Users/miles/Code/Github/egdo-todo-cli/docs/command-reference.md).
 
-## File Layout
+## Storage Format
 
 Files are stored like this:
 
@@ -124,18 +116,18 @@ Each day is a section in that month file:
 Need to test villager trading setup.
 ```
 
-The trailing `(MM-DD)` is the date the task originally entered the system.
+The trailing `(MM-DD)` is the date the task first entered the system.
 
 ## Manual Editing
 
-Manual editing is expected.
+Manual editing is a normal part of the workflow.
 
 You can safely:
 
 - change task text in a day’s `### Tasks` section
 - add simple checklist items in a `### Tasks` section
 - edit or add text in a day’s `### Notes` section
-- open and edit the files directly in Obsidian
+- open and edit the files directly in any text editor
 
 You should avoid:
 
@@ -185,27 +177,6 @@ Compile the source tree:
 ```bash
 python3 -m compileall src
 ```
-
-## Current Scope
-
-Current commands:
-
-- `init`
-- `add`
-- `list`
-- `done`
-- `edit`
-- `delete`
-- `tag`
-- `color`
-- `note`
-
-Not included yet:
-
-- archive commands
-- priorities
-- recurring tasks
-- search or reporting
 
 ## License
 

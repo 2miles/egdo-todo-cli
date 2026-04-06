@@ -20,11 +20,11 @@ egdo init --root /path/to/egdo
 
 Arguments:
 
-- `--root` required absolute or user-relative path where egdo stores its yearly files
+- `--root` required absolute or user-relative path where `egdo` stores its yearly files
 
 ## `egdo add`
 
-Adds a task to today’s active list.
+Add a task to today’s active list.
 
 ```bash
 egdo add "Call dentist"
@@ -32,8 +32,6 @@ egdo add "[chores] Do the dishes"
 egdo add "[personal][chores][home] Do the dishes"
 egdo add --done "Call dad"
 ```
-
-Behavior:
 
 - uses today by default
 - creates the monthly file and day section if they do not exist
@@ -43,15 +41,13 @@ Behavior:
 
 ## `egdo list`
 
-Lists active tasks for today.
+List active tasks for today.
 
 ```bash
 egdo
 egdo list
 egdo list --tag chores
 ```
-
-Behavior:
 
 - running bare `egdo` is the same as `egdo list`
 - uses today by default
@@ -71,13 +67,11 @@ Thu, Apr 3rd
 
 ## `egdo done`
 
-Marks a numbered active task complete in today’s file.
+Mark a numbered active task complete in today’s file.
 
 ```bash
 egdo done 1
 ```
-
-Behavior:
 
 - uses today by default
 - completes by the numeric index shown in `egdo list`
@@ -85,14 +79,12 @@ Behavior:
 
 ## `egdo edit`
 
-Edits a numbered active task in today’s file.
+Edit a numbered active task in today’s file.
 
 ```bash
 egdo edit 2 "Buy oat milk"
 egdo edit 1 "[chores] Pick up detergent"
 ```
-
-Behavior:
 
 - uses today by default
 - edits by the numeric index shown in `egdo list`
@@ -102,13 +94,11 @@ Behavior:
 
 ## `egdo delete`
 
-Removes a numbered active task from today’s file.
+Delete a numbered active task from today’s file.
 
 ```bash
 egdo delete 2
 ```
-
-Behavior:
 
 - uses today by default
 - deletes by the numeric index shown in `egdo list`
@@ -116,14 +106,12 @@ Behavior:
 
 ## `egdo tag`
 
-Adds one or more tags to a numbered active task in today’s file.
+Add one or more tags to a numbered active task in today’s file.
 
 ```bash
 egdo tag 3 chores
 egdo tag 3 chores home
 ```
-
-Behavior:
 
 - uses today by default
 - updates the task by the numeric index shown in `egdo list`
@@ -132,13 +120,11 @@ Behavior:
 
 ## `egdo note`
 
-Appends a note to today’s `### Notes` section.
+Append a note to today’s `### Notes` section.
 
 ```bash
 egdo note "Need to test villager trading setup"
 ```
-
-Behavior:
 
 - uses today by default
 - creates the monthly file and day section if they do not exist
@@ -146,14 +132,12 @@ Behavior:
 
 ## `egdo color`
 
-Sets the terminal color for a tag.
+Set the terminal color for a tag.
 
 ```bash
 egdo color chores
 egdo color chores --style green_yellow
 ```
-
-Behavior:
 
 - normalizes the tag name to lowercase
 - opens an interactive up/down picker by default so you can see the available colors before saving
@@ -167,7 +151,7 @@ Available Rich colors: https://rich.readthedocs.io/en/stable/appendix/colors.htm
 
 ### Carry-Forward
 
-When you access a new day with `add`, `list`, `done`, `edit`, `delete`, or `tag`, `egdo` looks for the most recent earlier day section and moves any unfinished tasks into the current day.
+When you access a new day with `add`, `list`, `done`, `edit`, `delete`, or `tag`, `egdo` moves unfinished tasks from the most recent earlier day into the current day.
 
 That means:
 
