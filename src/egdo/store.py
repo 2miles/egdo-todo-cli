@@ -166,6 +166,31 @@ def list_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> li
     return [task for task in tasks if normalized_tag in task.tags]
 
 
+def list_future_tasks(
+    notes_dir: Path, target_date: date, tag: str | None = None
+) -> list[tuple[date, Task]]:
+    if not notes_dir.exists():
+        return []
+
+    future_tasks: list[tuple[date, Task]] = []
+    normalized_tag = tag.strip().lower() if tag is not None else None
+    for path in sorted(notes_dir.rglob("*.md")):
+        if not _is_month_file(path):
+            continue
+        state = ensure_state(path)
+        for day_date in sorted(state.days):
+            if day_date <= target_date:
+                continue
+            day = state.days[day_date]
+            for task in day.tasks:
+                if task.done:
+                    continue
+                if normalized_tag is not None and normalized_tag not in task.tags:
+                    continue
+                future_tasks.append((day_date, task))
+    return future_tasks
+
+
 def complete_task(notes_dir: Path, target_date: date, index: int) -> Task:
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
@@ -260,6 +285,55 @@ def move_task(notes_dir: Path, source_date: date, index: int, destination_date: 
     destination_day = destination_state.days.setdefault(destination_date, DayState())
     if any(task.key() == selected_task.key() for task in destination_day.tasks):
         raise ValueError(f"Task already exists on {destination_date.isoformat()}")
+
+    source_day.tasks.pop(selected_index)
+    destination_day.tasks.append(
+        Task(text=selected_task.text, created=selected_task.created, done=False)
+    )
+    write_state(source_path, source_state)
+    write_state(destination_path, destination_state)
+    return selected_task
+
+
+def unmove_task(notes_dir: Path, target_date: date, index: int) -> Task:
+    future_tasks = list_future_tasks(notes_dir, target_date)
+    if index < 1 or index > len(future_tasks):
+        raise IndexError(f"Future task index {index} is out of range")
+
+    source_date, selected_task = future_tasks[index - 1]
+    if source_date <= target_date:
+        raise ValueError("Only future tasks can be unmoved")
+
+    rollover(notes_dir, target_date)
+    source_path = file_path(notes_dir, source_date)
+    destination_path = file_path(notes_dir, target_date)
+    source_state = ensure_state(source_path)
+    source_day = source_state.days.setdefault(source_date, DayState())
+
+    selected_index: int | None = None
+    for task_index, task in enumerate(source_day.tasks):
+        if task.key() == selected_task.key() and not task.done:
+            selected_index = task_index
+            break
+    if selected_index is None:
+        raise RuntimeError("Future task disappeared before unmove")
+
+    if source_path == destination_path:
+        state = source_state
+        destination_day = state.days.setdefault(target_date, DayState())
+        if any(task.key() == selected_task.key() for task in destination_day.tasks):
+            raise ValueError(f"Task already exists on {target_date.isoformat()}")
+        source_day.tasks.pop(selected_index)
+        destination_day.tasks.append(
+            Task(text=selected_task.text, created=selected_task.created, done=False)
+        )
+        write_state(source_path, state)
+        return selected_task
+
+    destination_state = ensure_state(destination_path)
+    destination_day = destination_state.days.setdefault(target_date, DayState())
+    if any(task.key() == selected_task.key() for task in destination_day.tasks):
+        raise ValueError(f"Task already exists on {target_date.isoformat()}")
 
     source_day.tasks.pop(selected_index)
     destination_day.tasks.append(

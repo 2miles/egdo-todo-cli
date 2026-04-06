@@ -258,6 +258,65 @@ class CliTests(unittest.TestCase):
         )
         self.assertIn("Moved [2026-04-05] Buy oat milk -> 2026-04-07", output.getvalue())
 
+    def test_main_future_command_renders_grouped_future_tasks(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
+        )()
+        output = StringIO()
+        mocked_today = date(2026, 4, 6)
+        first_task = type("TaskStub", (), {"created": date(2026, 4, 5), "text": "[chores] Buy milk"})()
+        second_task = type("TaskStub", (), {"created": date(2026, 4, 4), "text": "Ship box"})()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch(
+                "egdo.cli.list_future_tasks",
+                return_value=[
+                    (date(2026, 4, 7), first_task),
+                    (date(2026, 4, 10), second_task),
+                ],
+            ) as list_future_tasks_mock,
+            patch("egdo.cli.save_config") as save_config_mock,
+            patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["future"])
+
+        self.assertEqual(exit_code, 0)
+        list_future_tasks_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, tag=None)
+        save_config_mock.assert_called_once_with(config)
+        rendered = output.getvalue()
+        self.assertIn("Tue, Apr 7th", rendered)
+        self.assertIn("Fri, Apr 10th", rendered)
+        self.assertIn("1. [chores] Buy milk (Sun, Apr 5th)", rendered)
+        self.assertIn("2. Ship box (Sat, Apr 4th)", rendered)
+
+    def test_main_unmove_command_prints_destination(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
+        )()
+        output = StringIO()
+        mocked_today = date(2026, 4, 6)
+        unmoved_task = type("TaskStub", (), {"created": date(2026, 4, 5), "text": "Buy oat milk"})()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.unmove_task", return_value=unmoved_task) as unmove_task_mock,
+            patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["unmove", "1"])
+
+        self.assertEqual(exit_code, 0)
+        unmove_task_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, 1)
+        self.assertIn("Unmoved [2026-04-05] Buy oat milk -> 2026-04-06", output.getvalue())
+
     def test_main_defaults_to_list_when_no_command_is_given(self) -> None:
         with (
             patch("egdo.cli.load_config") as load_config_mock,

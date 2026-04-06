@@ -56,6 +56,21 @@ egdo list --tag chores
 - `--tag` filters by leading bracket tags such as `[chores]` or `[home]`
 - numbers tasks so you can complete them with `done`, `edit`, `delete`, or `tag`
 
+## `egdo future`
+
+List incomplete tasks scheduled after today.
+
+```bash
+egdo future
+egdo future --tag chores
+```
+
+- shows incomplete tasks on dates later than today
+- groups tasks by their scheduled day
+- numbers tasks across the whole future view
+- shows each task with its original created date
+- `--tag` filters by leading bracket tags such as `[chores]` or `[home]`
+
 Example output:
 
 ```text
@@ -110,6 +125,19 @@ egdo move 2 2026-04-10
 - accepts `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
 - weekday names mean the next occurrence of that weekday, never today
 - rejects non-future destinations
+
+## `egdo unmove`
+
+Move a numbered future task back to today.
+
+```bash
+egdo unmove 1
+```
+
+- uses the numbering shown by `egdo future`
+- moves the selected task into today’s active list
+- preserves the original created date suffix such as `(04-05)`
+- removes the task from its previously scheduled future day
 
 ## `egdo delete`
 

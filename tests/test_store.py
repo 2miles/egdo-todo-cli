@@ -17,9 +17,11 @@ from egdo.store import (
     edit_task,
     ensure_state,
     file_path,
+    list_future_tasks,
     list_tasks,
     move_task,
     tag_task,
+    unmove_task,
 )
 
 
@@ -214,6 +216,108 @@ class StoreTests(unittest.TestCase):
             self.assertTrue(destination_path.exists())
             content = destination_path.read_text(encoding="utf-8")
             self.assertIn("## May-02 Sat", content)
+            self.assertIn("- [ ] Ship box (04-30)", content)
+
+    def test_list_future_tasks_returns_incomplete_tasks_after_today(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            path = file_path(notes_dir, date(2026, 4, 6))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "\n".join(
+                    [
+                        "## Apr-06 Mon",
+                        "",
+                        "### Tasks",
+                        "",
+                        "- [ ] Today task (04-06)",
+                        "",
+                        "## Apr-08 Wed",
+                        "",
+                        "### Tasks",
+                        "",
+                        "- [ ] [chores] Future one (04-08)",
+                        "",
+                        "## Apr-10 Fri",
+                        "",
+                        "### Tasks",
+                        "",
+                        "- [x] Future two (04-10)",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            future_tasks = list_future_tasks(notes_dir, date(2026, 4, 6))
+
+            self.assertEqual(
+                [(scheduled, task.text) for scheduled, task in future_tasks],
+                [
+                    (date(2026, 4, 8), "[chores] Future one"),
+                ],
+            )
+
+    def test_list_future_tasks_filters_by_tag(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            path = file_path(notes_dir, date(2026, 4, 8))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "\n".join(
+                    [
+                        "## Apr-08 Wed",
+                        "",
+                        "### Tasks",
+                        "",
+                        "- [ ] [chores] Future one (04-08)",
+                        "",
+                        "## Apr-09 Thu",
+                        "",
+                        "### Tasks",
+                        "",
+                        "- [ ] [work] Future two (04-09)",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            future_tasks = list_future_tasks(notes_dir, date(2026, 4, 6), tag="chores")
+
+            self.assertEqual(
+                [(scheduled, task.text) for scheduled, task in future_tasks],
+                [(date(2026, 4, 8), "[chores] Future one")],
+            )
+
+    def test_unmove_moves_future_task_back_to_today_by_future_index(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 4, 6)
+            add_task(notes_dir, today, "Current task")
+            move_task(notes_dir, today, 1, date(2026, 4, 10))
+
+            task = unmove_task(notes_dir, today, 1)
+
+            self.assertEqual(task.text, "Current task")
+            self.assertEqual(task.created, today)
+            today_tasks = list_tasks(notes_dir, today)
+            self.assertEqual([current.text for current in today_tasks], ["Current task"])
+            self.assertEqual(list_future_tasks(notes_dir, today), [])
+
+    def test_unmove_can_pull_task_back_from_later_month(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 4, 30)
+            add_task(notes_dir, today, "Ship box")
+            move_task(notes_dir, today, 1, date(2026, 5, 2))
+
+            task = unmove_task(notes_dir, today, 1)
+
+            self.assertEqual(task.text, "Ship box")
+            self.assertTrue(file_path(notes_dir, today).exists())
+            self.assertFalse(file_path(notes_dir, date(2026, 5, 2)).exists())
+            content = file_path(notes_dir, today).read_text(encoding="utf-8")
             self.assertIn("- [ ] Ship box (04-30)", content)
 
     def test_add_note_creates_notes_section_and_appends_paragraphs(self) -> None:
