@@ -77,10 +77,11 @@ egdo add "[chores] Do the dishes"
 egdo
 egdo list --tag chores
 egdo future
+egdo future done 1
 egdo done 1
 egdo edit 2 "Buy oat milk"
 egdo move 2 tomorrow
-egdo unmove 1
+egdo future unmove 1
 egdo delete 2
 egdo tag 3 chores home
 egdo note "Need to test villager trading setup"
@@ -88,6 +89,8 @@ egdo color chores
 ```
 
 Running `egdo` with no command is the same as `egdo list`.
+
+`egdo future unmove INDEX` takes a task from the `egdo future` view and puts it back on today's active list.
 
 For the full command reference, see [docs/command-reference.md](/Users/miles/Code/Github/egdo-todo-cli/docs/command-reference.md).
 

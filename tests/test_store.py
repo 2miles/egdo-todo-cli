@@ -11,15 +11,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from egdo.store import (
     add_note,
     add_task,
+    complete_future_task,
     complete_task,
     create_task,
+    delete_future_task,
     delete_task,
+    edit_future_task,
     edit_task,
     ensure_state,
     file_path,
     list_future_tasks,
     list_tasks,
+    move_future_task,
     move_task,
+    tag_future_task,
     tag_task,
     unmove_task,
 )
@@ -319,6 +324,72 @@ class StoreTests(unittest.TestCase):
             self.assertFalse(file_path(notes_dir, date(2026, 5, 2)).exists())
             content = file_path(notes_dir, today).read_text(encoding="utf-8")
             self.assertIn("- [ ] Ship box (04-30)", content)
+
+    def test_complete_future_task_marks_scheduled_task_done(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 4, 6)
+            add_task(notes_dir, today, "Buy milk")
+            move_task(notes_dir, today, 1, date(2026, 4, 10))
+
+            task = complete_future_task(notes_dir, today, 1)
+
+            self.assertTrue(task.done)
+            self.assertEqual(list_future_tasks(notes_dir, today), [])
+
+    def test_delete_future_task_removes_scheduled_task(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 4, 6)
+            add_task(notes_dir, today, "Buy milk")
+            move_task(notes_dir, today, 1, date(2026, 4, 10))
+
+            task = delete_future_task(notes_dir, today, 1)
+
+            self.assertEqual(task.text, "Buy milk")
+            self.assertEqual(list_future_tasks(notes_dir, today), [])
+
+    def test_edit_future_task_updates_text_in_place(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 4, 6)
+            add_task(notes_dir, today, "Buy milk")
+            move_task(notes_dir, today, 1, date(2026, 4, 10))
+
+            task = edit_future_task(notes_dir, today, 1, "[chores] Buy oat milk")
+
+            self.assertEqual(task.text, "[chores] Buy oat milk")
+            future_tasks = list_future_tasks(notes_dir, today)
+            self.assertEqual(future_tasks[0][1].text, "[chores] Buy oat milk")
+
+    def test_move_future_task_retimes_future_task(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 4, 6)
+            add_task(notes_dir, today, "Buy milk")
+            move_task(notes_dir, today, 1, date(2026, 4, 10))
+
+            task = move_future_task(notes_dir, today, 1, date(2026, 4, 12))
+
+            self.assertEqual(task.text, "Buy milk")
+            future_tasks = list_future_tasks(notes_dir, today)
+            self.assertEqual(
+                [(scheduled, item.text) for scheduled, item in future_tasks],
+                [(date(2026, 4, 12), "Buy milk")],
+            )
+
+    def test_tag_future_task_adds_tags_in_place(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 4, 6)
+            add_task(notes_dir, today, "Buy milk")
+            move_task(notes_dir, today, 1, date(2026, 4, 10))
+
+            task = tag_future_task(notes_dir, today, 1, ["chores", "home"])
+
+            self.assertEqual(task.text, "[chores][home] Buy milk")
+            future_tasks = list_future_tasks(notes_dir, today)
+            self.assertEqual(future_tasks[0][1].text, "[chores][home] Buy milk")
 
     def test_add_note_creates_notes_section_and_appends_paragraphs(self) -> None:
         with TemporaryDirectory() as tmp:

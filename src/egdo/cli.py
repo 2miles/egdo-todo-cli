@@ -15,11 +15,16 @@ from egdo.store import (
     add_task,
     complete_task,
     create_task,
+    delete_future_task,
     delete_task,
+    edit_future_task,
     edit_task,
+    complete_future_task,
     list_future_tasks,
     list_tasks,
+    move_future_task,
     move_task,
+    tag_future_task,
     tag_task,
     unmove_task,
 )
@@ -81,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  egdo done 1\n"
             '  egdo edit 2 "Buy oat milk"\n'
             "  egdo move 2 tomorrow\n"
-            "  egdo unmove 1\n"
+            "  egdo future unmove 1\n"
             "  egdo delete 2\n"
             "  egdo tag 3 chores home\n"
             '  egdo note "Need to test villager trading setup"\n\n'
@@ -127,12 +132,87 @@ def build_parser() -> argparse.ArgumentParser:
 
     future_parser = subparsers.add_parser(
         "future",
-        help="List future tasks",
-        description="List incomplete tasks scheduled after today.",
-        epilog="Examples:\n  egdo future\n  egdo future --tag chores",
+        help="List or manage future tasks",
+        description="List incomplete tasks scheduled after today, or operate on them by future index.",
+        epilog=(
+            "Examples:\n"
+            "  egdo future\n"
+            "  egdo future --tag chores\n"
+            "  egdo future done 1\n"
+            '  egdo future edit 1 "Buy oat milk"\n'
+            "  egdo future move 2 sunday\n"
+            "  egdo future unmove 1"
+        ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
+    future_subparsers = future_parser.add_subparsers(dest="future_command", metavar="FUTURE_COMMAND")
     future_parser.add_argument("--tag", help="Show only future tasks with this leading bracket tag")
+
+    future_done_parser = future_subparsers.add_parser(
+        "done",
+        help="Complete a future task",
+        description="Mark a task complete using the index shown by `egdo future`.",
+        epilog="Example:\n  egdo future done 1",
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
+    future_done_parser.add_argument("index", type=int, help="Task number from `egdo future`")
+
+    future_delete_parser = future_subparsers.add_parser(
+        "delete",
+        help="Delete a future task",
+        description="Delete a task using the index shown by `egdo future`.",
+        epilog="Example:\n  egdo future delete 2",
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
+    future_delete_parser.add_argument("index", type=int, help="Task number from `egdo future`")
+
+    future_edit_parser = future_subparsers.add_parser(
+        "edit",
+        help="Edit a future task",
+        description="Edit a task using the index shown by `egdo future`.",
+        epilog='Example:\n  egdo future edit 1 "Buy oat milk"',
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
+    future_edit_parser.add_argument("index", type=int, help="Task number from `egdo future`")
+    future_edit_parser.add_argument("text", help="Replacement task text")
+
+    future_move_parser = future_subparsers.add_parser(
+        "move",
+        help="Move a future task to another future date",
+        description="Move a task using the index shown by `egdo future`.",
+        epilog=(
+            "Examples:\n"
+            "  egdo future move 2 tomorrow\n"
+            "  egdo future move 2 +3\n"
+            "  egdo future move 2 sunday\n"
+            "  egdo future move 2 2026-04-12"
+        ),
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
+    future_move_parser.add_argument("index", type=int, help="Task number from `egdo future`")
+    future_move_parser.add_argument(
+        "when",
+        help="Future date: tomorrow, +N, weekday name, or YYYY-MM-DD",
+    )
+
+    future_tag_parser = future_subparsers.add_parser(
+        "tag",
+        help="Add tag(s) to a future task",
+        description="Add one or more leading bracket tags to a task using the index shown by `egdo future`.",
+        epilog="Example:\n  egdo future tag 1 chores home",
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
+    future_tag_parser.add_argument("index", type=int, help="Task number from `egdo future`")
+    future_tag_parser.add_argument("tags", nargs="+", help="One or more tags to add")
+
+    future_unmove_parser = future_subparsers.add_parser(
+        "unmove",
+        help="Bring a future task back to today",
+        description="Move a task from `egdo future` back to today's active list.",
+        epilog="Example:\n  egdo future unmove 1",
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
+    future_unmove_parser.add_argument("index", type=int, help="Task number from `egdo future`")
 
     done_parser = subparsers.add_parser(
         "done",
@@ -171,15 +251,6 @@ def build_parser() -> argparse.ArgumentParser:
         "when",
         help="Future date: tomorrow, +N, weekday name, or YYYY-MM-DD",
     )
-
-    unmove_parser = subparsers.add_parser(
-        "unmove",
-        help="Bring a future task back to today",
-        description="Move a task from `egdo future` back to today's active list.",
-        epilog="Example:\n  egdo unmove 1",
-        formatter_class=RawDescriptionRichHelpFormatter,
-    )
-    unmove_parser.add_argument("index", type=int, help="Task number from `egdo future`")
 
     delete_parser = subparsers.add_parser(
         "delete",
@@ -267,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             return 0
 
-        if args.command == "future":
+        if args.command == "future" and args.future_command is None:
             future_tasks = list_future_tasks(config.root, target_date, tag=args.tag)
             tag_styles, updated, warnings = _build_tag_styles(
                 (task.text for _, task in future_tasks), config.tag_colors
@@ -297,6 +368,43 @@ def main(argv: list[str] | None = None) -> int:
                 )
             return 0
 
+        if args.command == "future" and args.future_command == "done":
+            task = complete_future_task(config.root, target_date, args.index)
+            console.print(
+                f"Completed [{target_date.isoformat()} <= {task.created.isoformat()}] {task.text}"
+            )
+            return 0
+
+        if args.command == "future" and args.future_command == "delete":
+            task = delete_future_task(config.root, target_date, args.index)
+            console.print(f"Deleted future [{task.created.isoformat()}] {task.text}")
+            return 0
+
+        if args.command == "future" and args.future_command == "edit":
+            task = edit_future_task(config.root, target_date, args.index, args.text)
+            console.print(f"Edited future [{task.created.isoformat()}] {task.text}")
+            return 0
+
+        if args.command == "future" and args.future_command == "move":
+            destination_date = _parse_future_date(args.when, target_date)
+            task = move_future_task(config.root, target_date, args.index, destination_date)
+            console.print(
+                f"Moved future [{task.created.isoformat()}] {task.text} -> {destination_date.isoformat()}"
+            )
+            return 0
+
+        if args.command == "future" and args.future_command == "tag":
+            task = tag_future_task(config.root, target_date, args.index, args.tags)
+            console.print(f"Tagged future [{task.created.isoformat()}] {task.text}")
+            return 0
+
+        if args.command == "future" and args.future_command == "unmove":
+            task = unmove_task(config.root, target_date, args.index)
+            console.print(
+                f"Unmoved [{task.created.isoformat()}] {task.text} -> {target_date.isoformat()}"
+            )
+            return 0
+
         if args.command == "done":
             task = complete_task(config.root, target_date, args.index)
             console.print(f"Completed [{target_date.isoformat()}] {task.text}")
@@ -313,11 +421,6 @@ def main(argv: list[str] | None = None) -> int:
             console.print(
                 f"Moved [{task.created.isoformat()}] {task.text} -> {destination_date.isoformat()}"
             )
-            return 0
-
-        if args.command == "unmove":
-            task = unmove_task(config.root, target_date, args.index)
-            console.print(f"Unmoved [{task.created.isoformat()}] {task.text} -> {target_date.isoformat()}")
             return 0
 
         if args.command == "delete":

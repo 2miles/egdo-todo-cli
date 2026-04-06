@@ -191,6 +191,77 @@ def list_future_tasks(
     return future_tasks
 
 
+def complete_future_task(notes_dir: Path, target_date: date, index: int) -> Task:
+    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
+    path = file_path(notes_dir, source_date)
+    state = ensure_state(path)
+    day = state.days.setdefault(source_date, DayState())
+    for task in day.tasks:
+        if task.key() == selected_task.key() and not task.done:
+            task.done = True
+            write_state(path, state)
+            return task
+    raise RuntimeError("Future task disappeared before completion")
+
+
+def delete_future_task(notes_dir: Path, target_date: date, index: int) -> Task:
+    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
+    path = file_path(notes_dir, source_date)
+    state = ensure_state(path)
+    day = state.days.setdefault(source_date, DayState())
+    for task_index, task in enumerate(day.tasks):
+        if task.key() == selected_task.key() and not task.done:
+            removed = day.tasks.pop(task_index)
+            write_state(path, state)
+            return removed
+    raise RuntimeError("Future task disappeared before deletion")
+
+
+def edit_future_task(notes_dir: Path, target_date: date, index: int, text: str) -> Task:
+    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
+    path = file_path(notes_dir, source_date)
+    state = ensure_state(path)
+    day = state.days.setdefault(source_date, DayState())
+    for task in day.tasks:
+        if task.key() == selected_task.key() and not task.done:
+            task.text = text
+            write_state(path, state)
+            return task
+    raise RuntimeError("Future task disappeared before editing")
+
+
+def move_future_task(notes_dir: Path, target_date: date, index: int, destination_date: date) -> Task:
+    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
+    if destination_date <= target_date:
+        raise ValueError("Move destination must be a future date")
+    if destination_date == source_date:
+        raise ValueError("Move destination must be different from the current future date")
+
+    return _move_task_by_key(notes_dir, source_date, selected_task, destination_date)
+
+
+def tag_future_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) -> Task:
+    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
+    path = file_path(notes_dir, source_date)
+    state = ensure_state(path)
+    day = state.days.setdefault(source_date, DayState())
+    normalized_tags = _normalize_tags(tags)
+    if not normalized_tags:
+        raise ValueError("At least one non-empty tag is required")
+
+    for task in day.tasks:
+        if task.key() == selected_task.key() and not task.done:
+            existing_tags, body = _split_leading_tags_and_body(task.text)
+            merged_tags = list(existing_tags)
+            for tag in normalized_tags:
+                if tag not in merged_tags:
+                    merged_tags.append(tag)
+            task.text = "".join(f"[{tag}]" for tag in merged_tags) + f" {body}"
+            write_state(path, state)
+            return task
+    raise RuntimeError("Future task disappeared before tagging")
+
+
 def complete_task(notes_dir: Path, target_date: date, index: int) -> Task:
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
@@ -251,7 +322,6 @@ def move_task(notes_dir: Path, source_date: date, index: int, destination_date: 
 
     rollover(notes_dir, source_date)
     source_path = file_path(notes_dir, source_date)
-    destination_path = file_path(notes_dir, destination_date)
     source_state = ensure_state(source_path)
     source_day = source_state.days.setdefault(source_date, DayState())
     active = [task for task in source_day.tasks if not task.done]
@@ -263,85 +333,19 @@ def move_task(notes_dir: Path, source_date: date, index: int, destination_date: 
     selected_task: Task | None = None
     for task_index, task in enumerate(source_day.tasks):
         if task.key() == selected_key and not task.done:
-            selected_index = task_index
             selected_task = task
             break
-    if selected_index is None or selected_task is None:
+    if selected_task is None:
         raise RuntimeError("Active task disappeared before moving")
 
-    if source_path == destination_path:
-        state = source_state
-        destination_day = state.days.setdefault(destination_date, DayState())
-        if any(task.key() == selected_task.key() for task in destination_day.tasks):
-            raise ValueError(f"Task already exists on {destination_date.isoformat()}")
-        source_day.tasks.pop(selected_index)
-        destination_day.tasks.append(
-            Task(text=selected_task.text, created=selected_task.created, done=False)
-        )
-        write_state(source_path, state)
-        return selected_task
-
-    destination_state = ensure_state(destination_path)
-    destination_day = destination_state.days.setdefault(destination_date, DayState())
-    if any(task.key() == selected_task.key() for task in destination_day.tasks):
-        raise ValueError(f"Task already exists on {destination_date.isoformat()}")
-
-    source_day.tasks.pop(selected_index)
-    destination_day.tasks.append(
-        Task(text=selected_task.text, created=selected_task.created, done=False)
-    )
-    write_state(source_path, source_state)
-    write_state(destination_path, destination_state)
-    return selected_task
+    return _move_task_by_key(notes_dir, source_date, selected_task, destination_date)
 
 
 def unmove_task(notes_dir: Path, target_date: date, index: int) -> Task:
-    future_tasks = list_future_tasks(notes_dir, target_date)
-    if index < 1 or index > len(future_tasks):
-        raise IndexError(f"Future task index {index} is out of range")
-
-    source_date, selected_task = future_tasks[index - 1]
+    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
     if source_date <= target_date:
         raise ValueError("Only future tasks can be unmoved")
-
-    rollover(notes_dir, target_date)
-    source_path = file_path(notes_dir, source_date)
-    destination_path = file_path(notes_dir, target_date)
-    source_state = ensure_state(source_path)
-    source_day = source_state.days.setdefault(source_date, DayState())
-
-    selected_index: int | None = None
-    for task_index, task in enumerate(source_day.tasks):
-        if task.key() == selected_task.key() and not task.done:
-            selected_index = task_index
-            break
-    if selected_index is None:
-        raise RuntimeError("Future task disappeared before unmove")
-
-    if source_path == destination_path:
-        state = source_state
-        destination_day = state.days.setdefault(target_date, DayState())
-        if any(task.key() == selected_task.key() for task in destination_day.tasks):
-            raise ValueError(f"Task already exists on {target_date.isoformat()}")
-        source_day.tasks.pop(selected_index)
-        destination_day.tasks.append(
-            Task(text=selected_task.text, created=selected_task.created, done=False)
-        )
-        write_state(source_path, state)
-        return selected_task
-
-    destination_state = ensure_state(destination_path)
-    destination_day = destination_state.days.setdefault(target_date, DayState())
-    if any(task.key() == selected_task.key() for task in destination_day.tasks):
-        raise ValueError(f"Task already exists on {target_date.isoformat()}")
-
-    source_day.tasks.pop(selected_index)
-    destination_day.tasks.append(
-        Task(text=selected_task.text, created=selected_task.created, done=False)
-    )
-    write_state(source_path, source_state)
-    write_state(destination_path, destination_state)
-    return selected_task
+    return _move_task_by_key(notes_dir, source_date, selected_task, target_date, rollover_target=True)
 
 
 def tag_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) -> Task:
@@ -431,6 +435,62 @@ def _find_latest_prior_day(notes_dir: Path, target_date: date) -> tuple[Path, da
             if latest is None or day_date > latest[1]:
                 latest = (path, day_date)
     return latest
+
+
+def _resolve_future_task_index(notes_dir: Path, target_date: date, index: int) -> tuple[date, Task]:
+    future_tasks = list_future_tasks(notes_dir, target_date)
+    if index < 1 or index > len(future_tasks):
+        raise IndexError(f"Future task index {index} is out of range")
+    return future_tasks[index - 1]
+
+
+def _move_task_by_key(
+    notes_dir: Path,
+    source_date: date,
+    selected_task: Task,
+    destination_date: date,
+    rollover_target: bool = False,
+) -> Task:
+    if rollover_target:
+        rollover(notes_dir, destination_date)
+
+    source_path = file_path(notes_dir, source_date)
+    destination_path = file_path(notes_dir, destination_date)
+    source_state = ensure_state(source_path)
+    source_day = source_state.days.setdefault(source_date, DayState())
+
+    selected_index: int | None = None
+    for task_index, task in enumerate(source_day.tasks):
+        if task.key() == selected_task.key() and not task.done:
+            selected_index = task_index
+            break
+    if selected_index is None:
+        raise RuntimeError("Task disappeared before moving")
+
+    if source_path == destination_path:
+        state = source_state
+        destination_day = state.days.setdefault(destination_date, DayState())
+        if any(task.key() == selected_task.key() for task in destination_day.tasks):
+            raise ValueError(f"Task already exists on {destination_date.isoformat()}")
+        source_day.tasks.pop(selected_index)
+        destination_day.tasks.append(
+            Task(text=selected_task.text, created=selected_task.created, done=False)
+        )
+        write_state(source_path, state)
+        return selected_task
+
+    destination_state = ensure_state(destination_path)
+    destination_day = destination_state.days.setdefault(destination_date, DayState())
+    if any(task.key() == selected_task.key() for task in destination_day.tasks):
+        raise ValueError(f"Task already exists on {destination_date.isoformat()}")
+
+    source_day.tasks.pop(selected_index)
+    destination_day.tasks.append(
+        Task(text=selected_task.text, created=selected_task.created, done=False)
+    )
+    write_state(source_path, source_state)
+    write_state(destination_path, destination_state)
+    return selected_task
 
 
 def _is_month_file(path: Path) -> bool:

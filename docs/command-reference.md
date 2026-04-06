@@ -63,6 +63,12 @@ List incomplete tasks scheduled after today.
 ```bash
 egdo future
 egdo future --tag chores
+egdo future done 1
+egdo future delete 2
+egdo future edit 1 "Buy oat milk"
+egdo future move 2 sunday
+egdo future tag 1 chores
+egdo future unmove 1
 ```
 
 - shows incomplete tasks on dates later than today
@@ -70,6 +76,9 @@ egdo future --tag chores
 - numbers tasks across the whole future view
 - shows each task with its original created date
 - `--tag` filters by leading bracket tags such as `[chores]` or `[home]`
+- `future done`, `delete`, `edit`, `move`, `tag`, and `unmove` use the numbering shown by `egdo future`
+- `future unmove` removes a task from its future day and puts it back on today’s active list
+- `future move` accepts the same date forms as `egdo move`: `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
 
 Example output:
 
@@ -125,19 +134,6 @@ egdo move 2 2026-04-10
 - accepts `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
 - weekday names mean the next occurrence of that weekday, never today
 - rejects non-future destinations
-
-## `egdo unmove`
-
-Move a numbered future task back to today.
-
-```bash
-egdo unmove 1
-```
-
-- uses the numbering shown by `egdo future`
-- moves the selected task into today’s active list
-- preserves the original created date suffix such as `(04-05)`
-- removes the task from its previously scheduled future day
 
 ## `egdo delete`
 
