@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import argparse
-from datetime import date, timedelta
+from datetime import date
 import os
 from pathlib import Path
 import sys
 import termios
-import textwrap
 import tty
 
 from egdo.config import CONFIG_PATH, load_config, save_config, write_config
+from egdo.dates import format_display_date as _format_display_date
+from egdo.dates import parse_future_date as _parse_future_date
 from egdo.store import (
     add_note,
     add_task,
@@ -28,47 +29,21 @@ from egdo.store import (
     tag_task,
     unmove_task,
 )
-from rich.console import Console, Group
+from egdo.render import TAG_STYLES
+from egdo.render import render_list_header as _render_list_header
+from egdo.render import render_separator as _render_separator
+from egdo.render import render_tag_style_picker as _render_tag_style_picker
+from egdo.render import render_task_line as _render_task_line
+from egdo.render import split_leading_tags as _split_leading_tags
+from egdo.render import style_wrapped_task_line as _style_wrapped_task_line
+from egdo.render import task_wrap_width as _task_wrap_width
+from rich.console import Console
 from rich.errors import StyleSyntaxError
 from rich.style import Style
 from rich.text import Text
 from rich_argparse import RawDescriptionRichHelpFormatter
 
 console = Console()
-HEADER_DATE_STYLE = "bold cyan"
-SEPARATOR_STYLE = "dim"
-
-## Available colors: https://rich.readthedocs.io/en/stable/appendix/colors.html
-TAG_STYLES = (
-    "medium_orchid3",
-    "medium_orchid",
-    "dark_goldenrod",
-    "rosy_brown",
-    "grey63",
-    "medium_purple2",
-    "medium_purple1",
-    "dark_khaki",
-    "navajo_white3",
-    "grey69",
-    "light_steel_blue3",
-    "light_steel_blue",
-    "dark_olive_green3",
-    "dark_sea_green3",
-    "light_cyan3",
-    "light_sky_blue1",
-    "green_yellow",
-    "dark_olive_green2",
-    "pale_green1",
-    "dark_sea_green2",
-    "pale_turquoise1",
-    "misty_rose3",
-    "plum2",
-    "light_pink1",
-    "hot_pink2",
-    "navajo_white1",
-    "light_goldenrod3",
-    "yellow3",
-)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -472,106 +447,6 @@ def _run_init(root: Path) -> int:
     return 0
 
 
-def _format_display_date(value: date) -> str:
-    return f"{value.strftime('%a, %b')} {value.day}{_ordinal_suffix(value.day)}"
-
-
-def _render_list_header(target_date: date) -> Text:
-    header = Text()
-    header.append(_format_display_date(target_date), style=HEADER_DATE_STYLE)
-    return header
-
-
-def _render_separator(width: int) -> Text:
-    return Text("─" * max(1, width), style=SEPARATOR_STYLE)
-
-
-def _render_task_line(
-    index: int, task_text: str, created: date, tag_styles: dict[str, str], wrap_width: int = 88
-) -> Group:
-    tags, body = _split_leading_tags(task_text)
-    label = "".join(f"[{tag}]" for tag in tags)
-    if label and body:
-        label = f"{label} {body}"
-    elif body:
-        label = body
-    date_text = f" ({_format_display_date(created)})"
-    initial_indent = f"{index}. "
-    subsequent_indent = " " * len(initial_indent)
-    wrapped_lines = textwrap.wrap(
-        label,
-        width=max(20, wrap_width),
-        initial_indent=initial_indent,
-        subsequent_indent=subsequent_indent,
-        break_long_words=False,
-        break_on_hyphens=False,
-    )
-    if not wrapped_lines:
-        wrapped_lines = [initial_indent.rstrip()]
-    available = max(0, max(20, wrap_width) - len(wrapped_lines[-1]))
-    if len(date_text) <= available:
-        wrapped_lines[-1] = f"{wrapped_lines[-1]}{date_text}"
-    else:
-        wrapped_lines.append(f"{subsequent_indent}{date_text.strip()}")
-    return Group(
-        *[
-            _style_wrapped_task_line(line, initial_indent, date_text, tag_styles)
-            for line in wrapped_lines
-        ]
-    )
-
-
-def _split_leading_tags(task_text: str) -> tuple[list[str], str]:
-    tags: list[str] = []
-    remaining = task_text.lstrip()
-    while remaining.startswith("["):
-        closing = remaining.find("]")
-        if closing <= 1:
-            break
-        tag = remaining[1:closing].strip()
-        if not tag:
-            break
-        tags.append(tag)
-        remaining = remaining[closing + 1 :]
-    return tags, remaining.lstrip()
-
-
-def _style_wrapped_task_line(
-    line: str, initial_indent: str, date_text: str, tag_styles: dict[str, str]
-) -> Text:
-    if line.startswith(initial_indent):
-        prefix = initial_indent
-    else:
-        prefix = " " * len(initial_indent)
-
-    content = line[len(prefix) :]
-    date_suffix = ""
-    if content.endswith(date_text):
-        date_suffix = date_text
-        content = content[: -len(date_suffix)]
-    else:
-        stripped_date = date_text.strip()
-        if content == stripped_date:
-            date_suffix = stripped_date
-            content = ""
-
-    tags, body = _split_leading_tags(content)
-    styled = Text()
-    styled.append(prefix, style="dim")
-    for tag in tags:
-        styled.append(f"[{tag}]", style=tag_styles.get(tag.lower(), TAG_STYLES[0]))
-    if tags and body:
-        styled.append(" ")
-    styled.append(body, style="default")
-    if date_suffix:
-        styled.append(date_suffix, style="dim")
-    return styled
-
-
-def _task_wrap_width(current_console: Console) -> int:
-    return max(40, min(current_console.size.width, 96))
-
-
 def _build_tag_styles(
     task_texts: list[str] | tuple[str, ...] | object, existing_styles: dict[str, str] | None = None
 ) -> tuple[dict[str, str], bool, list[str]]:
@@ -628,25 +503,6 @@ def _choose_tag_style_interactive(tag: str, current_style: str | None = None) ->
             screen.update(_render_tag_style_picker(tag, selected_index, current_style))
 
 
-def _render_tag_style_picker(
-    tag: str, selected_index: int, current_style: str | None = None
-) -> Group:
-    title = Text("Choose a color for ")
-    title.append(f"[{tag}]", style=TAG_STYLES[selected_index])
-    instructions = Text("Use up/down or j/k, Enter to save, q or Esc to cancel.", style="dim")
-    rows: list[Text] = [title, instructions, Text("")]
-    for index, style_name in enumerate(TAG_STYLES):
-        row = Text()
-        marker = ">" if index == selected_index else " "
-        row.append(f"{marker} ", style="bold" if index == selected_index else "dim")
-        row.append(f"[{tag}] ", style=style_name)
-        row.append(style_name, style="bold" if index == selected_index else "default")
-        if style_name == current_style:
-            row.append(" current", style="dim")
-        rows.append(row)
-    return Group(*rows)
-
-
 def _read_picker_key() -> str:
     fd = sys.stdin.fileno()
     original = termios.tcgetattr(fd)
@@ -681,70 +537,6 @@ def _is_valid_style(style: str) -> bool:
     except StyleSyntaxError:
         return False
     return True
-
-
-def _parse_future_date(value: str, today: date) -> date:
-    token = value.strip()
-    if not token:
-        raise ValueError("Move date cannot be empty")
-
-    lowered = token.lower()
-    if lowered == "tomorrow":
-        return today + timedelta(days=1)
-
-    if lowered.startswith("+"):
-        try:
-            days = int(lowered[1:])
-        except ValueError as exc:
-            raise ValueError(f"Invalid relative date: {value}") from exc
-        if days <= 0:
-            raise ValueError("Relative move date must be at least +1")
-        return today + timedelta(days=days)
-
-    weekday = _parse_weekday_name(lowered)
-    if weekday is not None:
-        days_ahead = (weekday - today.weekday()) % 7
-        if days_ahead == 0:
-            days_ahead = 7
-        return today + timedelta(days=days_ahead)
-
-    try:
-        parsed = date.fromisoformat(token)
-    except ValueError as exc:
-        raise ValueError(
-            "Invalid move date. Use tomorrow, +N, weekday name, or YYYY-MM-DD."
-        ) from exc
-    if parsed <= today:
-        raise ValueError("Move destination must be a future date")
-    return parsed
-
-
-def _parse_weekday_name(value: str) -> int | None:
-    weekday_names = {
-        "monday": 0,
-        "mon": 0,
-        "tuesday": 1,
-        "tue": 1,
-        "tues": 1,
-        "wednesday": 2,
-        "wed": 2,
-        "thursday": 3,
-        "thu": 3,
-        "thurs": 3,
-        "friday": 4,
-        "fri": 4,
-        "saturday": 5,
-        "sat": 5,
-        "sunday": 6,
-        "sun": 6,
-    }
-    return weekday_names.get(value)
-
-
-def _ordinal_suffix(day: int) -> str:
-    if 11 <= day % 100 <= 13:
-        return "th"
-    return {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
 
 
 if __name__ == "__main__":
