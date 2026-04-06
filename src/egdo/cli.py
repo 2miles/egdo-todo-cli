@@ -16,6 +16,7 @@ from egdo.store import (
     complete_task,
     create_task,
     delete_task,
+    edit_task,
     list_tasks,
     tag_task,
 )
@@ -74,6 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  egdo list\n"
             "  egdo list --tag chores\n"
             "  egdo done 1\n"
+            '  egdo edit 2 "Buy oat milk"\n'
             "  egdo delete 2\n"
             "  egdo tag 3 chores home\n"
             '  egdo note "Need to test villager trading setup"\n\n'
@@ -126,6 +128,16 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     done_parser.add_argument("index", type=int, help="Task number from `egdo list`")
+
+    edit_parser = subparsers.add_parser(
+        "edit",
+        help="Edit a task",
+        description="Edit a task using the index shown by `egdo list`.",
+        epilog='Example:\n  egdo edit 2 "Buy oat milk"',
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
+    edit_parser.add_argument("index", type=int, help="Task number from `egdo list`")
+    edit_parser.add_argument("text", help="Replacement task text")
 
     delete_parser = subparsers.add_parser(
         "delete",
@@ -216,6 +228,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "done":
             task = complete_task(config.notes_dir, target_date, args.index)
             console.print(f"Completed [{target_date.isoformat()}] {task.text}")
+            return 0
+
+        if args.command == "edit":
+            task = edit_task(config.notes_dir, target_date, args.index, args.text)
+            console.print(f"Edited [{task.created.isoformat()}] {task.text}")
             return 0
 
         if args.command == "delete":

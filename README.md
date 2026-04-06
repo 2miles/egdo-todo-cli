@@ -30,7 +30,7 @@ Most CLI todo tools either hide data behind a database or assume the app is the 
 - Automatic carry-forward for unfinished tasks
 - Daily notes stored in the same file
 - Human-editable files with metadata normalization for manual checklist entries
-- Minimal CLI with `add`, `list`, `done`, `delete`, `tag`, `color`, `note`, and `init`
+- Minimal CLI with `add`, `list`, `done`, `edit`, `delete`, `tag`, `color`, `note`, and `init`
 
 ## Installation
 
@@ -94,6 +94,12 @@ Mark a task complete:
 
 ```bash
 egdo done 1
+```
+
+Edit a task:
+
+```bash
+egdo edit 2 "Buy oat milk"
 ```
 
 Delete a task:
@@ -204,6 +210,23 @@ Behavior:
 - uses today by default
 - completes by the numeric index shown in `egdo list`
 - keeps the completed task in that day’s file as part of the archive
+
+### `egdo edit`
+
+Edits a numbered active task in today’s file.
+
+```bash
+egdo edit 2 "Buy oat milk"
+egdo edit 1 "[chores] Pick up detergent"
+```
+
+Behavior:
+
+- uses today by default
+- edits by the numeric index shown in `egdo list`
+- updates only the task text
+- preserves the original created date suffix such as `(04-05)`
+- can be used to rewrite tags inline if you want to replace the task text completely
 
 ### `egdo delete`
 
@@ -436,6 +459,7 @@ Version 1 intentionally keeps the surface area small:
 - `add`
 - `list`
 - `done`
+- `edit`
 - `delete`
 - `tag`
 - `color`
@@ -443,7 +467,6 @@ Version 1 intentionally keeps the surface area small:
 
 Not included yet:
 
-- task editing from the CLI
 - archive commands
 - priorities
 - recurring tasks

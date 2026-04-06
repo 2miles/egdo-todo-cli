@@ -192,6 +192,29 @@ class CliTests(unittest.TestCase):
         self.assertEqual(exit_code, 1)
         self.assertIn("Invalid style: not-a-real-style", stderr.getvalue())
 
+    def test_main_edit_command_prints_updated_task(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"notes_dir": Path("/tmp/notes"), "tag_colors": {}, "notes_root": Path("/tmp"), "todos_root": "egdo"},
+        )()
+        output = StringIO()
+        mocked_today = date(2026, 4, 6)
+        edited_task = type("TaskStub", (), {"created": date(2026, 4, 5), "text": "Buy oat milk"})()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.edit_task", return_value=edited_task) as edit_task_mock,
+            patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["edit", "2", "Buy oat milk"])
+
+        self.assertEqual(exit_code, 0)
+        edit_task_mock.assert_called_once_with(Path("/tmp/notes"), mocked_today, 2, "Buy oat milk")
+        self.assertIn("Edited [2026-04-05] Buy oat milk", output.getvalue())
+
     def test_main_defaults_to_list_when_no_command_is_given(self) -> None:
         with (
             patch("egdo.cli.load_config") as load_config_mock,

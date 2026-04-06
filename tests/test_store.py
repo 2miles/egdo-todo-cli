@@ -14,6 +14,7 @@ from egdo.store import (
     complete_task,
     create_task,
     delete_task,
+    edit_task,
     ensure_state,
     file_path,
     list_tasks,
@@ -136,6 +137,34 @@ class StoreTests(unittest.TestCase):
             self.assertEqual(task.text, "Buy milk")
             tasks = list_tasks(notes_dir, target_date)
             self.assertEqual([remaining.text for remaining in tasks], ["Ship box"])
+
+    def test_edit_updates_active_task_text_and_preserves_created_date(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+            add_task(notes_dir, target_date, "Buy milk")
+
+            task = edit_task(notes_dir, target_date, 1, "[chores] Buy oat milk")
+
+            self.assertEqual(task.text, "[chores] Buy oat milk")
+            self.assertEqual(task.created, target_date)
+            content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
+            self.assertIn("- [ ] [chores] Buy oat milk (04-05)", content)
+
+    def test_edit_indexes_only_active_tasks(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+            add_task(notes_dir, target_date, "Done task")
+            add_task(notes_dir, target_date, "Active task")
+            complete_task(notes_dir, target_date, 1)
+
+            task = edit_task(notes_dir, target_date, 1, "Renamed active task")
+
+            self.assertEqual(task.text, "Renamed active task")
+            content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
+            self.assertIn("- [x] Done task (04-05)", content)
+            self.assertIn("- [ ] Renamed active task (04-05)", content)
 
     def test_tag_adds_one_or_more_tags_to_task(self) -> None:
         with TemporaryDirectory() as tmp:

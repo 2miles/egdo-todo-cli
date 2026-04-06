@@ -202,6 +202,24 @@ def delete_task(notes_dir: Path, target_date: date, index: int) -> Task:
     raise RuntimeError("Active task disappeared before deletion")
 
 
+def edit_task(notes_dir: Path, target_date: date, index: int, text: str) -> Task:
+    rollover(notes_dir, target_date)
+    path = file_path(notes_dir, target_date)
+    state = ensure_state(path)
+    day = state.days.setdefault(target_date, DayState())
+    active = [task for task in day.tasks if not task.done]
+    if index < 1 or index > len(active):
+        raise IndexError(f"Task index {index} is out of range")
+
+    selected_key = active[index - 1].key()
+    for task in day.tasks:
+        if task.key() == selected_key and not task.done:
+            task.text = text
+            write_state(path, state)
+            return task
+    raise RuntimeError("Active task disappeared before editing")
+
+
 def tag_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) -> Task:
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
