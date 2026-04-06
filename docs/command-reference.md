@@ -92,6 +92,25 @@ egdo edit 1 "[chores] Pick up detergent"
 - preserves the original created date suffix such as `(04-05)`
 - can be used to rewrite tags inline if you want to replace the task text completely
 
+## `egdo move`
+
+Move a numbered active task to a future date.
+
+```bash
+egdo move 2 tomorrow
+egdo move 2 +3
+egdo move 2 sunday
+egdo move 2 2026-04-10
+```
+
+- uses today as the source day
+- moves by the numeric index shown in `egdo list`
+- physically relocates the task into the destination day section
+- preserves the original created date suffix such as `(04-05)`
+- accepts `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
+- weekday names mean the next occurrence of that weekday, never today
+- rejects non-future destinations
+
 ## `egdo delete`
 
 Delete a numbered active task from today’s file.
@@ -151,7 +170,7 @@ Available Rich colors: https://rich.readthedocs.io/en/stable/appendix/colors.htm
 
 ### Carry-Forward
 
-When you access a new day with `add`, `list`, `done`, `edit`, `delete`, or `tag`, `egdo` moves unfinished tasks from the most recent earlier day into the current day.
+When you access a new day with `add`, `list`, `done`, `edit`, `move`, `delete`, or `tag`, `egdo` moves unfinished tasks from the most recent earlier day into the current day.
 
 That means:
 

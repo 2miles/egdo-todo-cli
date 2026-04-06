@@ -18,6 +18,7 @@ from egdo.store import (
     ensure_state,
     file_path,
     list_tasks,
+    move_task,
     tag_task,
 )
 
@@ -177,6 +178,43 @@ class StoreTests(unittest.TestCase):
             self.assertEqual(task.text, "[chores][home] Do the dishes")
             content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
             self.assertIn("- [ ] [chores][home] Do the dishes (04-05)", content)
+
+    def test_move_moves_active_task_to_future_day_and_preserves_created_date(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            source_date = date(2026, 4, 6)
+            destination_date = date(2026, 4, 10)
+            add_task(notes_dir, source_date, "Keep archive anchor")
+            complete_task(notes_dir, source_date, 1)
+            add_task(notes_dir, source_date, "Buy milk")
+
+            task = move_task(notes_dir, source_date, 1, destination_date)
+
+            self.assertEqual(task.text, "Buy milk")
+            self.assertEqual(task.created, source_date)
+            self.assertEqual(list_tasks(notes_dir, source_date), [])
+            moved_tasks = list_tasks(notes_dir, destination_date)
+            self.assertEqual([moved.text for moved in moved_tasks], ["Buy milk"])
+            content = file_path(notes_dir, destination_date).read_text(encoding="utf-8")
+            self.assertIn("## Apr-07 Tue", content)
+            self.assertIn("## Apr-10 Fri", content)
+            self.assertIn("- [ ] Buy milk (04-06)", content)
+
+    def test_move_creates_new_month_file_when_destination_crosses_month_boundary(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            source_date = date(2026, 4, 30)
+            destination_date = date(2026, 5, 2)
+            add_task(notes_dir, source_date, "Ship box")
+
+            move_task(notes_dir, source_date, 1, destination_date)
+
+            self.assertFalse(file_path(notes_dir, source_date).exists())
+            destination_path = file_path(notes_dir, destination_date)
+            self.assertTrue(destination_path.exists())
+            content = destination_path.read_text(encoding="utf-8")
+            self.assertIn("## May-02 Sat", content)
+            self.assertIn("- [ ] Ship box (04-30)", content)
 
     def test_add_note_creates_notes_section_and_appends_paragraphs(self) -> None:
         with TemporaryDirectory() as tmp:

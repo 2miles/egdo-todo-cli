@@ -78,6 +78,7 @@ egdo
 egdo list --tag chores
 egdo done 1
 egdo edit 2 "Buy oat milk"
+egdo move 2 tomorrow
 egdo delete 2
 egdo tag 3 chores home
 egdo note "Need to test villager trading setup"

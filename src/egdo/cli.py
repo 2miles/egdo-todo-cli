@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import date
+from datetime import date, timedelta
 import os
 from pathlib import Path
 import sys
@@ -18,6 +18,7 @@ from egdo.store import (
     delete_task,
     edit_task,
     list_tasks,
+    move_task,
     tag_task,
 )
 from rich.console import Console, Group
@@ -76,6 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  egdo list --tag chores\n"
             "  egdo done 1\n"
             '  egdo edit 2 "Buy oat milk"\n'
+            "  egdo move 2 tomorrow\n"
             "  egdo delete 2\n"
             "  egdo tag 3 chores home\n"
             '  egdo note "Need to test villager trading setup"\n\n'
@@ -137,6 +139,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     edit_parser.add_argument("index", type=int, help="Task number from `egdo list`")
     edit_parser.add_argument("text", help="Replacement task text")
+
+    move_parser = subparsers.add_parser(
+        "move",
+        help="Move a task to a future date",
+        description="Move a task to a future date using the index shown by `egdo list`.",
+        epilog=(
+            "Examples:\n"
+            "  egdo move 2 tomorrow\n"
+            "  egdo move 2 +3\n"
+            "  egdo move 2 sunday\n"
+            "  egdo move 2 2026-04-10"
+        ),
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
+    move_parser.add_argument("index", type=int, help="Task number from `egdo list`")
+    move_parser.add_argument(
+        "when",
+        help="Future date: tomorrow, +N, weekday name, or YYYY-MM-DD",
+    )
 
     delete_parser = subparsers.add_parser(
         "delete",
@@ -232,6 +253,14 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "edit":
             task = edit_task(config.root, target_date, args.index, args.text)
             console.print(f"Edited [{task.created.isoformat()}] {task.text}")
+            return 0
+
+        if args.command == "move":
+            destination_date = _parse_future_date(args.when, target_date)
+            task = move_task(config.root, target_date, args.index, destination_date)
+            console.print(
+                f"Moved [{task.created.isoformat()}] {task.text} -> {destination_date.isoformat()}"
+            )
             return 0
 
         if args.command == "delete":
@@ -492,6 +521,64 @@ def _is_valid_style(style: str) -> bool:
     except StyleSyntaxError:
         return False
     return True
+
+
+def _parse_future_date(value: str, today: date) -> date:
+    token = value.strip()
+    if not token:
+        raise ValueError("Move date cannot be empty")
+
+    lowered = token.lower()
+    if lowered == "tomorrow":
+        return today + timedelta(days=1)
+
+    if lowered.startswith("+"):
+        try:
+            days = int(lowered[1:])
+        except ValueError as exc:
+            raise ValueError(f"Invalid relative date: {value}") from exc
+        if days <= 0:
+            raise ValueError("Relative move date must be at least +1")
+        return today + timedelta(days=days)
+
+    weekday = _parse_weekday_name(lowered)
+    if weekday is not None:
+        days_ahead = (weekday - today.weekday()) % 7
+        if days_ahead == 0:
+            days_ahead = 7
+        return today + timedelta(days=days_ahead)
+
+    try:
+        parsed = date.fromisoformat(token)
+    except ValueError as exc:
+        raise ValueError(
+            "Invalid move date. Use tomorrow, +N, weekday name, or YYYY-MM-DD."
+        ) from exc
+    if parsed <= today:
+        raise ValueError("Move destination must be a future date")
+    return parsed
+
+
+def _parse_weekday_name(value: str) -> int | None:
+    weekday_names = {
+        "monday": 0,
+        "mon": 0,
+        "tuesday": 1,
+        "tue": 1,
+        "tues": 1,
+        "wednesday": 2,
+        "wed": 2,
+        "thursday": 3,
+        "thu": 3,
+        "thurs": 3,
+        "friday": 4,
+        "fri": 4,
+        "saturday": 5,
+        "sat": 5,
+        "sunday": 6,
+        "sun": 6,
+    }
+    return weekday_names.get(value)
 
 
 def _ordinal_suffix(day: int) -> str:

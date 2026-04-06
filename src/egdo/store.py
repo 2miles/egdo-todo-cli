@@ -220,6 +220,56 @@ def edit_task(notes_dir: Path, target_date: date, index: int, text: str) -> Task
     raise RuntimeError("Active task disappeared before editing")
 
 
+def move_task(notes_dir: Path, source_date: date, index: int, destination_date: date) -> Task:
+    if destination_date <= source_date:
+        raise ValueError("Move destination must be a future date")
+
+    rollover(notes_dir, source_date)
+    source_path = file_path(notes_dir, source_date)
+    destination_path = file_path(notes_dir, destination_date)
+    source_state = ensure_state(source_path)
+    source_day = source_state.days.setdefault(source_date, DayState())
+    active = [task for task in source_day.tasks if not task.done]
+    if index < 1 or index > len(active):
+        raise IndexError(f"Task index {index} is out of range")
+
+    selected_key = active[index - 1].key()
+    selected_index: int | None = None
+    selected_task: Task | None = None
+    for task_index, task in enumerate(source_day.tasks):
+        if task.key() == selected_key and not task.done:
+            selected_index = task_index
+            selected_task = task
+            break
+    if selected_index is None or selected_task is None:
+        raise RuntimeError("Active task disappeared before moving")
+
+    if source_path == destination_path:
+        state = source_state
+        destination_day = state.days.setdefault(destination_date, DayState())
+        if any(task.key() == selected_task.key() for task in destination_day.tasks):
+            raise ValueError(f"Task already exists on {destination_date.isoformat()}")
+        source_day.tasks.pop(selected_index)
+        destination_day.tasks.append(
+            Task(text=selected_task.text, created=selected_task.created, done=False)
+        )
+        write_state(source_path, state)
+        return selected_task
+
+    destination_state = ensure_state(destination_path)
+    destination_day = destination_state.days.setdefault(destination_date, DayState())
+    if any(task.key() == selected_task.key() for task in destination_day.tasks):
+        raise ValueError(f"Task already exists on {destination_date.isoformat()}")
+
+    source_day.tasks.pop(selected_index)
+    destination_day.tasks.append(
+        Task(text=selected_task.text, created=selected_task.created, done=False)
+    )
+    write_state(source_path, source_state)
+    write_state(destination_path, destination_state)
+    return selected_task
+
+
 def tag_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) -> Task:
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)

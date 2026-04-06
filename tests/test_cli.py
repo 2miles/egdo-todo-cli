@@ -15,6 +15,7 @@ from egdo.cli import (
     _build_tag_styles,
     _format_display_date,
     _normalize_tag_name,
+    _parse_future_date,
     _render_list_header,
     _render_separator,
     _render_tag_style_picker,
@@ -147,6 +148,23 @@ class CliTests(unittest.TestCase):
     def test_normalize_tag_name_strips_brackets_and_lowercases(self) -> None:
         self.assertEqual(_normalize_tag_name(" [Chores] "), "chores")
 
+    def test_parse_future_date_accepts_tomorrow(self) -> None:
+        self.assertEqual(_parse_future_date("tomorrow", date(2026, 4, 6)), date(2026, 4, 7))
+
+    def test_parse_future_date_accepts_relative_days(self) -> None:
+        self.assertEqual(_parse_future_date("+3", date(2026, 4, 6)), date(2026, 4, 9))
+
+    def test_parse_future_date_accepts_weekday_name_as_next_occurrence(self) -> None:
+        self.assertEqual(_parse_future_date("sunday", date(2026, 4, 6)), date(2026, 4, 12))
+        self.assertEqual(_parse_future_date("mon", date(2026, 4, 6)), date(2026, 4, 13))
+
+    def test_parse_future_date_accepts_iso_date(self) -> None:
+        self.assertEqual(_parse_future_date("2026-04-10", date(2026, 4, 6)), date(2026, 4, 10))
+
+    def test_parse_future_date_rejects_non_future_date(self) -> None:
+        with self.assertRaisesRegex(ValueError, "future date"):
+            _parse_future_date("2026-04-06", date(2026, 4, 6))
+
     def test_render_tag_style_picker_includes_current_marker(self) -> None:
         output = StringIO()
         console = Console(file=output, force_terminal=False, color_system=None)
@@ -214,6 +232,31 @@ class CliTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         edit_task_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, 2, "Buy oat milk")
         self.assertIn("Edited [2026-04-05] Buy oat milk", output.getvalue())
+
+    def test_main_move_command_prints_destination(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
+        )()
+        output = StringIO()
+        mocked_today = date(2026, 4, 6)
+        moved_task = type("TaskStub", (), {"created": date(2026, 4, 5), "text": "Buy oat milk"})()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.move_task", return_value=moved_task) as move_task_mock,
+            patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["move", "2", "tomorrow"])
+
+        self.assertEqual(exit_code, 0)
+        move_task_mock.assert_called_once_with(
+            Path("/tmp/notes/egdo"), mocked_today, 2, date(2026, 4, 7)
+        )
+        self.assertIn("Moved [2026-04-05] Buy oat milk -> 2026-04-07", output.getvalue())
 
     def test_main_defaults_to_list_when_no_command_is_given(self) -> None:
         with (
