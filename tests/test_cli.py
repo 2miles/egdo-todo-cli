@@ -11,41 +11,39 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from rich.console import Console
 
-from egdo.cli import (
-    _build_tag_styles,
-    _format_display_date,
-    _normalize_tag_name,
-    _parse_future_date,
-    _render_list_header,
-    _render_separator,
-    _render_tag_style_picker,
-    _render_task_line,
-    _style_wrapped_task_line,
-    main,
+from egdo.cli import main
+from egdo.dates import format_display_date, parse_future_date
+from egdo.handlers import build_tag_styles, normalize_tag_name
+from egdo.render import (
+    render_list_header,
+    render_separator,
+    render_tag_style_picker,
+    render_task_line,
+    style_wrapped_task_line,
 )
 
 
 class CliTests(unittest.TestCase):
     def test_format_display_date_uses_short_weekday_month_and_ordinal(self) -> None:
-        self.assertEqual(_format_display_date(date(2026, 4, 4)), "Sat, Apr 4th")
+        self.assertEqual(format_display_date(date(2026, 4, 4)), "Sat, Apr 4th")
 
     def test_format_display_date_handles_ordinal_exceptions(self) -> None:
-        self.assertEqual(_format_display_date(date(2026, 4, 11)), "Sat, Apr 11th")
-        self.assertEqual(_format_display_date(date(2026, 4, 12)), "Sun, Apr 12th")
-        self.assertEqual(_format_display_date(date(2026, 4, 13)), "Mon, Apr 13th")
-        self.assertEqual(_format_display_date(date(2026, 4, 21)), "Tue, Apr 21st")
+        self.assertEqual(format_display_date(date(2026, 4, 11)), "Sat, Apr 11th")
+        self.assertEqual(format_display_date(date(2026, 4, 12)), "Sun, Apr 12th")
+        self.assertEqual(format_display_date(date(2026, 4, 13)), "Mon, Apr 13th")
+        self.assertEqual(format_display_date(date(2026, 4, 21)), "Tue, Apr 21st")
 
     def test_render_list_header_plain_text(self) -> None:
         output = StringIO()
         console = Console(file=output, force_terminal=False, color_system=None)
-        console.print(_render_list_header(date(2026, 4, 4)))
+        console.print(render_list_header(date(2026, 4, 4)))
 
         self.assertEqual(output.getvalue(), "Sat, Apr 4th\n")
 
     def test_render_separator_uses_requested_width(self) -> None:
         output = StringIO()
         console = Console(file=output, force_terminal=False, color_system=None)
-        console.print(_render_separator(12))
+        console.print(render_separator(12))
 
         self.assertEqual(output.getvalue(), "────────────\n")
 
@@ -53,7 +51,7 @@ class CliTests(unittest.TestCase):
         output = StringIO()
         console = Console(file=output, force_terminal=False, color_system=None)
         console.print(
-            _render_task_line(3, "[minecraft] Add sorter", date(2026, 4, 4), {"minecraft": "green"})
+            render_task_line(3, "[minecraft] Add sorter", date(2026, 4, 4), {"minecraft": "green"})
         )
 
         self.assertEqual(output.getvalue(), "3. [minecraft] Add sorter (Sat, Apr 4th)\n")
@@ -62,7 +60,7 @@ class CliTests(unittest.TestCase):
         output = StringIO()
         console = Console(file=output, force_terminal=False, color_system=None)
         console.print(
-            _render_task_line(
+            render_task_line(
                 1,
                 "[minecraft] Add dripstone farm overflow protection and sorter",
                 date(2026, 4, 4),
@@ -79,7 +77,7 @@ class CliTests(unittest.TestCase):
         )
 
     def test_style_wrapped_task_line_dims_date_when_date_is_only_continuation_content(self) -> None:
-        styled = _style_wrapped_task_line(
+        styled = style_wrapped_task_line(
             "   (Sat, Apr 4th)",
             "1. ",
             " (Sat, Apr 4th)",
@@ -96,7 +94,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(styled.spans[1].end, len(styled.plain))
 
     def test_build_tag_styles_assigns_distinct_colors_until_palette_runs_out(self) -> None:
-        styles, updated, warnings = _build_tag_styles(
+        styles, updated, warnings = build_tag_styles(
             [
                 "[minecraft] Task",
                 "[fun] Task",
@@ -109,7 +107,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(len(set(styles.values())), 3)
 
     def test_build_tag_styles_reuses_existing_assignment_for_repeat_tags(self) -> None:
-        styles, _, _ = _build_tag_styles(
+        styles, _, _ = build_tag_styles(
             [
                 "[minecraft] Task",
                 "[fun] Task",
@@ -121,12 +119,12 @@ class CliTests(unittest.TestCase):
         self.assertNotEqual(styles["minecraft"], styles["fun"])
 
     def test_build_tag_styles_never_uses_header_date_style(self) -> None:
-        styles, _, _ = _build_tag_styles(["[minecraft] Task", "[chores] Task", "[home] Task"])
+        styles, _, _ = build_tag_styles(["[minecraft] Task", "[chores] Task", "[home] Task"])
         for style in styles.values():
             self.assertNotEqual(style, "bold cyan")
 
     def test_build_tag_styles_preserves_existing_assignments(self) -> None:
-        styles, updated, warnings = _build_tag_styles(
+        styles, updated, warnings = build_tag_styles(
             ["[minecraft] Task", "[fun] Task"],
             existing_styles={"minecraft": "red"},
         )
@@ -136,7 +134,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(styles["minecraft"], "red")
 
     def test_build_tag_styles_reassigns_invalid_config_style(self) -> None:
-        styles, updated, warnings = _build_tag_styles(
+        styles, updated, warnings = build_tag_styles(
             ["[minecraft] Task"],
             existing_styles={"minecraft": "not-a-real-style"},
         )
@@ -146,29 +144,29 @@ class CliTests(unittest.TestCase):
         self.assertNotEqual(styles["minecraft"], "not-a-real-style")
 
     def test_normalize_tag_name_strips_brackets_and_lowercases(self) -> None:
-        self.assertEqual(_normalize_tag_name(" [Chores] "), "chores")
+        self.assertEqual(normalize_tag_name(" [Chores] "), "chores")
 
     def test_parse_future_date_accepts_tomorrow(self) -> None:
-        self.assertEqual(_parse_future_date("tomorrow", date(2026, 4, 6)), date(2026, 4, 7))
+        self.assertEqual(parse_future_date("tomorrow", date(2026, 4, 6)), date(2026, 4, 7))
 
     def test_parse_future_date_accepts_relative_days(self) -> None:
-        self.assertEqual(_parse_future_date("+3", date(2026, 4, 6)), date(2026, 4, 9))
+        self.assertEqual(parse_future_date("+3", date(2026, 4, 6)), date(2026, 4, 9))
 
     def test_parse_future_date_accepts_weekday_name_as_next_occurrence(self) -> None:
-        self.assertEqual(_parse_future_date("sunday", date(2026, 4, 6)), date(2026, 4, 12))
-        self.assertEqual(_parse_future_date("mon", date(2026, 4, 6)), date(2026, 4, 13))
+        self.assertEqual(parse_future_date("sunday", date(2026, 4, 6)), date(2026, 4, 12))
+        self.assertEqual(parse_future_date("mon", date(2026, 4, 6)), date(2026, 4, 13))
 
     def test_parse_future_date_accepts_iso_date(self) -> None:
-        self.assertEqual(_parse_future_date("2026-04-10", date(2026, 4, 6)), date(2026, 4, 10))
+        self.assertEqual(parse_future_date("2026-04-10", date(2026, 4, 6)), date(2026, 4, 10))
 
     def test_parse_future_date_rejects_non_future_date(self) -> None:
         with self.assertRaisesRegex(ValueError, "future date"):
-            _parse_future_date("2026-04-06", date(2026, 4, 6))
+            parse_future_date("2026-04-06", date(2026, 4, 6))
 
     def test_render_tag_style_picker_includes_current_marker(self) -> None:
         output = StringIO()
         console = Console(file=output, force_terminal=False, color_system=None)
-        console.print(_render_tag_style_picker("chores", 0, "medium_orchid3"))
+        console.print(render_tag_style_picker("chores", 0, "medium_orchid3"))
 
         rendered = output.getvalue()
         self.assertIn("Choose a color for [chores]", rendered)

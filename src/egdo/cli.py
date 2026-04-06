@@ -6,17 +6,11 @@ from pathlib import Path
 import sys
 
 from egdo.config import CONFIG_PATH, load_config, save_config, write_config
-from egdo.dates import format_display_date as _format_display_date
 from egdo.dates import parse_future_date as _parse_future_date
 from egdo.handlers import HandlerDeps
-from egdo.handlers import build_tag_styles as _build_tag_styles
-from egdo.handlers import choose_tag_style_interactive as _choose_tag_style_interactive
 from egdo.handlers import dispatch_command
-from egdo.handlers import is_valid_style as _is_valid_style
-from egdo.handlers import normalize_tag_name as _normalize_tag_name
 from egdo.store import (
     add_note,
-    add_task,
     complete_task,
     create_task,
     delete_future_task,
@@ -32,13 +26,10 @@ from egdo.store import (
     tag_task,
     unmove_task,
 )
-from egdo.render import TAG_STYLES
 from egdo.render import render_list_header as _render_list_header
 from egdo.render import render_separator as _render_separator
 from egdo.render import render_tag_style_picker as _render_tag_style_picker
 from egdo.render import render_task_line as _render_task_line
-from egdo.render import split_leading_tags as _split_leading_tags
-from egdo.render import style_wrapped_task_line as _style_wrapped_task_line
 from egdo.render import task_wrap_width as _task_wrap_width
 from rich.console import Console
 from rich_argparse import RawDescriptionRichHelpFormatter
