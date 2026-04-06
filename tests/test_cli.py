@@ -14,8 +14,10 @@ from rich.console import Console
 from egdo.cli import (
     _build_tag_styles,
     _format_display_date,
+    _normalize_tag_name,
     _render_list_header,
     _render_separator,
+    _render_tag_style_picker,
     _render_task_line,
     _style_wrapped_task_line,
     main,
@@ -141,6 +143,54 @@ class CliTests(unittest.TestCase):
         self.assertTrue(updated)
         self.assertEqual(len(warnings), 1)
         self.assertNotEqual(styles["minecraft"], "not-a-real-style")
+
+    def test_normalize_tag_name_strips_brackets_and_lowercases(self) -> None:
+        self.assertEqual(_normalize_tag_name(" [Chores] "), "chores")
+
+    def test_render_tag_style_picker_includes_current_marker(self) -> None:
+        output = StringIO()
+        console = Console(file=output, force_terminal=False, color_system=None)
+        console.print(_render_tag_style_picker("chores", 0, "medium_orchid3"))
+
+        rendered = output.getvalue()
+        self.assertIn("Choose a color for [chores]", rendered)
+        self.assertIn("> [chores] medium_orchid3 current", rendered)
+
+    def test_main_color_command_saves_style_override(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"notes_dir": Path("/tmp/notes"), "tag_colors": {}, "notes_root": Path("/tmp"), "todos_root": "egdo"},
+        )()
+        output = StringIO()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.save_config") as save_config_mock,
+            patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
+        ):
+            exit_code = main(["color", "Chores", "--style", "green_yellow"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(config.tag_colors["chores"], "green_yellow")
+        save_config_mock.assert_called_once_with(config)
+        self.assertIn("Saved tag color: [chores] -> green_yellow", output.getvalue())
+
+    def test_main_color_command_rejects_invalid_style(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"notes_dir": Path("/tmp/notes"), "tag_colors": {}, "notes_root": Path("/tmp"), "todos_root": "egdo"},
+        )()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("sys.stderr", new_callable=StringIO) as stderr,
+        ):
+            exit_code = main(["color", "chores", "--style", "not-a-real-style"])
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("Invalid style: not-a-real-style", stderr.getvalue())
 
     def test_main_defaults_to_list_when_no_command_is_given(self) -> None:
         with (

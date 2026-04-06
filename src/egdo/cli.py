@@ -2,12 +2,23 @@ from __future__ import annotations
 
 import argparse
 from datetime import date
+import os
 from pathlib import Path
 import sys
+import termios
 import textwrap
+import tty
 
 from egdo.config import CONFIG_PATH, load_config, save_config, write_config
-from egdo.store import add_note, add_task, complete_task, create_task, delete_task, list_tasks, tag_task
+from egdo.store import (
+    add_note,
+    add_task,
+    complete_task,
+    create_task,
+    delete_task,
+    list_tasks,
+    tag_task,
+)
 from rich.console import Console, Group
 from rich.errors import StyleSyntaxError
 from rich.style import Style
@@ -41,7 +52,15 @@ TAG_STYLES = (
     "pale_green1",
     "dark_sea_green2",
     "pale_turquoise1",
+    "misty_rose3",
+    "plum2",
+    "light_pink1",
+    "hot_pink2",
+    "navajo_white1",
+    "light_goldenrod3",
+    "yellow3",
 )
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -74,7 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
         "init",
         help="Create egdo config",
         description="Create the egdo config file that points at your notes directory.",
-        epilog='Example:\n  egdo init --notes-root /Users/miles/Notes --todos-root egdo',
+        epilog="Example:\n  egdo init --notes-root /Users/miles/Notes --todos-root egdo",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     init_parser.add_argument("--notes-root", required=True)
@@ -94,7 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
         "list",
         help="List active tasks",
         description="List today's active tasks. Use --tag to filter by leading bracket tags.",
-        epilog='Examples:\n  egdo list\n  egdo list --tag chores',
+        epilog="Examples:\n  egdo list\n  egdo list --tag chores",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     list_parser.add_argument("--tag", help="Show only tasks with this leading bracket tag")
@@ -135,6 +154,16 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     note_parser.add_argument("text", help="Note text to append")
+
+    color_parser = subparsers.add_parser(
+        "color",
+        help="Set a tag color",
+        description="Set the terminal style used for a tag. Defaults to an interactive picker.",
+        epilog="Examples:\n  egdo color chores\n  egdo color chores --style green_yellow",
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
+    color_parser.add_argument("tag", help="Tag name to style")
+    color_parser.add_argument("--style", help="Rich style name to save without opening the picker")
 
     return parser
 
@@ -177,7 +206,11 @@ def main(argv: list[str] | None = None) -> int:
                 console.print(Text("No active tasks.", style="dim"))
                 return 0
             for idx, task in enumerate(tasks, start=1):
-                console.print(_render_task_line(idx, task.text, task.created, tag_styles, wrap_width=wrap_width))
+                console.print(
+                    _render_task_line(
+                        idx, task.text, task.created, tag_styles, wrap_width=wrap_width
+                    )
+                )
             return 0
 
         if args.command == "done":
@@ -198,6 +231,27 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "note":
             add_note(config.notes_dir, target_date, args.text)
             console.print(f"Noted [{target_date.isoformat()}] {args.text}")
+            return 0
+
+        if args.command == "color":
+            tag = _normalize_tag_name(args.tag)
+            if not tag:
+                raise ValueError("Tag name cannot be empty")
+            if args.style:
+                selected_style = args.style.strip()
+                if not _is_valid_style(selected_style):
+                    raise ValueError(f"Invalid style: {selected_style}")
+            else:
+                selected_style = _choose_tag_style_interactive(tag, config.tag_colors.get(tag))
+                if selected_style is None:
+                    console.print("Canceled tag color update.")
+                    return 0
+            config.tag_colors[tag] = selected_style
+            save_config(config)
+            preview = Text()
+            preview.append(f"[{tag}]", style=selected_style)
+            preview.append(f" -> {selected_style}", style="dim")
+            console.print(Text("Saved tag color: ") + preview)
             return 0
     except Exception as exc:  # noqa: BLE001
         print(str(exc), file=sys.stderr)
@@ -254,7 +308,12 @@ def _render_task_line(
         wrapped_lines[-1] = f"{wrapped_lines[-1]}{date_text}"
     else:
         wrapped_lines.append(f"{subsequent_indent}{date_text.strip()}")
-    return Group(*[_style_wrapped_task_line(line, initial_indent, date_text, tag_styles) for line in wrapped_lines])
+    return Group(
+        *[
+            _style_wrapped_task_line(line, initial_indent, date_text, tag_styles)
+            for line in wrapped_lines
+        ]
+    )
 
 
 def _split_leading_tags(task_text: str) -> tuple[list[str], str]:
@@ -334,6 +393,81 @@ def _build_tag_styles(
                 next_style += 1
                 updated = True
     return styles, updated, warnings
+
+
+def _normalize_tag_name(tag: str) -> str:
+    return tag.strip().strip("[]").strip().lower()
+
+
+def _choose_tag_style_interactive(tag: str, current_style: str | None = None) -> str | None:
+    if not sys.stdin.isatty():
+        raise ValueError(
+            "Interactive color picker requires a TTY. Use `egdo color TAG --style STYLE`."
+        )
+
+    selected_index = TAG_STYLES.index(current_style) if current_style in TAG_STYLES else 0
+    with console.screen(hide_cursor=True) as screen:
+        screen.update(_render_tag_style_picker(tag, selected_index, current_style))
+        while True:
+            key = _read_picker_key()
+            if key == "up":
+                selected_index = (selected_index - 1) % len(TAG_STYLES)
+            elif key == "down":
+                selected_index = (selected_index + 1) % len(TAG_STYLES)
+            elif key == "enter":
+                return TAG_STYLES[selected_index]
+            elif key in {"escape", "quit"}:
+                return None
+            else:
+                continue
+            screen.update(_render_tag_style_picker(tag, selected_index, current_style))
+
+
+def _render_tag_style_picker(
+    tag: str, selected_index: int, current_style: str | None = None
+) -> Group:
+    title = Text("Choose a color for ")
+    title.append(f"[{tag}]", style=TAG_STYLES[selected_index])
+    instructions = Text("Use up/down or j/k, Enter to save, q or Esc to cancel.", style="dim")
+    rows: list[Text] = [title, instructions, Text("")]
+    for index, style_name in enumerate(TAG_STYLES):
+        row = Text()
+        marker = ">" if index == selected_index else " "
+        row.append(f"{marker} ", style="bold" if index == selected_index else "dim")
+        row.append(f"[{tag}] ", style=style_name)
+        row.append(style_name, style="bold" if index == selected_index else "default")
+        if style_name == current_style:
+            row.append(" current", style="dim")
+        rows.append(row)
+    return Group(*rows)
+
+
+def _read_picker_key() -> str:
+    fd = sys.stdin.fileno()
+    original = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        first = os.read(fd, 1)
+        if first in {b"\r", b"\n"}:
+            return "enter"
+        if first in {b"k"}:
+            return "up"
+        if first in {b"j"}:
+            return "down"
+        if first in {b"q"}:
+            return "quit"
+        if first == b"\x1b":
+            second = os.read(fd, 1)
+            if second == b"[":
+                third = os.read(fd, 1)
+                if third == b"A":
+                    return "up"
+                if third == b"B":
+                    return "down"
+            return "escape"
+        return ""
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, original)
 
 
 def _is_valid_style(style: str) -> bool:

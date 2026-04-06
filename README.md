@@ -30,7 +30,7 @@ Most CLI todo tools either hide data behind a database or assume the app is the 
 - Automatic carry-forward for unfinished tasks
 - Daily notes stored in the same file
 - Human-editable files with metadata normalization for manual checklist entries
-- Minimal CLI with `add`, `list`, `done`, `delete`, `tag`, `note`, and `init`
+- Minimal CLI with `add`, `list`, `done`, `delete`, `tag`, `color`, `note`, and `init`
 
 ## Installation
 
@@ -112,6 +112,13 @@ Add a note for today:
 
 ```bash
 egdo note "Need to test villager trading setup"
+```
+
+Set a tag color:
+
+```bash
+egdo color chores
+egdo color chores --style green_yellow
 ```
 
 ## Commands
@@ -242,6 +249,23 @@ Behavior:
 - creates the monthly file and day section if they do not exist
 - appends each new note as a new paragraph in that day’s Notes section
 
+### `egdo color`
+
+Sets the terminal color for a tag.
+
+```bash
+egdo color chores
+egdo color chores --style green_yellow
+```
+
+Behavior:
+
+- normalizes the tag name to lowercase
+- opens an interactive up/down picker by default so you can see the available colors before saving
+- supports `j` and `k` in addition to the arrow keys
+- saves the selected Rich style in `[tag_colors]` in the config file
+- `--style` skips the picker and writes the provided Rich style directly
+
 ## File Layout
 
 `egdo` stores files by year and month:
@@ -370,6 +394,12 @@ important = "bold red"
 
 Style values use Rich style names such as `green`, `blue`, `magenta`, `bright_yellow`, or `bold red`. If a configured tag style is invalid, `egdo list` warns and replaces it with the next palette color.
 
+If you want to pick from the built-in palette visually instead of editing config by hand, run:
+
+```bash
+egdo color chores
+```
+
 ## Development
 
 If you are using the same global tools environment for development, reinstall after dependency or packaging changes:
@@ -408,6 +438,7 @@ Version 1 intentionally keeps the surface area small:
 - `done`
 - `delete`
 - `tag`
+- `color`
 - `note`
 
 Not included yet:
