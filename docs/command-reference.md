@@ -29,6 +29,7 @@ Add a task to today’s active list.
 ```bash
 egdo add "Call dentist"
 egdo add -t chores -t home "Do the dishes"
+egdo add --done -t car -t errands "Call the DMV"
 egdo add "{CHORES} Do the dishes"
 egdo add "{PERSONAL} {CHORES} {HOME} Do the dishes"
 egdo add --done "Call dad"

@@ -85,6 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
             'Examples:\n  egdo add "Buy milk"\n'
             '  egdo add -t chores -t home "Do laundry"\n'
             '  egdo add "{CHORES} Do laundry"\n'
+            '  egdo add --done -t car -t errands "Call the DMV"\n'
             '  egdo add --done "Call dad"'
         ),
         formatter_class=RawDescriptionRichHelpFormatter,

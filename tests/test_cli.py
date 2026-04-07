@@ -283,6 +283,33 @@ class CliTests(unittest.TestCase):
             Path("/tmp/notes/egdo"), mocked_today, "{HOUSE} {CHORES} Do the dishes", done=False
         )
 
+    def test_main_add_command_can_create_done_task_with_tags(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
+        )()
+        output = StringIO()
+        mocked_today = date(2026, 4, 6)
+        created_task = type(
+            "TaskStub", (), {"created": date(2026, 4, 6), "text": "{CAR} {ERRANDS} Call the DMV"}
+        )()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.create_task", return_value=created_task) as create_task_mock,
+            patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["add", "--done", "-t", "car", "-t", "errands", "Call the DMV"])
+
+        self.assertEqual(exit_code, 0)
+        create_task_mock.assert_called_once_with(
+            Path("/tmp/notes/egdo"), mocked_today, "{CAR} {ERRANDS} Call the DMV", done=True
+        )
+        self.assertIn("Added done [2026-04-06] {CAR} {ERRANDS} Call the DMV", output.getvalue())
+
     def test_main_move_command_prints_destination(self) -> None:
         config = type(
             "ConfigStub",
