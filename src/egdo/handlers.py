@@ -158,6 +158,68 @@ def _handle_list(args: Any, config: Any, target_date: date, console: Console, de
     if not tasks:
         console.print(Text("No active tasks.", style="dim"))
         return 0
+
+    todays_tasks = [task for task in tasks if task.created == target_date]
+    carried_tasks = [task for task in tasks if task.created != target_date]
+    next_index = 1
+    if todays_tasks:
+        console.print(Text("Today", style="bold"))
+        for task in todays_tasks:
+            console.print(
+                deps.render_task_line(
+                    next_index, task.text, task.created, tag_styles, wrap_width=wrap_width
+                )
+            )
+            next_index += 1
+    if carried_tasks:
+        if todays_tasks:
+            console.print()
+        console.print(Text("Carried Forward", style="bold"))
+        for task in carried_tasks:
+            console.print(
+                deps.render_task_line(
+                    next_index, task.text, task.created, tag_styles, wrap_width=wrap_width
+                )
+            )
+            next_index += 1
+    return 0
+
+
+def _handle_finished(
+    args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps
+) -> int:
+    tasks = deps.list_finished_tasks(config.root, target_date, tag=args.tag)
+    return _render_task_collection(
+        console,
+        deps,
+        config,
+        target_date,
+        tasks,
+        empty_message="No finished tasks.",
+    )
+
+
+def _render_task_collection(
+    console: Console,
+    deps: HandlerDeps,
+    config: Any,
+    target_date: date,
+    tasks: list[Any],
+    empty_message: str,
+) -> int:
+    tag_styles, updated, warnings = build_tag_styles((task.text for task in tasks), config.tag_colors)
+    if updated:
+        config.tag_colors = tag_styles
+        deps.save_config(config)
+    wrap_width = deps.task_wrap_width(console)
+    console.print()
+    console.print(deps.render_list_header(target_date))
+    console.print(deps.render_separator(wrap_width))
+    for warning in warnings:
+        console.print(Text(warning, style="yellow"))
+    if not tasks:
+        console.print(Text(empty_message, style="dim"))
+        return 0
     for idx, task in enumerate(tasks, start=1):
         console.print(deps.render_task_line(idx, task.text, task.created, tag_styles, wrap_width=wrap_width))
     return 0
@@ -188,28 +250,6 @@ def _handle_future_list(
             console.print(deps.render_list_header(scheduled_date))
             console.print(deps.render_separator(wrap_width))
             current_day = scheduled_date
-        console.print(deps.render_task_line(idx, task.text, task.created, tag_styles, wrap_width=wrap_width))
-    return 0
-
-
-def _handle_finished(
-    args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps
-) -> int:
-    tasks = deps.list_finished_tasks(config.root, target_date, tag=args.tag)
-    tag_styles, updated, warnings = build_tag_styles((task.text for task in tasks), config.tag_colors)
-    if updated:
-        config.tag_colors = tag_styles
-        deps.save_config(config)
-    wrap_width = deps.task_wrap_width(console)
-    console.print()
-    console.print(deps.render_list_header(target_date))
-    console.print(deps.render_separator(wrap_width))
-    for warning in warnings:
-        console.print(Text(warning, style="yellow"))
-    if not tasks:
-        console.print(Text("No finished tasks.", style="dim"))
-        return 0
-    for idx, task in enumerate(tasks, start=1):
         console.print(deps.render_task_line(idx, task.text, task.created, tag_styles, wrap_width=wrap_width))
     return 0
 

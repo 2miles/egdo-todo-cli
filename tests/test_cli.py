@@ -398,6 +398,38 @@ class CliTests(unittest.TestCase):
         self.assertIn("Mon, Apr 6th", rendered)
         self.assertIn("1. {CHORES} Buy milk (Sun, Apr 5th)", rendered)
 
+    def test_main_list_groups_today_and_carried_forward_tasks(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
+        )()
+        output = StringIO()
+        mocked_today = date(2026, 4, 6)
+        todays_task = type("TaskStub", (), {"created": date(2026, 4, 6), "text": "{CHORES} Wash the car"})()
+        carried_task = type(
+            "TaskStub", (), {"created": date(2026, 4, 5), "text": "{MINECRAFT} Add sorter"}
+        )()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.list_tasks", return_value=[todays_task, carried_task]) as list_tasks_mock,
+            patch("egdo.cli.save_config") as save_config_mock,
+            patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["list"])
+
+        self.assertEqual(exit_code, 0)
+        list_tasks_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, tag=None)
+        save_config_mock.assert_called_once_with(config)
+        rendered = output.getvalue()
+        self.assertIn("Today", rendered)
+        self.assertIn("Carried Forward", rendered)
+        self.assertIn("1. {CHORES} Wash the car (Mon, Apr 6th)", rendered)
+        self.assertIn("2. {MINECRAFT} Add sorter (Sun, Apr 5th)", rendered)
+
     def test_main_future_done_command_completes_by_future_index(self) -> None:
         config = type(
             "ConfigStub",
