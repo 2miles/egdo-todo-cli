@@ -77,6 +77,7 @@ egdo add -t chores -t home "Do the dishes"
 egdo add --done -t car -t errands "Call the DMV"
 egdo
 egdo list -t chores
+egdo finished
 egdo future
 egdo future done 1
 egdo done 1

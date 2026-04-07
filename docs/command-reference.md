@@ -59,6 +59,19 @@ egdo list -t chores
 - `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
 - numbers tasks so you can complete them with `done`, `edit`, `delete`, or `tag`
 
+## `egdo finished`
+
+List completed tasks for today.
+
+```bash
+egdo finished
+egdo finished -t chores
+```
+
+- uses today by default
+- shows only completed tasks from today
+- `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
+
 ## `egdo future`
 
 List incomplete tasks scheduled after today.

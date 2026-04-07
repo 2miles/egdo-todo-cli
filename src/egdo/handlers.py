@@ -26,6 +26,7 @@ class HandlerDeps:
     delete_task: Any
     edit_future_task: Any
     edit_task: Any
+    list_finished_tasks: Any
     list_future_tasks: Any
     list_tasks: Any
     move_future_task: Any
@@ -52,6 +53,9 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
 
     if args.command == "list":
         return _handle_list(args, config, target_date, console, deps)
+
+    if args.command == "finished":
+        return _handle_finished(args, config, target_date, console, deps)
 
     if args.command == "future" and args.future_command is None:
         return _handle_future_list(args, config, target_date, console, deps)
@@ -184,6 +188,28 @@ def _handle_future_list(
             console.print(deps.render_list_header(scheduled_date))
             console.print(deps.render_separator(wrap_width))
             current_day = scheduled_date
+        console.print(deps.render_task_line(idx, task.text, task.created, tag_styles, wrap_width=wrap_width))
+    return 0
+
+
+def _handle_finished(
+    args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps
+) -> int:
+    tasks = deps.list_finished_tasks(config.root, target_date, tag=args.tag)
+    tag_styles, updated, warnings = build_tag_styles((task.text for task in tasks), config.tag_colors)
+    if updated:
+        config.tag_colors = tag_styles
+        deps.save_config(config)
+    wrap_width = deps.task_wrap_width(console)
+    console.print()
+    console.print(deps.render_list_header(target_date))
+    console.print(deps.render_separator(wrap_width))
+    for warning in warnings:
+        console.print(Text(warning, style="yellow"))
+    if not tasks:
+        console.print(Text("No finished tasks.", style="dim"))
+        return 0
+    for idx, task in enumerate(tasks, start=1):
         console.print(deps.render_task_line(idx, task.text, task.created, tag_styles, wrap_width=wrap_width))
     return 0
 

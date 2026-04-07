@@ -371,6 +371,33 @@ class CliTests(unittest.TestCase):
         self.assertIn("1. {CHORES} Buy milk (Sun, Apr 5th)", rendered)
         self.assertIn("2. Ship box (Sat, Apr 4th)", rendered)
 
+    def test_main_finished_command_renders_completed_tasks(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
+        )()
+        output = StringIO()
+        mocked_today = date(2026, 4, 6)
+        finished_task = type("TaskStub", (), {"created": date(2026, 4, 5), "text": "{CHORES} Buy milk"})()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.list_finished_tasks", return_value=[finished_task]) as list_finished_tasks_mock,
+            patch("egdo.cli.save_config") as save_config_mock,
+            patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["finished"])
+
+        self.assertEqual(exit_code, 0)
+        list_finished_tasks_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, tag=None)
+        save_config_mock.assert_called_once_with(config)
+        rendered = output.getvalue()
+        self.assertIn("Mon, Apr 6th", rendered)
+        self.assertIn("1. {CHORES} Buy milk (Sun, Apr 5th)", rendered)
+
     def test_main_future_done_command_completes_by_future_index(self) -> None:
         config = type(
             "ConfigStub",

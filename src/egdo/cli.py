@@ -18,6 +18,7 @@ from egdo.store import (
     edit_future_task,
     edit_task,
     complete_future_task,
+    list_finished_tasks,
     list_future_tasks,
     list_tasks,
     move_future_task,
@@ -47,6 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
             '  egdo add "Do laundry"\n'
             '  egdo add --done "Call dad"\n'
             "  egdo list\n"
+            "  egdo finished\n"
             "  egdo future\n"
             "  egdo list -t chores\n"
             "  egdo done 1\n"
@@ -108,6 +110,15 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     list_parser.add_argument("-t", "--tag", help="Show only tasks with this leading tag")
+
+    finished_parser = subparsers.add_parser(
+        "finished",
+        help="List finished tasks",
+        description="List today's completed tasks. Use -t or --tag to filter by leading tags.",
+        epilog="Examples:\n  egdo finished\n  egdo finished -t chores",
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
+    finished_parser.add_argument("-t", "--tag", help="Show only finished tasks with this leading tag")
 
     future_parser = subparsers.add_parser(
         "future",
@@ -294,6 +305,7 @@ def main(argv: list[str] | None = None) -> int:
             delete_task=delete_task,
             edit_future_task=edit_future_task,
             edit_task=edit_task,
+            list_finished_tasks=list_finished_tasks,
             list_future_tasks=list_future_tasks,
             list_tasks=list_tasks,
             move_future_task=move_future_task,

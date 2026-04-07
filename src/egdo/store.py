@@ -54,6 +54,19 @@ def list_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> li
     return [task for task in tasks if normalized_tag in task.tags]
 
 
+def list_finished_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> list[Task]:
+    rollover(notes_dir, target_date)
+    state = ensure_state(file_path(notes_dir, target_date))
+    day = state.days.get(target_date)
+    if day is None:
+        return []
+    tasks = [task for task in day.tasks if task.done]
+    if tag is None:
+        return tasks
+    normalized_tag = tag.strip().lower()
+    return [task for task in tasks if normalized_tag in task.tags]
+
+
 def list_future_tasks(
     notes_dir: Path, target_date: date, tag: str | None = None
 ) -> list[tuple[date, Task]]:

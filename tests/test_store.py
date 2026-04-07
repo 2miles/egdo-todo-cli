@@ -20,6 +20,7 @@ from egdo.store import (
     edit_task,
     ensure_state,
     file_path,
+    list_finished_tasks,
     list_future_tasks,
     list_tasks,
     move_future_task,
@@ -132,6 +133,31 @@ class StoreTests(unittest.TestCase):
             self.assertTrue(task.done)
             content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
             self.assertIn("- [x] {CHORES} Buy milk (04-05)", content)
+
+    def test_list_finished_tasks_returns_done_tasks_for_today(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+            add_task(notes_dir, target_date, "{CHORES} Buy milk")
+            add_task(notes_dir, target_date, "Ship box")
+            complete_task(notes_dir, target_date, 1)
+
+            tasks = list_finished_tasks(notes_dir, target_date)
+
+            self.assertEqual([task.text for task in tasks], ["{CHORES} Buy milk"])
+
+    def test_list_finished_tasks_filters_by_tag(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+            add_task(notes_dir, target_date, "{CHORES} Buy milk")
+            add_task(notes_dir, target_date, "{WORK} Fix parser bug")
+            complete_task(notes_dir, target_date, 1)
+            complete_task(notes_dir, target_date, 1)
+
+            tasks = list_finished_tasks(notes_dir, target_date, tag="chores")
+
+            self.assertEqual([task.text for task in tasks], ["{CHORES} Buy milk"])
 
     def test_delete_removes_task_from_current_day(self) -> None:
         with TemporaryDirectory() as tmp:
