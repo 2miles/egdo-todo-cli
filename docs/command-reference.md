@@ -39,7 +39,6 @@ egdo add --done "Call dad"
 - first performs rollover for unfinished tasks from the most recent earlier day
 - `-t` or `--tag` can be repeated to prepend tags without typing tag syntax yourself
 - preserves any leading tag groups in the task body and normalizes touched tags to `{UPPERCASE}`
-- older leading bracket tags such as `[chores]` are still recognized during the transition
 - `--done` creates the task already completed
 
 ## `egdo list`

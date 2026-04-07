@@ -242,18 +242,10 @@ def _format_tag(tag: str) -> str:
 
 
 def _normalize_tag_value(tag: str) -> str:
-    return tag.strip().strip("[]{}").strip().lower()
+    return tag.strip().strip("{}").strip().lower()
 
 
 def _parse_tag_token(text: str) -> tuple[str, str] | None:
-    if text.startswith("["):
-        closing = text.find("]")
-        if closing <= 1:
-            return None
-        tag = _normalize_tag_value(text[1:closing])
-        if not tag:
-            return None
-        return (tag, text[closing + 1 :])
     if text.startswith("{"):
         closing = text.find("}")
         if closing <= 1:

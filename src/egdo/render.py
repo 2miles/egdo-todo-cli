@@ -154,14 +154,6 @@ def render_tag_style_picker(tag: str, selected_index: int, current_style: str | 
 
 
 def _parse_tag_token(text: str) -> tuple[str, str] | None:
-    if text.startswith("["):
-        closing = text.find("]")
-        if closing <= 1:
-            return None
-        tag = text[1:closing].strip()
-        if not tag:
-            return None
-        return (tag, text[closing + 1 :])
     if text.startswith("{"):
         closing = text.find("}")
         if closing <= 1:

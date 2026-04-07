@@ -63,15 +63,15 @@ class StoreTests(unittest.TestCase):
     def test_list_rolls_forward_unfinished_tasks_across_days(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
-            add_task(notes_dir, date(2026, 4, 4), "[chores] Buy milk")
+            add_task(notes_dir, date(2026, 4, 4), "{CHORES} Buy milk")
 
             tasks = list_tasks(notes_dir, date(2026, 4, 5))
 
-            self.assertEqual([task.text for task in tasks], ["[chores] Buy milk"])
+            self.assertEqual([task.text for task in tasks], ["{CHORES} Buy milk"])
             state = ensure_state(file_path(notes_dir, date(2026, 4, 5)))
             content = file_path(notes_dir, date(2026, 4, 5)).read_text(encoding="utf-8")
             self.assertIn("## Apr-05 Sun", content)
-            self.assertIn("- [ ] [chores] Buy milk (04-04)", content)
+            self.assertIn("- [ ] {CHORES} Buy milk (04-04)", content)
             self.assertNotIn(date(2026, 4, 4), state.days)
 
     def test_rollover_is_idempotent(self) -> None:
@@ -113,25 +113,25 @@ class StoreTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
             target_date = date(2026, 4, 5)
-            add_task(notes_dir, target_date, "[personal][chores][home] Do the dishes")
-            add_task(notes_dir, target_date, "[work] Fix parser bug")
+            add_task(notes_dir, target_date, "{PERSONAL} {CHORES} {HOME} Do the dishes")
+            add_task(notes_dir, target_date, "{WORK} Fix parser bug")
             add_task(notes_dir, target_date, "Plain task")
 
             tasks = list_tasks(notes_dir, target_date, tag="chores")
 
-            self.assertEqual([task.text for task in tasks], ["[personal][chores][home] Do the dishes"])
+            self.assertEqual([task.text for task in tasks], ["{PERSONAL} {CHORES} {HOME} Do the dishes"])
 
     def test_done_marks_task_complete_in_month_file(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
             target_date = date(2026, 4, 5)
-            add_task(notes_dir, target_date, "[chores] Buy milk")
+            add_task(notes_dir, target_date, "{CHORES} Buy milk")
 
             task = complete_task(notes_dir, target_date, 1)
 
             self.assertTrue(task.done)
             content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
-            self.assertIn("- [x] [chores] Buy milk (04-05)", content)
+            self.assertIn("- [x] {CHORES} Buy milk (04-05)", content)
 
     def test_delete_removes_task_from_current_day(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -152,12 +152,12 @@ class StoreTests(unittest.TestCase):
             target_date = date(2026, 4, 5)
             add_task(notes_dir, target_date, "Buy milk")
 
-            task = edit_task(notes_dir, target_date, 1, "[chores] Buy oat milk")
+            task = edit_task(notes_dir, target_date, 1, "{CHORES} Buy oat milk")
 
-            self.assertEqual(task.text, "[chores] Buy oat milk")
+            self.assertEqual(task.text, "{CHORES} Buy oat milk")
             self.assertEqual(task.created, target_date)
             content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
-            self.assertIn("- [ ] [chores] Buy oat milk (04-05)", content)
+            self.assertIn("- [ ] {CHORES} Buy oat milk (04-05)", content)
 
     def test_edit_indexes_only_active_tasks(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -241,7 +241,7 @@ class StoreTests(unittest.TestCase):
                         "",
                         "### Tasks",
                         "",
-                        "- [ ] [chores] Future one (04-08)",
+                        "- [ ] {CHORES} Future one (04-08)",
                         "",
                         "## Apr-10 Fri",
                         "",
@@ -259,7 +259,7 @@ class StoreTests(unittest.TestCase):
             self.assertEqual(
                 [(scheduled, task.text) for scheduled, task in future_tasks],
                 [
-                    (date(2026, 4, 8), "[chores] Future one"),
+                    (date(2026, 4, 8), "{CHORES} Future one"),
                 ],
             )
 
@@ -275,13 +275,13 @@ class StoreTests(unittest.TestCase):
                         "",
                         "### Tasks",
                         "",
-                        "- [ ] [chores] Future one (04-08)",
+                        "- [ ] {CHORES} Future one (04-08)",
                         "",
                         "## Apr-09 Thu",
                         "",
                         "### Tasks",
                         "",
-                        "- [ ] [work] Future two (04-09)",
+                        "- [ ] {WORK} Future two (04-09)",
                         "",
                     ]
                 ),
@@ -292,7 +292,7 @@ class StoreTests(unittest.TestCase):
 
             self.assertEqual(
                 [(scheduled, task.text) for scheduled, task in future_tasks],
-                [(date(2026, 4, 8), "[chores] Future one")],
+                [(date(2026, 4, 8), "{CHORES} Future one")],
             )
 
     def test_unmove_moves_future_task_back_to_today_by_future_index(self) -> None:
@@ -429,7 +429,7 @@ class StoreTests(unittest.TestCase):
                         "",
                         "### Tasks",
                         "",
-                        "- [ ] [chores] Buy milk (04-04)",
+                        "- [ ] {CHORES} Buy milk (04-04)",
                         "- [x] Ship box (04-05)",
                         "",
                         "### Notes",
@@ -444,7 +444,7 @@ class StoreTests(unittest.TestCase):
             tasks = list_tasks(notes_dir, target_date)
             state = ensure_state(path)
 
-            self.assertEqual([task.text for task in tasks], ["[chores] Buy milk"])
+            self.assertEqual([task.text for task in tasks], ["{CHORES} Buy milk"])
             self.assertEqual(state.days[target_date].notes, ["Need to remember cat meds."])
 
     def test_rollover_across_month_boundary_keeps_original_created_date(self) -> None:

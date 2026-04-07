@@ -96,9 +96,9 @@ class CliTests(unittest.TestCase):
     def test_build_tag_styles_assigns_distinct_colors_until_palette_runs_out(self) -> None:
         styles, updated, warnings = build_tag_styles(
             [
-                "[minecraft] Task",
-                "[fun] Task",
-                "[important] Task",
+                "{MINECRAFT} Task",
+                "{FUN} Task",
+                "{IMPORTANT} Task",
             ]
         )
 
@@ -109,9 +109,9 @@ class CliTests(unittest.TestCase):
     def test_build_tag_styles_reuses_existing_assignment_for_repeat_tags(self) -> None:
         styles, _, _ = build_tag_styles(
             [
-                "[minecraft] Task",
-                "[fun] Task",
-                "[minecraft] Another task",
+                "{MINECRAFT} Task",
+                "{FUN} Task",
+                "{MINECRAFT} Another task",
             ]
         )
 
@@ -125,7 +125,7 @@ class CliTests(unittest.TestCase):
 
     def test_build_tag_styles_preserves_existing_assignments(self) -> None:
         styles, updated, warnings = build_tag_styles(
-            ["[minecraft] Task", "[fun] Task"],
+            ["{MINECRAFT} Task", "{FUN} Task"],
             existing_styles={"minecraft": "red"},
         )
 
@@ -135,7 +135,7 @@ class CliTests(unittest.TestCase):
 
     def test_build_tag_styles_reassigns_invalid_config_style(self) -> None:
         styles, updated, warnings = build_tag_styles(
-            ["[minecraft] Task"],
+            ["{MINECRAFT} Task"],
             existing_styles={"minecraft": "not-a-real-style"},
         )
 
@@ -276,7 +276,7 @@ class CliTests(unittest.TestCase):
             patch("egdo.cli.console", Console(file=StringIO(), force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
-            exit_code = main(["add", "--tag", "chores", "[house] Do the dishes"])
+            exit_code = main(["add", "--tag", "chores", "{HOUSE} Do the dishes"])
 
         self.assertEqual(exit_code, 0)
         create_task_mock.assert_called_once_with(

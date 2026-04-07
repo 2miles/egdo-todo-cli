@@ -251,7 +251,7 @@ def build_tag_styles(
 
 
 def normalize_tag_name(tag: str) -> str:
-    return tag.strip().strip("[]{}").strip().lower()
+    return tag.strip().strip("{}").strip().lower()
 
 
 def choose_tag_style_interactive(
@@ -333,14 +333,6 @@ def _split_leading_tags(task_text: str) -> tuple[list[str], str]:
 
 
 def _parse_tag_token(text: str) -> tuple[str, str] | None:
-    if text.startswith("["):
-        closing = text.find("]")
-        if closing <= 1:
-            return None
-        tag = text[1:closing].strip()
-        if not tag:
-            return None
-        return (tag, text[closing + 1 :])
     if text.startswith("{"):
         closing = text.find("}")
         if closing <= 1:

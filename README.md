@@ -92,7 +92,7 @@ Running `egdo` with no command is the same as `egdo list`.
 
 `egdo future unmove INDEX` takes a task from the `egdo future` view and puts it back on today's active list.
 
-You can create tags either from the CLI with repeated `-t` or `--tag` flags or by typing leading brace tags directly in the markdown, such as `{CHORES} {HOME} Do the dishes`. Older leading bracket tags are still recognized while existing files transition.
+You can create tags either from the CLI with repeated `-t` or `--tag` flags or by typing leading brace tags directly in the markdown, such as `{CHORES} {HOME} Do the dishes`.
 
 For the full command reference, see [docs/command-reference.md](/Users/miles/Code/Github/egdo-todo-cli/docs/command-reference.md).
 
