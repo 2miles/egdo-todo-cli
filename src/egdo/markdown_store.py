@@ -193,16 +193,14 @@ def parse_leading_tags(text: str) -> tuple[str, ...]:
 def split_leading_tags_and_body(text: str) -> tuple[list[str], str]:
     tags: list[str] = []
     remaining = text.lstrip()
-    while remaining.startswith("["):
-        closing = remaining.find("]")
-        if closing <= 1:
+    while True:
+        parsed = _parse_tag_token(remaining)
+        if parsed is None:
             break
-        tag = remaining[1:closing].strip().lower()
-        if not tag:
-            break
+        tag, remaining = parsed
         if tag not in tags:
             tags.append(tag)
-        remaining = remaining[closing + 1 :]
+        remaining = remaining.lstrip()
     body = remaining.lstrip()
     if not body:
         body = text.strip()
@@ -212,7 +210,7 @@ def split_leading_tags_and_body(text: str) -> tuple[list[str], str]:
 def normalize_tags(tags: list[str]) -> list[str]:
     normalized: list[str] = []
     for tag in tags:
-        value = tag.strip().strip("[]").strip().lower()
+        value = _normalize_tag_value(tag)
         if not value:
             continue
         if value not in normalized:
@@ -222,15 +220,46 @@ def normalize_tags(tags: list[str]) -> list[str]:
 
 def merge_tags_into_text(text: str, tags: list[str]) -> str:
     normalized_tags = normalize_tags(tags)
-    if not normalized_tags:
-        return text
-
     existing_tags, body = split_leading_tags_and_body(text)
+    if not normalized_tags and not existing_tags:
+        return text
     merged_tags = list(existing_tags)
     for tag in normalized_tags:
         if tag not in merged_tags:
             merged_tags.append(tag)
-    tag_prefix = "".join(f"[{tag}]" for tag in merged_tags)
+    tag_prefix = " ".join(_format_tag(tag) for tag in merged_tags)
     if body:
         return f"{tag_prefix} {body}"
     return tag_prefix
+
+
+def format_tag(tag: str) -> str:
+    return _format_tag(_normalize_tag_value(tag))
+
+
+def _format_tag(tag: str) -> str:
+    return f"{{{tag.upper()}}}"
+
+
+def _normalize_tag_value(tag: str) -> str:
+    return tag.strip().strip("[]{}").strip().lower()
+
+
+def _parse_tag_token(text: str) -> tuple[str, str] | None:
+    if text.startswith("["):
+        closing = text.find("]")
+        if closing <= 1:
+            return None
+        tag = _normalize_tag_value(text[1:closing])
+        if not tag:
+            return None
+        return (tag, text[closing + 1 :])
+    if text.startswith("{"):
+        closing = text.find("}")
+        if closing <= 1:
+            return None
+        tag = _normalize_tag_value(text[1:closing])
+        if not tag:
+            return None
+        return (tag, text[closing + 1 :])
+    return None

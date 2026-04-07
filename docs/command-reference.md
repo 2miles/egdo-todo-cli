@@ -29,16 +29,17 @@ Add a task to today’s active list.
 ```bash
 egdo add "Call dentist"
 egdo add -t chores -t home "Do the dishes"
-egdo add "[chores] Do the dishes"
-egdo add "[personal][chores][home] Do the dishes"
+egdo add "{CHORES} Do the dishes"
+egdo add "{PERSONAL} {CHORES} {HOME} Do the dishes"
 egdo add --done "Call dad"
 ```
 
 - uses today by default
 - creates the monthly file and day section if they do not exist
 - first performs rollover for unfinished tasks from the most recent earlier day
-- `-t` or `--tag` can be repeated to prepend tags without typing bracket syntax yourself
-- preserves any leading bracket tags as plain text in the task body
+- `-t` or `--tag` can be repeated to prepend tags without typing tag syntax yourself
+- preserves any leading tag groups in the task body and normalizes touched tags to `{UPPERCASE}`
+- older leading bracket tags such as `[chores]` are still recognized during the transition
 - `--done` creates the task already completed
 
 ## `egdo list`
@@ -55,7 +56,7 @@ egdo list -t chores
 - uses today by default
 - first performs rollover for unfinished tasks from the most recent earlier day
 - shows only incomplete tasks
-- `-t` or `--tag` filters by leading bracket tags such as `[chores]` or `[home]`
+- `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
 - numbers tasks so you can complete them with `done`, `edit`, `delete`, or `tag`
 
 ## `egdo future`
@@ -77,7 +78,7 @@ egdo future unmove 1
 - groups tasks by their scheduled day
 - numbers tasks across the whole future view
 - shows each task with its original created date
-- `-t` or `--tag` filters by leading bracket tags such as `[chores]` or `[home]`
+- `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
 - `future done`, `delete`, `edit`, `move`, `tag`, and `unmove` use the numbering shown by `egdo future`
 - `future unmove` removes a task from its future day and puts it back on today’s active list
 - `future move` accepts the same date forms as `egdo move`: `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
@@ -87,7 +88,7 @@ Example output:
 ```text
 Thu, Apr 3rd
 ────────────────────────────────────────
-1. [chores] Buy milk (Thu, Apr 3rd)
+1. {CHORES} Buy milk (Thu, Apr 3rd)
 2. Call dentist (Thu, Apr 3rd)
 ```
 
@@ -109,7 +110,7 @@ Edit a numbered active task in today’s file.
 
 ```bash
 egdo edit 2 "Buy oat milk"
-egdo edit 1 "[chores] Pick up detergent"
+egdo edit 1 "{CHORES} Pick up detergent"
 ```
 
 - uses today by default
@@ -160,8 +161,8 @@ egdo tag 3 chores home
 
 - uses today by default
 - updates the task by the numeric index shown in `egdo list`
-- stores tags as leading bracket groups such as `[chores][home]`
-- ignores duplicate tags and normalizes tag names to lowercase
+- stores tags as leading brace groups such as `{CHORES} {HOME}`
+- ignores duplicate tags and normalizes tag names case-insensitively
 
 ## `egdo note`
 
@@ -208,10 +209,10 @@ Rollover is idempotent, so repeating `list` for the same day does not duplicate 
 
 ### Tags
 
-- leading bracket groups are treated as tags for filtering
-- you can create tags either with `egdo add --tag chores --tag home "Task"` or by typing `[chores][home] Task` directly in the markdown
-- `[personal][chores][home] Do the dishes` has tags `personal`, `chores`, and `home`
-- brackets later in the task text are treated as normal text
+- leading brace groups are treated as tags for filtering
+- you can create tags either with `egdo add -t chores -t home "Task"` or by typing `{CHORES} {HOME} Task` directly in the markdown
+- `{PERSONAL} {CHORES} {HOME} Do the dishes` has tags `personal`, `chores`, and `home`
+- braces later in the task text are treated as normal text
 - tag colors are assigned once and stored in config so they stay stable across lists
 
 ### Normalization

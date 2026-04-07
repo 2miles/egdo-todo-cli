@@ -182,9 +182,9 @@ class StoreTests(unittest.TestCase):
 
             task = tag_task(notes_dir, target_date, 1, ["chores", "home"])
 
-            self.assertEqual(task.text, "[chores][home] Do the dishes")
+            self.assertEqual(task.text, "{CHORES} {HOME} Do the dishes")
             content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
-            self.assertIn("- [ ] [chores][home] Do the dishes (04-05)", content)
+            self.assertIn("- [ ] {CHORES} {HOME} Do the dishes (04-05)", content)
 
     def test_move_moves_active_task_to_future_day_and_preserves_created_date(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -356,11 +356,11 @@ class StoreTests(unittest.TestCase):
             add_task(notes_dir, today, "Buy milk")
             move_task(notes_dir, today, 1, date(2026, 4, 10))
 
-            task = edit_future_task(notes_dir, today, 1, "[chores] Buy oat milk")
+            task = edit_future_task(notes_dir, today, 1, "{CHORES} Buy oat milk")
 
-            self.assertEqual(task.text, "[chores] Buy oat milk")
+            self.assertEqual(task.text, "{CHORES} Buy oat milk")
             future_tasks = list_future_tasks(notes_dir, today)
-            self.assertEqual(future_tasks[0][1].text, "[chores] Buy oat milk")
+            self.assertEqual(future_tasks[0][1].text, "{CHORES} Buy oat milk")
 
     def test_move_future_task_retimes_future_task(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -387,9 +387,9 @@ class StoreTests(unittest.TestCase):
 
             task = tag_future_task(notes_dir, today, 1, ["chores", "home"])
 
-            self.assertEqual(task.text, "[chores][home] Buy milk")
+            self.assertEqual(task.text, "{CHORES} {HOME} Buy milk")
             future_tasks = list_future_tasks(notes_dir, today)
-            self.assertEqual(future_tasks[0][1].text, "[chores][home] Buy milk")
+            self.assertEqual(future_tasks[0][1].text, "{CHORES} {HOME} Buy milk")
 
     def test_add_note_creates_notes_section_and_appends_paragraphs(self) -> None:
         with TemporaryDirectory() as tmp:

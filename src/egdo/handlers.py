@@ -206,7 +206,7 @@ def handle_color(args: Any, config: Any, console: Console, deps: HandlerDeps) ->
     config.tag_colors[tag] = selected_style
     deps.save_config(config)
     preview = Text()
-    preview.append(f"[{tag}]", style=selected_style)
+    preview.append(f"{{{tag.upper()}}}", style=selected_style)
     preview.append(f" -> {selected_style}", style="dim")
     console.print(Text("Saved tag color: ") + preview)
     return 0
@@ -251,7 +251,7 @@ def build_tag_styles(
 
 
 def normalize_tag_name(tag: str) -> str:
-    return tag.strip().strip("[]").strip().lower()
+    return tag.strip().strip("[]{}").strip().lower()
 
 
 def choose_tag_style_interactive(
@@ -322,13 +322,31 @@ def is_valid_style(style: str) -> bool:
 def _split_leading_tags(task_text: str) -> tuple[list[str], str]:
     tags: list[str] = []
     remaining = task_text.lstrip()
-    while remaining.startswith("["):
-        closing = remaining.find("]")
-        if closing <= 1:
+    while True:
+        parsed = _parse_tag_token(remaining)
+        if parsed is None:
             break
-        tag = remaining[1:closing].strip()
-        if not tag:
-            break
+        tag, remaining = parsed
         tags.append(tag)
-        remaining = remaining[closing + 1 :]
+        remaining = remaining.lstrip()
     return tags, remaining.lstrip()
+
+
+def _parse_tag_token(text: str) -> tuple[str, str] | None:
+    if text.startswith("["):
+        closing = text.find("]")
+        if closing <= 1:
+            return None
+        tag = text[1:closing].strip()
+        if not tag:
+            return None
+        return (tag, text[closing + 1 :])
+    if text.startswith("{"):
+        closing = text.find("}")
+        if closing <= 1:
+            return None
+        tag = text[1:closing].strip()
+        if not tag:
+            return None
+        return (tag, text[closing + 1 :])
+    return None

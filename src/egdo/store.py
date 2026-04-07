@@ -7,6 +7,7 @@ from egdo.markdown_store import FileState
 from egdo.markdown_store import Task
 from egdo.markdown_store import ensure_state
 from egdo.markdown_store import file_path
+from egdo.markdown_store import format_tag
 from egdo.markdown_store import is_month_file
 from egdo.markdown_store import normalize_tags
 from egdo.markdown_store import parse_file
@@ -143,7 +144,7 @@ def tag_future_task(notes_dir: Path, target_date: date, index: int, tags: list[s
             for tag in normalized_tags:
                 if tag not in merged_tags:
                     merged_tags.append(tag)
-            task.text = "".join(f"[{tag}]" for tag in merged_tags) + f" {body}"
+            task.text = " ".join(format_tag(tag) for tag in merged_tags) + f" {body}"
             write_state(path, state)
             return task
     raise RuntimeError("Future task disappeared before tagging")
@@ -256,7 +257,7 @@ def tag_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) ->
             for tag in normalized_tags:
                 if tag not in merged_tags:
                     merged_tags.append(tag)
-            task.text = "".join(f"[{tag}]" for tag in merged_tags) + f" {body}"
+            task.text = " ".join(format_tag(tag) for tag in merged_tags) + f" {body}"
             write_state(path, state)
             return task
     raise RuntimeError("Active task disappeared before tagging")

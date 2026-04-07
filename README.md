@@ -19,7 +19,7 @@ In practice:
 - each month has one markdown file
 - each day is a section inside that file
 - notes live alongside tasks for the same day
-- tags use leading bracket groups such as `[chores]` or `[home]`
+- tags use leading brace groups such as `{CHORES}` or `{HOME}`
 - tag colors stay stable in the terminal once assigned
 
 The result is a todo list that stays lightweight without throwing away history.
@@ -92,7 +92,7 @@ Running `egdo` with no command is the same as `egdo list`.
 
 `egdo future unmove INDEX` takes a task from the `egdo future` view and puts it back on today's active list.
 
-You can create tags either from the CLI with repeated `-t` or `--tag` flags or by typing leading bracket tags directly in the markdown, such as `[chores][home] Do the dishes`.
+You can create tags either from the CLI with repeated `-t` or `--tag` flags or by typing leading brace tags directly in the markdown, such as `{CHORES} {HOME} Do the dishes`. Older leading bracket tags are still recognized while existing files transition.
 
 For the full command reference, see [docs/command-reference.md](/Users/miles/Code/Github/egdo-todo-cli/docs/command-reference.md).
 
@@ -117,7 +117,7 @@ Each day is a section in that month file:
 
 ### Tasks
 
-- [ ] [chores] Buy milk (04-05)
+- [ ] {CHORES} Buy milk (04-05)
 
 ### Notes
 
@@ -134,7 +134,7 @@ You can safely:
 
 - change task text in a day’s `### Tasks` section
 - add simple checklist items in a `### Tasks` section
-- create tags by typing leading bracket groups such as `[chores]` or `[home]`
+- create tags by typing leading brace groups such as `{CHORES}` or `{HOME}`
 - edit or add text in a day’s `### Notes` section
 - open and edit the files directly in any text editor
 

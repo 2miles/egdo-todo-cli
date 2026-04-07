@@ -51,10 +51,10 @@ class CliTests(unittest.TestCase):
         output = StringIO()
         console = Console(file=output, force_terminal=False, color_system=None)
         console.print(
-            render_task_line(3, "[minecraft] Add sorter", date(2026, 4, 4), {"minecraft": "green"})
+            render_task_line(3, "{MINECRAFT} Add sorter", date(2026, 4, 4), {"minecraft": "green"})
         )
 
-        self.assertEqual(output.getvalue(), "3. [minecraft] Add sorter (Sat, Apr 4th)\n")
+        self.assertEqual(output.getvalue(), "3. {MINECRAFT} Add sorter (Sat, Apr 4th)\n")
 
     def test_render_task_line_wraps_with_indented_continuation(self) -> None:
         output = StringIO()
@@ -62,7 +62,7 @@ class CliTests(unittest.TestCase):
         console.print(
             render_task_line(
                 1,
-                "[minecraft] Add dripstone farm overflow protection and sorter",
+                "{MINECRAFT} Add dripstone farm overflow protection and sorter",
                 date(2026, 4, 4),
                 {"minecraft": "green"},
                 wrap_width=40,
@@ -71,7 +71,7 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(
             output.getvalue(),
-            "1. [minecraft] Add dripstone farm\n"
+            "1. {MINECRAFT} Add dripstone farm\n"
             "   overflow protection and sorter\n"
             "   (Sat, Apr 4th)\n",
         )
@@ -119,7 +119,7 @@ class CliTests(unittest.TestCase):
         self.assertNotEqual(styles["minecraft"], styles["fun"])
 
     def test_build_tag_styles_never_uses_header_date_style(self) -> None:
-        styles, _, _ = build_tag_styles(["[minecraft] Task", "[chores] Task", "[home] Task"])
+        styles, _, _ = build_tag_styles(["{MINECRAFT} Task", "{CHORES} Task", "{HOME} Task"])
         for style in styles.values():
             self.assertNotEqual(style, "bold cyan")
 
@@ -144,7 +144,7 @@ class CliTests(unittest.TestCase):
         self.assertNotEqual(styles["minecraft"], "not-a-real-style")
 
     def test_normalize_tag_name_strips_brackets_and_lowercases(self) -> None:
-        self.assertEqual(normalize_tag_name(" [Chores] "), "chores")
+        self.assertEqual(normalize_tag_name(" {Chores} "), "chores")
 
     def test_parse_future_date_accepts_tomorrow(self) -> None:
         self.assertEqual(parse_future_date("tomorrow", date(2026, 4, 6)), date(2026, 4, 7))
@@ -169,8 +169,8 @@ class CliTests(unittest.TestCase):
         console.print(render_tag_style_picker("chores", 0, "medium_orchid3"))
 
         rendered = output.getvalue()
-        self.assertIn("Choose a color for [chores]", rendered)
-        self.assertIn("> [chores] medium_orchid3 current", rendered)
+        self.assertIn("Choose a color for {CHORES}", rendered)
+        self.assertIn("> {CHORES} medium_orchid3 current", rendered)
 
     def test_main_color_command_saves_style_override(self) -> None:
         config = type(
@@ -190,7 +190,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(config.tag_colors["chores"], "green_yellow")
         save_config_mock.assert_called_once_with(config)
-        self.assertIn("Saved tag color: [chores] -> green_yellow", output.getvalue())
+        self.assertIn("Saved tag color: {CHORES} -> green_yellow", output.getvalue())
 
     def test_main_color_command_rejects_invalid_style(self) -> None:
         config = type(
@@ -240,7 +240,7 @@ class CliTests(unittest.TestCase):
         output = StringIO()
         mocked_today = date(2026, 4, 6)
         created_task = type(
-            "TaskStub", (), {"created": date(2026, 4, 6), "text": "[house][chores] Do the dishes"}
+            "TaskStub", (), {"created": date(2026, 4, 6), "text": "{HOUSE} {CHORES} Do the dishes"}
         )()
 
         with (
@@ -254,9 +254,9 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         create_task_mock.assert_called_once_with(
-            Path("/tmp/notes/egdo"), mocked_today, "[house][chores] Do the dishes", done=False
+            Path("/tmp/notes/egdo"), mocked_today, "{HOUSE} {CHORES} Do the dishes", done=False
         )
-        self.assertIn("Added [2026-04-06] [house][chores] Do the dishes", output.getvalue())
+        self.assertIn("Added [2026-04-06] {HOUSE} {CHORES} Do the dishes", output.getvalue())
 
     def test_main_add_command_dedupes_inline_and_flag_tags(self) -> None:
         config = type(
@@ -266,7 +266,7 @@ class CliTests(unittest.TestCase):
         )()
         mocked_today = date(2026, 4, 6)
         created_task = type(
-            "TaskStub", (), {"created": date(2026, 4, 6), "text": "[house][chores] Do the dishes"}
+            "TaskStub", (), {"created": date(2026, 4, 6), "text": "{HOUSE} {CHORES} Do the dishes"}
         )()
 
         with (
@@ -280,7 +280,7 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         create_task_mock.assert_called_once_with(
-            Path("/tmp/notes/egdo"), mocked_today, "[house][chores] Do the dishes", done=False
+            Path("/tmp/notes/egdo"), mocked_today, "{HOUSE} {CHORES} Do the dishes", done=False
         )
 
     def test_main_move_command_prints_destination(self) -> None:
@@ -316,7 +316,7 @@ class CliTests(unittest.TestCase):
         )()
         output = StringIO()
         mocked_today = date(2026, 4, 6)
-        first_task = type("TaskStub", (), {"created": date(2026, 4, 5), "text": "[chores] Buy milk"})()
+        first_task = type("TaskStub", (), {"created": date(2026, 4, 5), "text": "{CHORES} Buy milk"})()
         second_task = type("TaskStub", (), {"created": date(2026, 4, 4), "text": "Ship box"})()
 
         with (
@@ -341,7 +341,7 @@ class CliTests(unittest.TestCase):
         rendered = output.getvalue()
         self.assertIn("Tue, Apr 7th", rendered)
         self.assertIn("Fri, Apr 10th", rendered)
-        self.assertIn("1. [chores] Buy milk (Sun, Apr 5th)", rendered)
+        self.assertIn("1. {CHORES} Buy milk (Sun, Apr 5th)", rendered)
         self.assertIn("2. Ship box (Sat, Apr 4th)", rendered)
 
     def test_main_future_done_command_completes_by_future_index(self) -> None:

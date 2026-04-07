@@ -56,7 +56,7 @@ def render_task_line(
     index: int, task_text: str, created, tag_styles: dict[str, str], wrap_width: int = 88
 ) -> Group:
     tags, body = split_leading_tags(task_text)
-    label = "".join(f"[{tag}]" for tag in tags)
+    label = " ".join(f"{{{tag.upper()}}}" for tag in tags)
     if label and body:
         label = f"{label} {body}"
     elif body:
@@ -90,15 +90,13 @@ def render_task_line(
 def split_leading_tags(task_text: str) -> tuple[list[str], str]:
     tags: list[str] = []
     remaining = task_text.lstrip()
-    while remaining.startswith("["):
-        closing = remaining.find("]")
-        if closing <= 1:
+    while True:
+        parsed = _parse_tag_token(remaining)
+        if parsed is None:
             break
-        tag = remaining[1:closing].strip()
-        if not tag:
-            break
+        tag, remaining = parsed
         tags.append(tag)
-        remaining = remaining[closing + 1 :]
+        remaining = remaining.lstrip()
     return tags, remaining.lstrip()
 
 
@@ -125,7 +123,7 @@ def style_wrapped_task_line(
     styled = Text()
     styled.append(prefix, style="dim")
     for tag in tags:
-        styled.append(f"[{tag}]", style=tag_styles.get(tag.lower(), TAG_STYLES[0]))
+        styled.append(f"{{{tag.upper()}}}", style=tag_styles.get(tag.lower(), TAG_STYLES[0]))
     if tags and body:
         styled.append(" ")
     styled.append(body, style="default")
@@ -140,16 +138,36 @@ def task_wrap_width(current_console: Console) -> int:
 
 def render_tag_style_picker(tag: str, selected_index: int, current_style: str | None = None) -> Group:
     title = Text("Choose a color for ")
-    title.append(f"[{tag}]", style=TAG_STYLES[selected_index])
+    title.append(f"{{{tag.upper()}}}", style=TAG_STYLES[selected_index])
     instructions = Text("Use up/down or j/k, Enter to save, q or Esc to cancel.", style="dim")
     rows: list[Text] = [title, instructions, Text("")]
     for index, style_name in enumerate(TAG_STYLES):
         row = Text()
         marker = ">" if index == selected_index else " "
         row.append(f"{marker} ", style="bold" if index == selected_index else "dim")
-        row.append(f"[{tag}] ", style=style_name)
+        row.append(f"{{{tag.upper()}}} ", style=style_name)
         row.append(style_name, style="bold" if index == selected_index else "default")
         if style_name == current_style:
             row.append(" current", style="dim")
         rows.append(row)
     return Group(*rows)
+
+
+def _parse_tag_token(text: str) -> tuple[str, str] | None:
+    if text.startswith("["):
+        closing = text.find("]")
+        if closing <= 1:
+            return None
+        tag = text[1:closing].strip()
+        if not tag:
+            return None
+        return (tag, text[closing + 1 :])
+    if text.startswith("{"):
+        closing = text.find("}")
+        if closing <= 1:
+            return None
+        tag = text[1:closing].strip()
+        if not tag:
+            return None
+        return (tag, text[closing + 1 :])
+    return None
