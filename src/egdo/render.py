@@ -62,23 +62,16 @@ def render_task_line(
     elif body:
         label = body
     date_text = f" ({format_display_date(created)})"
+    total_width = max(20, wrap_width)
     initial_indent = f"{index}. "
     subsequent_indent = " " * len(initial_indent)
-    wrapped_lines = textwrap.wrap(
-        label,
-        width=max(20, wrap_width),
-        initial_indent=initial_indent,
-        subsequent_indent=subsequent_indent,
-        break_long_words=False,
-        break_on_hyphens=False,
-    )
-    if not wrapped_lines:
-        wrapped_lines = [initial_indent.rstrip()]
-    available = max(0, max(20, wrap_width) - len(wrapped_lines[-1]))
-    if len(date_text) <= available:
-        wrapped_lines[-1] = f"{wrapped_lines[-1]}{date_text}"
-    else:
-        wrapped_lines.append(f"{subsequent_indent}{date_text.strip()}")
+    first_line_width = max(8, total_width - len(initial_indent) - len(date_text) - 2)
+    subsequent_width = max(8, total_width - len(subsequent_indent))
+    wrapped_content = _wrap_task_content(label, first_line_width, subsequent_width)
+    first_content = wrapped_content[0] if wrapped_content else ""
+    padding = max(2, total_width - len(initial_indent) - len(first_content) - len(date_text))
+    wrapped_lines = [f"{initial_indent}{first_content}{' ' * padding}{date_text}"]
+    wrapped_lines.extend(f"{subsequent_indent}{line}" for line in wrapped_content[1:])
     return Group(
         *[
             style_wrapped_task_line(line, initial_indent, date_text, tag_styles)
@@ -122,7 +115,9 @@ def style_wrapped_task_line(
     tags, body = split_leading_tags(content)
     styled = Text()
     styled.append(prefix, style="dim")
-    for tag in tags:
+    for index, tag in enumerate(tags):
+        if index > 0:
+            styled.append(" ")
         styled.append(f"{{{tag.upper()}}}", style=tag_styles.get(tag.lower(), TAG_STYLES[0]))
     if tags and body:
         styled.append(" ")
@@ -163,3 +158,27 @@ def _parse_tag_token(text: str) -> tuple[str, str] | None:
             return None
         return (tag, text[closing + 1 :])
     return None
+
+
+def _wrap_task_content(text: str, first_width: int, subsequent_width: int) -> list[str]:
+    if not text:
+        return [""]
+
+    wrapped: list[str] = []
+    remaining = text
+    current_width = first_width
+    while remaining:
+        lines = textwrap.wrap(
+            remaining,
+            width=current_width,
+            break_long_words=False,
+            break_on_hyphens=False,
+        )
+        if not lines:
+            wrapped.append(remaining)
+            break
+        line = lines[0]
+        wrapped.append(line)
+        remaining = remaining[len(line) :].lstrip()
+        current_width = subsequent_width
+    return wrapped

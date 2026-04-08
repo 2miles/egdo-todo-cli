@@ -51,10 +51,16 @@ class CliTests(unittest.TestCase):
         output = StringIO()
         console = Console(file=output, force_terminal=False, color_system=None)
         console.print(
-            render_task_line(3, "{MINECRAFT} Add sorter", date(2026, 4, 4), {"minecraft": "green"})
+            render_task_line(
+                3,
+                "{MINECRAFT} Add sorter",
+                date(2026, 4, 4),
+                {"minecraft": "green"},
+                wrap_width=60,
+            )
         )
 
-        self.assertEqual(output.getvalue(), "3. {MINECRAFT} Add sorter (Sat, Apr 4th)\n")
+        self.assertEqual(output.getvalue(), "3. {MINECRAFT} Add sorter                     (Sat, Apr 4th)\n")
 
     def test_render_task_line_wraps_with_indented_continuation(self) -> None:
         output = StringIO()
@@ -65,15 +71,14 @@ class CliTests(unittest.TestCase):
                 "{MINECRAFT} Add dripstone farm overflow protection and sorter",
                 date(2026, 4, 4),
                 {"minecraft": "green"},
-                wrap_width=40,
+                wrap_width=50,
             )
         )
 
         self.assertEqual(
             output.getvalue(),
-            "1. {MINECRAFT} Add dripstone farm\n"
-            "   overflow protection and sorter\n"
-            "   (Sat, Apr 4th)\n",
+            "1. {MINECRAFT} Add dripstone farm   (Sat, Apr 4th)\n"
+            "   overflow protection and sorter\n",
         )
 
     def test_style_wrapped_task_line_dims_date_when_date_is_only_continuation_content(self) -> None:
@@ -92,6 +97,16 @@ class CliTests(unittest.TestCase):
         self.assertEqual(styled.spans[1].style, "dim")
         self.assertEqual(styled.spans[1].start, 3)
         self.assertEqual(styled.spans[1].end, len(styled.plain))
+
+    def test_style_wrapped_task_line_preserves_spaces_between_tags(self) -> None:
+        styled = style_wrapped_task_line(
+            "1. {CHORES} {CAR} Wash the car (Mon, Apr 6th)",
+            "1. ",
+            " (Mon, Apr 6th)",
+            {"chores": "yellow", "car": "blue"},
+        )
+
+        self.assertEqual(styled.plain, "1. {CHORES} {CAR} Wash the car (Mon, Apr 6th)")
 
     def test_build_tag_styles_assigns_distinct_colors_until_palette_runs_out(self) -> None:
         styles, updated, warnings = build_tag_styles(
@@ -368,8 +383,10 @@ class CliTests(unittest.TestCase):
         rendered = output.getvalue()
         self.assertIn("Tue, Apr 7th", rendered)
         self.assertIn("Fri, Apr 10th", rendered)
-        self.assertIn("1. {CHORES} Buy milk (Sun, Apr 5th)", rendered)
-        self.assertIn("2. Ship box (Sat, Apr 4th)", rendered)
+        self.assertIn("1. {CHORES} Buy milk", rendered)
+        self.assertIn("(Sun, Apr 5th)", rendered)
+        self.assertIn("2. Ship box", rendered)
+        self.assertIn("(Sat, Apr 4th)", rendered)
 
     def test_main_finished_command_renders_completed_tasks(self) -> None:
         config = type(
@@ -396,7 +413,8 @@ class CliTests(unittest.TestCase):
         save_config_mock.assert_called_once_with(config)
         rendered = output.getvalue()
         self.assertIn("Mon, Apr 6th", rendered)
-        self.assertIn("1. {CHORES} Buy milk (Sun, Apr 5th)", rendered)
+        self.assertIn("1. {CHORES} Buy milk", rendered)
+        self.assertIn("(Sun, Apr 5th)", rendered)
 
     def test_main_list_groups_today_and_carried_forward_tasks(self) -> None:
         config = type(
@@ -427,8 +445,10 @@ class CliTests(unittest.TestCase):
         rendered = output.getvalue()
         self.assertIn("Today", rendered)
         self.assertIn("Carried Forward", rendered)
-        self.assertIn("1. {CHORES} Wash the car (Mon, Apr 6th)", rendered)
-        self.assertIn("2. {MINECRAFT} Add sorter (Sun, Apr 5th)", rendered)
+        self.assertIn("1. {CHORES} Wash the car", rendered)
+        self.assertIn("(Mon, Apr 6th)", rendered)
+        self.assertIn("2. {MINECRAFT} Add sorter", rendered)
+        self.assertIn("(Sun, Apr 5th)", rendered)
 
     def test_main_future_done_command_completes_by_future_index(self) -> None:
         config = type(
