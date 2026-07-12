@@ -81,6 +81,7 @@ egdo finished
 egdo future
 egdo future done 1
 egdo done 1
+egdo done 1 3 12
 egdo edit 2 "Buy oat milk"
 egdo move 2 tomorrow
 egdo future unmove 1

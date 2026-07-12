@@ -45,3 +45,10 @@ If you want the least disruptive first step, I would do this order:
 2. Extract date parsing from cli.py
 3. Extract parser-building or command handlers from cli.py
 4. Later split parsing/rendering internals out of store.py
+
+## New Features to Add
+
+- Sub tasks
+- search
+- recurring tasks,
+- “review carried forward” flow

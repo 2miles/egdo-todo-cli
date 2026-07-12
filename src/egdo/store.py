@@ -164,21 +164,36 @@ def tag_future_task(notes_dir: Path, target_date: date, index: int, tags: list[s
 
 
 def complete_task(notes_dir: Path, target_date: date, index: int) -> Task:
+    return complete_tasks(notes_dir, target_date, [index])[0]
+
+
+def complete_tasks(notes_dir: Path, target_date: date, indexes: list[int]) -> list[Task]:
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
     day = state.days.setdefault(target_date, DayState())
     active = _active_tasks_for_list(day, target_date)
-    if index < 1 or index > len(active):
-        raise IndexError(f"Task index {index} is out of range")
 
-    selected_task = active[index - 1]
+    unique_indexes = _dedupe_indexes(indexes)
+    if not unique_indexes:
+        raise ValueError("At least one task index is required")
+    for index in unique_indexes:
+        if index < 1 or index > len(active):
+            raise IndexError(f"Task index {index} is out of range")
+
+    selected_tasks = [active[index - 1] for index in unique_indexes]
+    selected_ids = {id(task) for task in selected_tasks}
+    completed: list[Task] = []
     for task in day.tasks:
-        if task is selected_task:
+        if id(task) in selected_ids:
             task.done = True
-            write_state(path, state)
-            return task
-    raise RuntimeError("Active task disappeared before completion")
+            completed.append(task)
+
+    if len(completed) != len(selected_tasks):
+        raise RuntimeError("Active task disappeared before completion")
+
+    write_state(path, state)
+    return selected_tasks
 
 
 def delete_task(notes_dir: Path, target_date: date, index: int) -> Task:
@@ -342,6 +357,17 @@ def _active_tasks_for_list(day: DayState, target_date: date) -> list[Task]:
     todays_tasks = [task for task in active if task.created == target_date]
     carried_tasks = [task for task in active if task.created != target_date]
     return todays_tasks + carried_tasks
+
+
+def _dedupe_indexes(indexes: list[int]) -> list[int]:
+    deduped: list[int] = []
+    seen: set[int] = set()
+    for index in indexes:
+        if index in seen:
+            continue
+        deduped.append(index)
+        seen.add(index)
+    return deduped
 
 
 def _move_task_by_key(

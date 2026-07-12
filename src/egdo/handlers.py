@@ -21,6 +21,7 @@ class HandlerDeps:
     add_note: Any
     complete_future_task: Any
     complete_task: Any
+    complete_tasks: Any
     create_task: Any
     delete_future_task: Any
     delete_task: Any
@@ -105,8 +106,9 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         return 0
 
     if args.command == "done":
-        task = deps.complete_task(config.root, target_date, args.index)
-        _print_task_message(console, "Completed", target_date.isoformat(), task.text)
+        tasks = deps.complete_tasks(config.root, target_date, args.indexes)
+        for task in tasks:
+            _print_task_message(console, "Completed", target_date.isoformat(), task.text)
         return 0
 
     if args.command == "edit":

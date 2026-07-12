@@ -57,7 +57,7 @@ egdo list -t chores
 - first performs rollover for unfinished tasks from the most recent earlier day
 - shows only incomplete tasks
 - `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
-- numbers tasks so you can complete them with `done`, `edit`, `delete`, or `tag`
+- numbers tasks so you can complete one or more with `done`, or edit, delete, and tag them by index
 
 ## `egdo finished`
 
@@ -107,14 +107,16 @@ Thu, Apr 3rd
 
 ## `egdo done`
 
-Mark a numbered active task complete in today’s file.
+Mark one or more numbered active tasks complete in today’s file.
 
 ```bash
 egdo done 1
+egdo done 1 3 12
 ```
 
 - uses today by default
 - completes by the numeric index shown in `egdo list`
+- resolves all indexes before marking anything complete, so later indexes do not shift when completing multiple tasks
 - keeps the completed task in that day’s file as part of the archive
 
 ## `egdo edit`

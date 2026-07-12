@@ -13,6 +13,7 @@ from egdo.store import (
     add_task,
     complete_future_task,
     complete_task,
+    complete_tasks,
     create_task,
     delete_future_task,
     delete_task,
@@ -186,6 +187,38 @@ class StoreTests(unittest.TestCase):
             content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
             self.assertIn("- [ ] Carried task (04-05)", content)
             self.assertIn("- [x] Today task (04-06)", content)
+
+    def test_complete_tasks_marks_multiple_display_indexes_without_renumbering(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 6)
+            path = file_path(notes_dir, target_date)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "\n".join(
+                    [
+                        "## Apr-06 Mon",
+                        "",
+                        "### Tasks",
+                        "",
+                        "- [ ] Carried first (04-05)",
+                        "- [ ] Today first (04-06)",
+                        "- [ ] Today second (04-06)",
+                        "- [ ] Carried second (04-05)",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            tasks = complete_tasks(notes_dir, target_date, [1, 3])
+
+            self.assertEqual([task.text for task in tasks], ["Today first", "Carried first"])
+            content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
+            self.assertIn("- [x] Carried first (04-05)", content)
+            self.assertIn("- [x] Today first (04-06)", content)
+            self.assertIn("- [ ] Today second (04-06)", content)
+            self.assertIn("- [ ] Carried second (04-05)", content)
 
     def test_list_finished_tasks_returns_done_tasks_for_today(self) -> None:
         with TemporaryDirectory() as tmp:

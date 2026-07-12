@@ -12,6 +12,7 @@ from egdo.handlers import dispatch_command
 from egdo.store import (
     add_note,
     complete_task,
+    complete_tasks,
     create_task,
     delete_future_task,
     delete_task,
@@ -52,6 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  egdo future\n"
             "  egdo list -t chores\n"
             "  egdo done 1\n"
+            "  egdo done 1 3 12\n"
             '  egdo edit 2 "Buy oat milk"\n'
             "  egdo move 2 tomorrow\n"
             "  egdo future unmove 1\n"
@@ -208,10 +210,10 @@ def build_parser() -> argparse.ArgumentParser:
         "done",
         help="Complete a task",
         description="Mark a task complete using the index shown by `egdo list`.",
-        epilog="Example:\n  egdo done 1",
+        epilog="Examples:\n  egdo done 1\n  egdo done 1 3 12",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    done_parser.add_argument("index", type=int, help="Task number from `egdo list`")
+    done_parser.add_argument("indexes", nargs="+", type=int, help="Task number(s) from `egdo list`")
 
     edit_parser = subparsers.add_parser(
         "edit",
@@ -300,6 +302,7 @@ def main(argv: list[str] | None = None) -> int:
             add_note=add_note,
             complete_future_task=complete_future_task,
             complete_task=complete_task,
+            complete_tasks=complete_tasks,
             create_task=create_task,
             delete_future_task=delete_future_task,
             delete_task=delete_task,

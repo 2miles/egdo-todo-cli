@@ -473,6 +473,31 @@ class CliTests(unittest.TestCase):
         complete_future_task_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, 1)
         self.assertIn("Completed [2026-04-06 <= 2026-04-05] Buy oat milk", output.getvalue())
 
+    def test_main_done_command_completes_multiple_indexes(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
+        )()
+        output = StringIO()
+        mocked_today = date(2026, 4, 6)
+        first_task = type("TaskStub", (), {"text": "Buy oat milk"})()
+        second_task = type("TaskStub", (), {"text": "Ship box"})()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.complete_tasks", return_value=[first_task, second_task]) as complete_tasks_mock,
+            patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["done", "1", "3"])
+
+        self.assertEqual(exit_code, 0)
+        complete_tasks_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, [1, 3])
+        self.assertIn("Completed [2026-04-06] Buy oat milk", output.getvalue())
+        self.assertIn("Completed [2026-04-06] Ship box", output.getvalue())
+
     def test_main_future_move_command_uses_shared_date_parser(self) -> None:
         config = type(
             "ConfigStub",
