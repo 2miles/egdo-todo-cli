@@ -47,7 +47,7 @@ def list_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> li
     day = state.days.get(target_date)
     if day is None:
         return []
-    tasks = [task for task in day.tasks if not task.done]
+    tasks = _active_tasks_for_list(day, target_date)
     if tag is None:
         return tasks
     normalized_tag = tag.strip().lower()
@@ -168,13 +168,13 @@ def complete_task(notes_dir: Path, target_date: date, index: int) -> Task:
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
     day = state.days.setdefault(target_date, DayState())
-    active = [task for task in day.tasks if not task.done]
+    active = _active_tasks_for_list(day, target_date)
     if index < 1 or index > len(active):
         raise IndexError(f"Task index {index} is out of range")
 
-    selected_key = active[index - 1].key()
+    selected_task = active[index - 1]
     for task in day.tasks:
-        if task.key() == selected_key and not task.done:
+        if task is selected_task:
             task.done = True
             write_state(path, state)
             return task
@@ -186,13 +186,13 @@ def delete_task(notes_dir: Path, target_date: date, index: int) -> Task:
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
     day = state.days.setdefault(target_date, DayState())
-    active = [task for task in day.tasks if not task.done]
+    active = _active_tasks_for_list(day, target_date)
     if index < 1 or index > len(active):
         raise IndexError(f"Task index {index} is out of range")
 
-    selected_key = active[index - 1].key()
+    selected_task = active[index - 1]
     for idx, task in enumerate(day.tasks):
-        if task.key() == selected_key and not task.done:
+        if task is selected_task:
             removed = day.tasks.pop(idx)
             write_state(path, state)
             return removed
@@ -204,13 +204,13 @@ def edit_task(notes_dir: Path, target_date: date, index: int, text: str) -> Task
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
     day = state.days.setdefault(target_date, DayState())
-    active = [task for task in day.tasks if not task.done]
+    active = _active_tasks_for_list(day, target_date)
     if index < 1 or index > len(active):
         raise IndexError(f"Task index {index} is out of range")
 
-    selected_key = active[index - 1].key()
+    selected_task = active[index - 1]
     for task in day.tasks:
-        if task.key() == selected_key and not task.done:
+        if task is selected_task:
             task.text = text
             write_state(path, state)
             return task
@@ -225,19 +225,11 @@ def move_task(notes_dir: Path, source_date: date, index: int, destination_date: 
     source_path = file_path(notes_dir, source_date)
     source_state = ensure_state(source_path)
     source_day = source_state.days.setdefault(source_date, DayState())
-    active = [task for task in source_day.tasks if not task.done]
+    active = _active_tasks_for_list(source_day, source_date)
     if index < 1 or index > len(active):
         raise IndexError(f"Task index {index} is out of range")
 
-    selected_key = active[index - 1].key()
-    selected_index: int | None = None
-    selected_task: Task | None = None
-    for task_index, task in enumerate(source_day.tasks):
-        if task.key() == selected_key and not task.done:
-            selected_task = task
-            break
-    if selected_task is None:
-        raise RuntimeError("Active task disappeared before moving")
+    selected_task = active[index - 1]
 
     return _move_task_by_key(notes_dir, source_date, selected_task, destination_date)
 
@@ -254,17 +246,17 @@ def tag_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) ->
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
     day = state.days.setdefault(target_date, DayState())
-    active = [task for task in day.tasks if not task.done]
+    active = _active_tasks_for_list(day, target_date)
     if index < 1 or index > len(active):
         raise IndexError(f"Task index {index} is out of range")
 
-    selected_key = active[index - 1].key()
+    selected_task = active[index - 1]
     normalized_tags = normalize_tags(tags)
     if not normalized_tags:
         raise ValueError("At least one non-empty tag is required")
 
     for task in day.tasks:
-        if task.key() == selected_key and not task.done:
+        if task is selected_task:
             existing_tags, body = split_leading_tags_and_body(task.text)
             merged_tags = list(existing_tags)
             for tag in normalized_tags:
@@ -343,6 +335,13 @@ def _resolve_future_task_index(notes_dir: Path, target_date: date, index: int) -
     if index < 1 or index > len(future_tasks):
         raise IndexError(f"Future task index {index} is out of range")
     return future_tasks[index - 1]
+
+
+def _active_tasks_for_list(day: DayState, target_date: date) -> list[Task]:
+    active = [task for task in day.tasks if not task.done]
+    todays_tasks = [task for task in active if task.created == target_date]
+    carried_tasks = [task for task in active if task.created != target_date]
+    return todays_tasks + carried_tasks
 
 
 def _move_task_by_key(

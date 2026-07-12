@@ -122,6 +122,31 @@ class StoreTests(unittest.TestCase):
 
             self.assertEqual([task.text for task in tasks], ["{PERSONAL} {CHORES} {HOME} Do the dishes"])
 
+    def test_list_orders_today_tasks_before_carried_forward_tasks(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 6)
+            path = file_path(notes_dir, target_date)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "\n".join(
+                    [
+                        "## Apr-06 Mon",
+                        "",
+                        "### Tasks",
+                        "",
+                        "- [ ] Carried task (04-05)",
+                        "- [ ] Today task (04-06)",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            tasks = list_tasks(notes_dir, target_date)
+
+            self.assertEqual([task.text for task in tasks], ["Today task", "Carried task"])
+
     def test_done_marks_task_complete_in_month_file(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
@@ -133,6 +158,34 @@ class StoreTests(unittest.TestCase):
             self.assertTrue(task.done)
             content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
             self.assertIn("- [x] {CHORES} Buy milk (04-05)", content)
+
+    def test_done_uses_display_order_with_today_tasks_before_carried_forward_tasks(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 6)
+            path = file_path(notes_dir, target_date)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "\n".join(
+                    [
+                        "## Apr-06 Mon",
+                        "",
+                        "### Tasks",
+                        "",
+                        "- [ ] Carried task (04-05)",
+                        "- [ ] Today task (04-06)",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            task = complete_task(notes_dir, target_date, 1)
+
+            self.assertEqual(task.text, "Today task")
+            content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
+            self.assertIn("- [ ] Carried task (04-05)", content)
+            self.assertIn("- [x] Today task (04-06)", content)
 
     def test_list_finished_tasks_returns_done_tasks_for_today(self) -> None:
         with TemporaryDirectory() as tmp:
