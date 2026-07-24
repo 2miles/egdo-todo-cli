@@ -9,6 +9,7 @@ import re
 DAY_HEADER_RE = re.compile(r"^## ([A-Za-z]{3})-(\d{2}) ([A-Za-z]{3})$")
 TASK_LINE_RE = re.compile(r"^- \[( |x)\] (.*?)(?: \((\d{2}-\d{2})\))?$")
 MONTH_FILE_RE = re.compile(r"^(\d{4})_(\d{2})_([a-z]{3})$")
+PRIORITY_TOKEN_RE = re.compile(r"^!P([1-4])!", re.IGNORECASE)
 TASKS_HEADING = "### Tasks"
 NOTES_HEADING = "### Notes"
 
@@ -186,14 +187,26 @@ def day_range(start: date, end: date) -> list[date]:
 
 
 def parse_leading_tags(text: str) -> tuple[str, ...]:
-    tags, _ = split_leading_tags_and_body(text)
+    _, tags, _ = split_task_prefix(text)
     return tuple(tags)
 
 
 def split_leading_tags_and_body(text: str) -> tuple[list[str], str]:
+    _, tags, body = split_task_prefix(text)
+    return tags, body
+
+
+def split_task_prefix(text: str) -> tuple[int | None, list[str], str]:
+    priority: int | None = None
     tags: list[str] = []
     remaining = text.lstrip()
     while True:
+        priority_match = PRIORITY_TOKEN_RE.match(remaining)
+        if priority_match is not None:
+            if priority is None:
+                priority = int(priority_match.group(1))
+            remaining = remaining[priority_match.end() :].lstrip()
+            continue
         parsed = _parse_tag_token(remaining)
         if parsed is None:
             break
@@ -202,9 +215,55 @@ def split_leading_tags_and_body(text: str) -> tuple[list[str], str]:
             tags.append(tag)
         remaining = remaining.lstrip()
     body = remaining.lstrip()
-    if not body:
+    if not body and priority is None and not tags:
         body = text.strip()
-    return tags, body
+    return priority, tags, body
+
+
+def normalize_priority(value: str | int | None, *, allow_none: bool = False) -> int | None:
+    if value is None:
+        return None
+    normalized = str(value).strip().lower()
+    aliases = {
+        "1": 1,
+        "p1": 1,
+        "critical": 1,
+        "urgent": 1,
+        "2": 2,
+        "p2": 2,
+        "high": 2,
+        "3": 3,
+        "p3": 3,
+        "normal": 3,
+        "medium": 3,
+        "4": 4,
+        "p4": 4,
+        "low": 4,
+    }
+    if allow_none and normalized in {"none", "clear", "off"}:
+        return None
+    if normalized not in aliases:
+        choices = "1/critical, 2/high, 3/normal, or 4/low"
+        if allow_none:
+            choices += ", or none"
+        raise ValueError(f"Invalid priority `{value}`. Use {choices}.")
+    return aliases[normalized]
+
+
+def merge_priority_into_text(text: str, value: str | int | None) -> str:
+    existing_priority, tags, body = split_task_prefix(text)
+    priority = existing_priority if value is None else normalize_priority(value)
+    return format_task_text(priority, tags, body)
+
+
+def format_task_text(priority: int | None, tags: list[str], body: str) -> str:
+    parts: list[str] = []
+    if priority is not None:
+        parts.append(f"!P{priority}!")
+    parts.extend(_format_tag(tag) for tag in tags)
+    if body:
+        parts.append(body)
+    return " ".join(parts)
 
 
 def normalize_tags(tags: list[str]) -> list[str]:
@@ -220,17 +279,14 @@ def normalize_tags(tags: list[str]) -> list[str]:
 
 def merge_tags_into_text(text: str, tags: list[str]) -> str:
     normalized_tags = normalize_tags(tags)
-    existing_tags, body = split_leading_tags_and_body(text)
+    priority, existing_tags, body = split_task_prefix(text)
     if not normalized_tags and not existing_tags:
         return text
     merged_tags = list(existing_tags)
     for tag in normalized_tags:
         if tag not in merged_tags:
             merged_tags.append(tag)
-    tag_prefix = " ".join(_format_tag(tag) for tag in merged_tags)
-    if body:
-        return f"{tag_prefix} {body}"
-    return tag_prefix
+    return format_task_text(priority, merged_tags, body)
 
 
 def format_tag(tag: str) -> str:

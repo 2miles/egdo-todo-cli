@@ -60,7 +60,58 @@ class CliTests(unittest.TestCase):
             )
         )
 
-        self.assertEqual(output.getvalue(), "3. {MINECRAFT} Add sorter                     (Sat, Apr 4th)\n")
+        self.assertEqual(output.getvalue(), " 3. ... {MINECRAFT} Add sorter                (Sat, Apr 4th)\n")
+
+    def test_render_task_line_displays_priority_before_colored_tags(self) -> None:
+        output = StringIO()
+        console = Console(file=output, force_terminal=False, color_system=None)
+        console.print(
+            render_task_line(
+                1,
+                "!P1! {WORK} Submit application",
+                date(2026, 4, 4),
+                {"work": "blue"},
+                wrap_width=60,
+            )
+        )
+
+        self.assertEqual(
+            output.getvalue(),
+            " 1. !!! {WORK} Submit application             (Sat, Apr 4th)\n",
+        )
+
+    def test_render_task_line_uses_less_emphasis_for_lower_priorities(self) -> None:
+        expected_markers = {1: "!!!", 2: ".!!", 3: "..!", 4: "..."}
+        for priority, marker in expected_markers.items():
+            with self.subTest(priority=priority):
+                output = StringIO()
+                console = Console(file=output, force_terminal=False, color_system=None)
+                console.print(
+                    render_task_line(
+                        priority,
+                        f"!P{priority}! Task",
+                        date(2026, 4, 4),
+                        {},
+                        wrap_width=50,
+                    )
+                )
+                self.assertIn(f"{priority}. {marker:<3} Task", output.getvalue())
+
+    def test_priority_meter_styles_placeholders_separately_from_filled_slots(self) -> None:
+        styled = style_wrapped_task_line(
+            "1. .!! Task (Sat, Apr 4th)",
+            "1. .!! ",
+            " (Sat, Apr 4th)",
+            {},
+            priority=2,
+        )
+
+        dot_span = next(span for span in styled.spans if styled.plain[span.start : span.end] == ".")
+        bang_spans = [
+            span for span in styled.spans if styled.plain[span.start : span.end] == "!"
+        ]
+        self.assertEqual(dot_span.style, "grey50")
+        self.assertEqual([span.style for span in bang_spans], ["bold orange1", "bold orange1"])
 
     def test_render_task_line_wraps_with_indented_continuation(self) -> None:
         output = StringIO()
@@ -77,8 +128,8 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(
             output.getvalue(),
-            "1. {MINECRAFT} Add dripstone farm   (Sat, Apr 4th)\n"
-            "   overflow protection and sorter\n",
+            " 1. ... {MINECRAFT} Add dripstone   (Sat, Apr 4th)\n"
+            "        farm overflow protection and sorter\n",
         )
 
     def test_style_wrapped_task_line_dims_date_when_date_is_only_continuation_content(self) -> None:
@@ -90,13 +141,30 @@ class CliTests(unittest.TestCase):
         )
 
         self.assertEqual(styled.plain, "   (Sat, Apr 4th)")
-        self.assertEqual(len(styled.spans), 2)
+        self.assertEqual(len(styled.spans), 1)
         self.assertEqual(styled.spans[0].style, "dim")
-        self.assertEqual(styled.spans[0].start, 0)
-        self.assertEqual(styled.spans[0].end, 3)
-        self.assertEqual(styled.spans[1].style, "dim")
-        self.assertEqual(styled.spans[1].start, 3)
-        self.assertEqual(styled.spans[1].end, len(styled.plain))
+        self.assertEqual(styled.spans[0].start, 3)
+        self.assertEqual(styled.spans[0].end, len(styled.plain))
+
+    def test_task_indexes_use_equal_width_right_aligned_white_column(self) -> None:
+        single_digit = style_wrapped_task_line(
+            " 9. ... Task (Sat, Apr 4th)",
+            " 9. ... ",
+            " (Sat, Apr 4th)",
+            {},
+            priority=4,
+        )
+        double_digit = style_wrapped_task_line(
+            "10. ... Task (Sat, Apr 4th)",
+            "10. ... ",
+            " (Sat, Apr 4th)",
+            {},
+            priority=4,
+        )
+
+        self.assertEqual(single_digit.plain.index("Task"), double_digit.plain.index("Task"))
+        self.assertEqual(single_digit.spans[0].style, "white")
+        self.assertEqual(double_digit.spans[0].style, "white")
 
     def test_style_wrapped_task_line_preserves_spaces_between_tags(self) -> None:
         styled = style_wrapped_task_line(
@@ -273,6 +341,34 @@ class CliTests(unittest.TestCase):
         )
         self.assertIn("Added [2026-04-06] {HOUSE} {CHORES} Do the dishes", output.getvalue())
 
+    def test_main_add_command_adds_named_priority_before_tags(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
+        )()
+        mocked_today = date(2026, 4, 6)
+        created_task = type(
+            "TaskStub", (), {"created": mocked_today, "text": "!P2! {WORK} Submit application"}
+        )()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.create_task", return_value=created_task) as create_task_mock,
+            patch("egdo.cli.console", Console(file=StringIO(), force_terminal=False, color_system=None)),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["add", "-p", "high", "-t", "work", "Submit application"])
+
+        self.assertEqual(exit_code, 0)
+        create_task_mock.assert_called_once_with(
+            Path("/tmp/notes/egdo"),
+            mocked_today,
+            "!P2! {WORK} Submit application",
+            done=False,
+        )
+
     def test_main_add_command_dedupes_inline_and_flag_tags(self) -> None:
         config = type(
             "ConfigStub",
@@ -383,9 +479,9 @@ class CliTests(unittest.TestCase):
         rendered = output.getvalue()
         self.assertIn("Tue, Apr 7th", rendered)
         self.assertIn("Fri, Apr 10th", rendered)
-        self.assertIn("1. {CHORES} Buy milk", rendered)
+        self.assertIn("1. ... {CHORES} Buy milk", rendered)
         self.assertIn("(Sun, Apr 5th)", rendered)
-        self.assertIn("2. Ship box", rendered)
+        self.assertIn("2. ... Ship box", rendered)
         self.assertIn("(Sat, Apr 4th)", rendered)
 
     def test_main_finished_command_renders_completed_tasks(self) -> None:
@@ -413,7 +509,7 @@ class CliTests(unittest.TestCase):
         save_config_mock.assert_called_once_with(config)
         rendered = output.getvalue()
         self.assertIn("Mon, Apr 6th", rendered)
-        self.assertIn("1. {CHORES} Buy milk", rendered)
+        self.assertIn("1. ... {CHORES} Buy milk", rendered)
         self.assertIn("(Sun, Apr 5th)", rendered)
 
     def test_main_list_groups_today_and_carried_forward_tasks(self) -> None:
@@ -433,6 +529,7 @@ class CliTests(unittest.TestCase):
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
             patch("egdo.cli.list_tasks", return_value=[todays_task, carried_task]) as list_tasks_mock,
+            patch("egdo.cli.list_future_tasks", return_value=[]) as list_future_tasks_mock,
             patch("egdo.cli.save_config") as save_config_mock,
             patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
         ):
@@ -441,14 +538,58 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         list_tasks_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, tag=None)
+        list_future_tasks_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, tag=None)
         save_config_mock.assert_called_once_with(config)
         rendered = output.getvalue()
         self.assertIn("Today", rendered)
-        self.assertIn("Carried Forward", rendered)
-        self.assertIn("1. {CHORES} Wash the car", rendered)
+        self.assertIn("Old", rendered)
+        self.assertNotIn("Carried Forward", rendered)
+        self.assertIn("1. ... {CHORES} Wash the car", rendered)
         self.assertIn("(Mon, Apr 6th)", rendered)
-        self.assertIn("2. {MINECRAFT} Add sorter", rendered)
+        self.assertIn("2. ... {MINECRAFT} Add sorter", rendered)
         self.assertIn("(Sun, Apr 5th)", rendered)
+
+    def test_main_list_includes_grouped_future_tasks(self) -> None:
+        config = type(
+            "ConfigStub",
+            (),
+            {"root": Path("/tmp/notes/egdo"), "tag_colors": {}},
+        )()
+        output = StringIO()
+        mocked_today = date(2026, 4, 6)
+        todays_task = type("TaskStub", (), {"created": date(2026, 4, 6), "text": "Wash the car"})()
+        tomorrow_task = type("TaskStub", (), {"created": date(2026, 4, 6), "text": "{CHORES} Buy milk"})()
+        later_task = type("TaskStub", (), {"created": date(2026, 4, 5), "text": "Ship box"})()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.list_tasks", return_value=[todays_task]) as list_tasks_mock,
+            patch(
+                "egdo.cli.list_future_tasks",
+                return_value=[
+                    (date(2026, 4, 7), tomorrow_task),
+                    (date(2026, 4, 10), later_task),
+                ],
+            ) as list_future_tasks_mock,
+            patch("egdo.cli.save_config") as save_config_mock,
+            patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["list"])
+
+        self.assertEqual(exit_code, 0)
+        list_tasks_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, tag=None)
+        list_future_tasks_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, tag=None)
+        save_config_mock.assert_called_once_with(config)
+        rendered = output.getvalue()
+        self.assertIn("Today", rendered)
+        self.assertIn("1. ... Wash the car", rendered)
+        self.assertIn("── Future ─", rendered)
+        self.assertIn("Tomorrow (Tue, Apr 7th)", rendered)
+        self.assertIn("1. ... {CHORES} Buy milk", rendered)
+        self.assertIn("Fri, Apr 10th", rendered)
+        self.assertIn("2. ... Ship box", rendered)
 
     def test_main_future_done_command_completes_by_future_index(self) -> None:
         config = type(

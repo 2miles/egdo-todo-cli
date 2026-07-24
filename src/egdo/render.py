@@ -6,8 +6,13 @@ from egdo.dates import format_display_date
 from rich.console import Console, Group
 from rich.text import Text
 
+from egdo.markdown_store import split_task_prefix
+
 HEADER_DATE_STYLE = "bold cyan"
 SEPARATOR_STYLE = "dim"
+PRIORITY_MARKERS = {1: "!!!", 2: ".!!", 3: "..!", 4: "..."}
+PRIORITY_STYLES = {1: "bold white on red", 2: "bold orange1", 3: "yellow"}
+PRIORITY_PLACEHOLDER_STYLE = "grey50"
 
 ## Available colors: https://rich.readthedocs.io/en/stable/appendix/colors.html
 TAG_STYLES = (
@@ -55,15 +60,14 @@ def render_separator(width: int) -> Text:
 def render_task_line(
     index: int, task_text: str, created, tag_styles: dict[str, str], wrap_width: int = 88
 ) -> Group:
-    tags, body = split_leading_tags(task_text)
-    label = " ".join(f"{{{tag.upper()}}}" for tag in tags)
-    if label and body:
-        label = f"{label} {body}"
-    elif body:
-        label = body
+    priority, tags, body = split_task_prefix(task_text)
+    display_priority = priority if priority is not None else 4
+    prefix_parts = [f"{{{tag.upper()}}}" for tag in tags]
+    label = " ".join(prefix_parts + ([body] if body else []))
     date_text = f" ({format_display_date(created)})"
     total_width = max(20, wrap_width)
-    initial_indent = f"{index}. "
+    marker = PRIORITY_MARKERS[display_priority]
+    initial_indent = f"{index:>2}. {marker:<3} "
     subsequent_indent = " " * len(initial_indent)
     first_line_width = max(8, total_width - len(initial_indent) - len(date_text) - 2)
     subsequent_width = max(8, total_width - len(subsequent_indent))
@@ -74,27 +78,25 @@ def render_task_line(
     wrapped_lines.extend(f"{subsequent_indent}{line}" for line in wrapped_content[1:])
     return Group(
         *[
-            style_wrapped_task_line(line, initial_indent, date_text, tag_styles)
+            style_wrapped_task_line(
+                line, initial_indent, date_text, tag_styles, priority=display_priority
+            )
             for line in wrapped_lines
         ]
     )
 
 
 def split_leading_tags(task_text: str) -> tuple[list[str], str]:
-    tags: list[str] = []
-    remaining = task_text.lstrip()
-    while True:
-        parsed = _parse_tag_token(remaining)
-        if parsed is None:
-            break
-        tag, remaining = parsed
-        tags.append(tag)
-        remaining = remaining.lstrip()
-    return tags, remaining.lstrip()
+    _, tags, body = split_task_prefix(task_text)
+    return tags, body
 
 
 def style_wrapped_task_line(
-    line: str, initial_indent: str, date_text: str, tag_styles: dict[str, str]
+    line: str,
+    initial_indent: str,
+    date_text: str,
+    tag_styles: dict[str, str],
+    priority: int | None = None,
 ) -> Text:
     if line.startswith(initial_indent):
         prefix = initial_indent
@@ -112,9 +114,22 @@ def style_wrapped_task_line(
             date_suffix = stripped_date
             content = ""
 
-    tags, body = split_leading_tags(content)
+    _, tags, body = split_task_prefix(content)
     styled = Text()
-    styled.append(prefix, style="dim")
+    if priority is not None and line.startswith(initial_indent):
+        marker = PRIORITY_MARKERS[priority]
+        index_prefix = prefix[:-4].rstrip()
+        styled.append(f"{index_prefix} ", style="white")
+        for character in marker:
+            style = (
+                PRIORITY_PLACEHOLDER_STYLE
+                if character == "."
+                else PRIORITY_STYLES[priority]
+            )
+            styled.append(character, style=style)
+        styled.append(" ")
+    else:
+        styled.append(prefix, style="white" if line.startswith(initial_indent) else None)
     for index, tag in enumerate(tags):
         if index > 0:
             styled.append(" ")

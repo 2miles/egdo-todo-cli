@@ -7,11 +7,12 @@ from egdo.markdown_store import FileState
 from egdo.markdown_store import Task
 from egdo.markdown_store import ensure_state
 from egdo.markdown_store import file_path
-from egdo.markdown_store import format_tag
+from egdo.markdown_store import format_task_text
 from egdo.markdown_store import is_month_file
 from egdo.markdown_store import normalize_tags
+from egdo.markdown_store import normalize_priority
 from egdo.markdown_store import parse_file
-from egdo.markdown_store import split_leading_tags_and_body
+from egdo.markdown_store import split_task_prefix
 from egdo.markdown_store import write_state
 
 
@@ -152,15 +153,25 @@ def tag_future_task(notes_dir: Path, target_date: date, index: int, tags: list[s
 
     for task in day.tasks:
         if task.key() == selected_task.key() and not task.done:
-            existing_tags, body = split_leading_tags_and_body(task.text)
+            priority, existing_tags, body = split_task_prefix(task.text)
             merged_tags = list(existing_tags)
             for tag in normalized_tags:
                 if tag not in merged_tags:
                     merged_tags.append(tag)
-            task.text = " ".join(format_tag(tag) for tag in merged_tags) + f" {body}"
+            task.text = format_task_text(priority, merged_tags, body)
             write_state(path, state)
             return task
     raise RuntimeError("Future task disappeared before tagging")
+
+
+def prioritize_future_task(
+    notes_dir: Path, target_date: date, index: int, priority: str | int
+) -> Task:
+    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
+    path = file_path(notes_dir, source_date)
+    state = ensure_state(path)
+    day = state.days.setdefault(source_date, DayState())
+    return _set_task_priority(path, state, day, selected_task, priority)
 
 
 def complete_task(notes_dir: Path, target_date: date, index: int) -> Task:
@@ -272,58 +283,87 @@ def tag_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) ->
 
     for task in day.tasks:
         if task is selected_task:
-            existing_tags, body = split_leading_tags_and_body(task.text)
+            priority, existing_tags, body = split_task_prefix(task.text)
             merged_tags = list(existing_tags)
             for tag in normalized_tags:
                 if tag not in merged_tags:
                     merged_tags.append(tag)
-            task.text = " ".join(format_tag(tag) for tag in merged_tags) + f" {body}"
+            task.text = format_task_text(priority, merged_tags, body)
             write_state(path, state)
             return task
     raise RuntimeError("Active task disappeared before tagging")
 
 
+def prioritize_task(notes_dir: Path, target_date: date, index: int, priority: str | int) -> Task:
+    rollover(notes_dir, target_date)
+    path = file_path(notes_dir, target_date)
+    state = ensure_state(path)
+    day = state.days.setdefault(target_date, DayState())
+    active = _active_tasks_for_list(day, target_date)
+    if index < 1 or index > len(active):
+        raise IndexError(f"Task index {index} is out of range")
+    return _set_task_priority(path, state, day, active[index - 1], priority)
+
+
+def _set_task_priority(
+    path: Path,
+    state: FileState,
+    day: DayState,
+    selected_task: Task,
+    priority_value: str | int,
+) -> Task:
+    priority = normalize_priority(priority_value, allow_none=True)
+    for task in day.tasks:
+        if task is selected_task or task.key() == selected_task.key():
+            _, tags, body = split_task_prefix(task.text)
+            task.text = format_task_text(priority, tags, body)
+            write_state(path, state)
+            return task
+    raise RuntimeError("Task disappeared before setting priority")
+
+
 def rollover(notes_dir: Path, target_date: date) -> None:
     target_path = file_path(notes_dir, target_date)
     target_state = ensure_state(target_path)
-    target_day = target_state.days.get(target_date)
-    if target_day is not None and any(not task.done for task in target_day.tasks):
-        return
 
-    prior = _find_latest_prior_day(notes_dir, target_date)
-    if prior is None:
-        return
-    previous_path, previous_date = prior
+    while True:
+        prior = _find_latest_prior_day(notes_dir, target_date)
+        if prior is None:
+            return
+        previous_path, previous_date = prior
+        target_state = _carry_tasks_forward(target_path, target_state, previous_path, previous_date, target_date)
+
+
+def _carry_tasks_forward(
+    target_path: Path,
+    target_state: FileState,
+    previous_path: Path,
+    previous_date: date,
+    target_date: date,
+) -> FileState:
     if previous_path == target_path:
         state = target_state
-        previous_day = state.days[previous_date]
-        day = state.days.setdefault(target_date, DayState())
-        carry = [task for task in previous_day.tasks if not task.done]
-        if not carry:
-            return
-        existing_keys = {task.key() for task in day.tasks}
-        for task in carry:
-            if task.key() not in existing_keys:
-                day.tasks.append(Task(text=task.text, created=task.created, done=False))
-        previous_day.tasks = [task for task in previous_day.tasks if task.done]
-        write_state(target_path, state)
-        return
+        previous_state = state
+    else:
+        state = target_state
+        previous_state = ensure_state(previous_path)
 
-    previous_state = ensure_state(previous_path)
     previous_day = previous_state.days[previous_date]
     carry = [task for task in previous_day.tasks if not task.done]
-    if not carry:
-        return
-
-    day = target_state.days.setdefault(target_date, DayState())
+    day = state.days.setdefault(target_date, DayState())
     existing_keys = {task.key() for task in day.tasks}
     for task in carry:
         if task.key() not in existing_keys:
             day.tasks.append(Task(text=task.text, created=task.created, done=False))
 
     previous_day.tasks = [task for task in previous_day.tasks if task.done]
+    if previous_path == target_path:
+        write_state(target_path, state)
+        return state
+
     write_state(previous_path, previous_state)
-    write_state(target_path, target_state)
+    write_state(target_path, state)
+    return state
 
 
 def _find_latest_prior_day(notes_dir: Path, target_date: date) -> tuple[Path, date] | None:

@@ -29,6 +29,7 @@ Add a task to today’s active list.
 ```bash
 egdo add "Call dentist"
 egdo add -t chores -t home "Do the dishes"
+egdo add -p high -t work "Submit application"
 egdo add --done -t car -t errands "Call the DMV"
 egdo add "{CHORES} Do the dishes"
 egdo add "{PERSONAL} {CHORES} {HOME} Do the dishes"
@@ -39,6 +40,7 @@ egdo add --done "Call dad"
 - creates the monthly file and day section if they do not exist
 - first performs rollover for unfinished tasks from the most recent earlier day
 - `-t` or `--tag` can be repeated to prepend tags without typing tag syntax yourself
+- `-p` or `--priority` accepts `1`/`critical`, `2`/`high`, `3`/`normal`, or `4`/`low`
 - preserves any leading tag groups in the task body and normalizes touched tags to `{UPPERCASE}`
 - `--done` creates the task already completed
 
@@ -55,9 +57,11 @@ egdo list -t chores
 - running bare `egdo` is the same as `egdo list`
 - uses today by default
 - first performs rollover for unfinished tasks from the most recent earlier day
-- shows only incomplete tasks
+- shows incomplete active tasks grouped as `Today` and `Old`
+- also shows future tasks grouped by scheduled date, with tomorrow labeled explicitly
 - `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
-- numbers tasks so you can complete one or more with `done`, or edit, delete, and tag them by index
+- active task numbers can be completed with `done`, or edited, deleted, and tagged by index
+- future task numbers are the same indexes used by `egdo future` subcommands
 
 ## `egdo finished`
 
@@ -84,6 +88,7 @@ egdo future delete 2
 egdo future edit 1 "Buy oat milk"
 egdo future move 2 sunday
 egdo future tag 1 chores
+egdo future priority 1 high
 egdo future unmove 1
 ```
 
@@ -92,7 +97,7 @@ egdo future unmove 1
 - numbers tasks across the whole future view
 - shows each task with its original created date
 - `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
-- `future done`, `delete`, `edit`, `move`, `tag`, and `unmove` use the numbering shown by `egdo future`
+- `future done`, `delete`, `edit`, `move`, `tag`, `priority`, and `unmove` use the numbering shown by `egdo future`
 - `future unmove` removes a task from its future day and puts it back on today’s active list
 - `future move` accepts the same date forms as `egdo move`: `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
 
@@ -104,6 +109,23 @@ Thu, Apr 3rd
 1. {CHORES} Buy milk (Thu, Apr 3rd)
 2. Call dentist (Thu, Apr 3rd)
 ```
+
+## `egdo priority`
+
+Set or clear the priority of an active task.
+
+```bash
+egdo priority 3 critical
+egdo priority 3 none
+```
+
+- uses the numeric index shown by `egdo list`
+- accepts `1`/`critical`, `2`/`high`, `3`/`normal`, and `4`/`low`
+- stores the priority as a leading plain-Markdown marker such as `!P1!`
+- renders priority as a three-slot meter: `!!!` (P1), `.!!` (P2), `..!` (P3), and `...` (P4), with gray dots as placeholders
+- displays tasks without an explicit priority as low (`...`) without adding a marker to Markdown
+- `none`, `clear`, or `off` removes the marker
+- use `egdo future priority INDEX LEVEL` for a future task
 
 ## `egdo done`
 

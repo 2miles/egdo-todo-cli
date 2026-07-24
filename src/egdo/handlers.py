@@ -8,7 +8,8 @@ import termios
 import tty
 from typing import Any
 
-from egdo.markdown_store import merge_tags_into_text
+from egdo.dates import format_display_date
+from egdo.markdown_store import merge_priority_into_text, merge_tags_into_text, split_task_prefix
 from egdo.render import TAG_STYLES
 from rich.console import Console
 from rich.errors import StyleSyntaxError
@@ -33,6 +34,8 @@ class HandlerDeps:
     move_future_task: Any
     move_task: Any
     parse_future_date: Any
+    prioritize_future_task: Any
+    prioritize_task: Any
     render_list_header: Any
     render_separator: Any
     render_tag_style_picker: Any
@@ -47,6 +50,7 @@ class HandlerDeps:
 def dispatch_command(args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps) -> int:
     if args.command == "add":
         task_text = merge_tags_into_text(args.text, args.tag or [])
+        task_text = merge_priority_into_text(task_text, args.priority)
         task = deps.create_task(config.root, target_date, task_text, done=args.done)
         action = "Added" if not args.done else "Added done"
         _print_task_message(console, action, task.created.isoformat(), task.text)
@@ -98,6 +102,11 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         _print_task_message(console, "Tagged future", task.created.isoformat(), task.text)
         return 0
 
+    if args.command == "future" and args.future_command == "priority":
+        task = deps.prioritize_future_task(config.root, target_date, args.index, args.level)
+        _print_task_message(console, "Prioritized future", task.created.isoformat(), task.text)
+        return 0
+
     if args.command == "future" and args.future_command == "unmove":
         task = deps.unmove_task(config.root, target_date, args.index)
         _print_task_message(
@@ -134,6 +143,11 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         _print_task_message(console, "Tagged", target_date.isoformat(), task.text)
         return 0
 
+    if args.command == "priority":
+        task = deps.prioritize_task(config.root, target_date, args.index, args.level)
+        _print_task_message(console, "Prioritized", target_date.isoformat(), task.text)
+        return 0
+
     if args.command == "note":
         deps.add_note(config.root, target_date, args.text)
         _print_task_message(console, "Noted", target_date.isoformat(), args.text)
@@ -147,7 +161,11 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
 
 def _handle_list(args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps) -> int:
     tasks = deps.list_tasks(config.root, target_date, tag=args.tag)
-    tag_styles, updated, warnings = build_tag_styles((task.text for task in tasks), config.tag_colors)
+    future_tasks = deps.list_future_tasks(config.root, target_date, tag=args.tag)
+    tag_styles, updated, warnings = build_tag_styles(
+        [task.text for task in tasks] + [task.text for _, task in future_tasks],
+        config.tag_colors,
+    )
     if updated:
         config.tag_colors = tag_styles
         deps.save_config(config)
@@ -157,13 +175,14 @@ def _handle_list(args: Any, config: Any, target_date: date, console: Console, de
     console.print(deps.render_separator(wrap_width))
     for warning in warnings:
         console.print(Text(warning, style="yellow"))
-    if not tasks:
+    if not tasks and not future_tasks:
         console.print(Text("No active tasks.", style="dim"))
         return 0
 
     todays_tasks = [task for task in tasks if task.created == target_date]
-    carried_tasks = [task for task in tasks if task.created != target_date]
+    old_tasks = [task for task in tasks if task.created != target_date]
     next_index = 1
+    rendered_active_sections = False
     if todays_tasks:
         console.print(Text("Today", style="bold"))
         for task in todays_tasks:
@@ -173,17 +192,24 @@ def _handle_list(args: Any, config: Any, target_date: date, console: Console, de
                 )
             )
             next_index += 1
-    if carried_tasks:
-        if todays_tasks:
+        rendered_active_sections = True
+    if old_tasks:
+        if rendered_active_sections:
             console.print()
-        console.print(Text("Carried Forward", style="bold"))
-        for task in carried_tasks:
+        console.print(Text("Old", style="bold"))
+        for task in old_tasks:
             console.print(
                 deps.render_task_line(
                     next_index, task.text, task.created, tag_styles, wrap_width=wrap_width
                 )
             )
             next_index += 1
+        rendered_active_sections = True
+    if future_tasks:
+        if rendered_active_sections:
+            console.print()
+        console.print(_render_future_divider(wrap_width))
+        _render_future_groups(console, deps, target_date, future_tasks, tag_styles, wrap_width)
     return 0
 
 
@@ -254,6 +280,42 @@ def _handle_future_list(
             current_day = scheduled_date
         console.print(deps.render_task_line(idx, task.text, task.created, tag_styles, wrap_width=wrap_width))
     return 0
+
+
+def _render_future_groups(
+    console: Console,
+    deps: HandlerDeps,
+    target_date: date,
+    future_tasks: list[tuple[date, Any]],
+    tag_styles: dict[str, str],
+    wrap_width: int,
+) -> None:
+    current_day: date | None = None
+    for idx, (scheduled_date, task) in enumerate(future_tasks, start=1):
+        if scheduled_date != current_day:
+            if current_day is not None:
+                console.print()
+            console.print(Text(_future_group_label(target_date, scheduled_date), style="bold"))
+            current_day = scheduled_date
+        console.print(deps.render_task_line(idx, task.text, task.created, tag_styles, wrap_width=wrap_width))
+
+
+def _render_future_divider(width: int) -> Text:
+    label = " Future "
+    line_width = max(len(label) + 2, width)
+    left = 2
+    right = line_width - left - len(label)
+    divider = Text()
+    divider.append("─" * left, style="dim")
+    divider.append(label, style="bold")
+    divider.append("─" * right, style="dim")
+    return divider
+
+
+def _future_group_label(target_date: date, scheduled_date: date) -> str:
+    if scheduled_date.toordinal() == target_date.toordinal() + 1:
+        return f"Tomorrow ({format_display_date(scheduled_date)})"
+    return format_display_date(scheduled_date)
 
 
 def handle_color(args: Any, config: Any, console: Console, deps: HandlerDeps) -> int:
@@ -388,16 +450,8 @@ def is_valid_style(style: str) -> bool:
 
 
 def _split_leading_tags(task_text: str) -> tuple[list[str], str]:
-    tags: list[str] = []
-    remaining = task_text.lstrip()
-    while True:
-        parsed = _parse_tag_token(remaining)
-        if parsed is None:
-            break
-        tag, remaining = parsed
-        tags.append(tag)
-        remaining = remaining.lstrip()
-    return tags, remaining.lstrip()
+    _, tags, body = split_task_prefix(task_text)
+    return tags, body
 
 
 def _parse_tag_token(text: str) -> tuple[str, str] | None:

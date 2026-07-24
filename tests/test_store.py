@@ -26,6 +26,8 @@ from egdo.store import (
     list_tasks,
     move_future_task,
     move_task,
+    prioritize_future_task,
+    prioritize_task,
     tag_future_task,
     tag_task,
     unmove_task,
@@ -86,6 +88,52 @@ class StoreTests(unittest.TestCase):
 
             self.assertEqual(len(first), 1)
             self.assertEqual(len(second), 1)
+
+    def test_rollover_carries_all_prior_unfinished_tasks_when_target_already_has_task(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            path = file_path(notes_dir, date(2026, 4, 15))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "\n".join(
+                    [
+                        "## Apr-12 Sun",
+                        "",
+                        "### Tasks",
+                        "",
+                        "- [ ] Older task (04-12)",
+                        "",
+                        "## Apr-13 Mon",
+                        "",
+                        "### Tasks",
+                        "",
+                        "- [ ] Recent task (04-13)",
+                        "",
+                        "## Apr-14 Tue",
+                        "",
+                        "## Apr-15 Wed",
+                        "",
+                        "### Tasks",
+                        "",
+                        "- [ ] Existing today task (04-15)",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            tasks = list_tasks(notes_dir, date(2026, 4, 15))
+
+            self.assertEqual(
+                [task.text for task in tasks],
+                ["Existing today task", "Recent task", "Older task"],
+            )
+            content = file_path(notes_dir, date(2026, 4, 15)).read_text(encoding="utf-8")
+            self.assertNotIn("## Apr-12 Sun", content)
+            self.assertNotIn("## Apr-13 Mon", content)
+            self.assertIn("- [ ] Existing today task (04-15)", content)
+            self.assertIn("- [ ] Recent task (04-13)", content)
+            self.assertIn("- [ ] Older task (04-12)", content)
 
     def test_render_includes_blank_day_headers_between_populated_days(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -297,6 +345,46 @@ class StoreTests(unittest.TestCase):
             self.assertEqual(task.text, "{CHORES} {HOME} Do the dishes")
             content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
             self.assertIn("- [ ] {CHORES} {HOME} Do the dishes (04-05)", content)
+
+    def test_priority_sets_and_clears_plain_markdown_marker(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+            add_task(notes_dir, target_date, "{WORK} Submit application")
+
+            prioritized = prioritize_task(notes_dir, target_date, 1, "critical")
+
+            self.assertEqual(prioritized.text, "!P1! {WORK} Submit application")
+            content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
+            self.assertIn("- [ ] !P1! {WORK} Submit application (04-05)", content)
+
+            cleared = prioritize_task(notes_dir, target_date, 1, "none")
+
+            self.assertEqual(cleared.text, "{WORK} Submit application")
+
+    def test_priority_can_update_a_future_task(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 4, 5)
+            future_date = date(2026, 4, 8)
+            add_task(notes_dir, future_date, "Plan trip")
+
+            task = prioritize_future_task(notes_dir, today, 1, "low")
+
+            self.assertEqual(task.text, "!P4! Plan trip")
+            content = file_path(notes_dir, future_date).read_text(encoding="utf-8")
+            self.assertIn("- [ ] !P4! Plan trip (04-08)", content)
+
+    def test_tagging_preserves_manually_written_priority(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+            add_task(notes_dir, target_date, "!P2! Do the dishes")
+
+            task = tag_task(notes_dir, target_date, 1, ["chores"])
+
+            self.assertEqual(task.text, "!P2! {CHORES} Do the dishes")
+            self.assertEqual(task.tags, ("chores",))
 
     def test_move_moves_active_task_to_future_day_and_preserves_created_date(self) -> None:
         with TemporaryDirectory() as tmp:

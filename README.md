@@ -74,6 +74,7 @@ Common commands:
 ```bash
 egdo add "Buy milk"
 egdo add -t chores -t home "Do the dishes"
+egdo add -p high -t work "Submit application"
 egdo add --done -t car -t errands "Call the DMV"
 egdo
 egdo list -t chores
@@ -87,15 +88,22 @@ egdo move 2 tomorrow
 egdo future unmove 1
 egdo delete 2
 egdo tag 3 chores home
+egdo priority 3 critical
 egdo note "Need to test villager trading setup"
 egdo color chores
 ```
 
 Running `egdo` with no command is the same as `egdo list`.
 
+`egdo list` groups active tasks as `Today` and `Old`, then shows future tasks grouped by scheduled date. Future task indexes correspond to the `egdo future` commands.
+
 `egdo future unmove INDEX` takes a task from the `egdo future` view and puts it back on today's active list.
 
 You can create tags either from the CLI with repeated `-t` or `--tag` flags or by typing leading brace tags directly in the markdown, such as `{CHORES} {HOME} Do the dishes`.
+
+Priorities use `!P1!` through `!P4!` in Markdown. Add one with `-p` or `--priority`, using `1`/`critical`, `2`/`high`, `3`/`normal`, or `4`/`low`. Use `egdo priority INDEX LEVEL` to change an existing task, or use `none` as the level to clear it.
+
+In terminal lists, egdo renders priority as a three-slot meter: `!!!` for P1, `.!!` for P2, `..!` for P3, and `...` for P4. Dots are gray placeholders and exclamation marks carry the priority color. Tasks without an explicit priority display as low priority (`...`) without changing their stored Markdown.
 
 For the full command reference, see [docs/command-reference.md](/Users/miles/Code/Github/egdo-todo-cli/docs/command-reference.md).
 
@@ -120,7 +128,7 @@ Each day is a section in that month file:
 
 ### Tasks
 
-- [ ] {CHORES} Buy milk (04-05)
+- [ ] !P2! {CHORES} Buy milk (04-05)
 
 ### Notes
 
@@ -138,6 +146,7 @@ You can safely:
 - change task text in a day’s `### Tasks` section
 - add simple checklist items in a `### Tasks` section
 - create tags by typing leading brace groups such as `{CHORES}` or `{HOME}`
+- add or change priority by typing a leading marker such as `!P1!`
 - edit or add text in a day’s `### Notes` section
 - open and edit the files directly in any text editor
 
