@@ -1,3 +1,5 @@
+"""Read and write egdo's small TOML-like user configuration file."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -15,6 +17,7 @@ class Config:
 
 
 def load_config(path: Path = CONFIG_PATH) -> Config:
+    """Load the storage root and optional style tables from disk."""
     if not path.exists():
         raise FileNotFoundError(
             f"Config not found at {path}. Run `egdo init --root /path/to/egdo`."
@@ -39,6 +42,7 @@ def write_config(
     tag_colors: dict[str, str] | None = None,
     priority_styles: dict[str, str] | None = None,
 ) -> Path:
+    """Rewrite configuration deterministically with alphabetized style keys."""
     path.parent.mkdir(parents=True, exist_ok=True)
     content = f'root = "{root.expanduser()}"\n'
     if tag_colors:
@@ -63,6 +67,7 @@ def save_config(config: Config, path: Path = CONFIG_PATH) -> Path:
 
 
 def _parse_toml(content: str) -> dict[str, object]:
+    """Parse only the TOML subset emitted by egdo, avoiding a runtime dependency."""
     raw: dict[str, object] = {}
     section: str | None = None
     for line in content.splitlines():
@@ -88,6 +93,7 @@ def _parse_toml(content: str) -> dict[str, object]:
 
 
 def _parse_tag_colors(raw: dict[str, object]) -> dict[str, str]:
+    """Validate the tag-color table and normalize its keys for lookup."""
     value = raw.get("tag_colors")
     if value is None:
         return {}

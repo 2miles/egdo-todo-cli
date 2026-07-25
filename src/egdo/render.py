@@ -1,3 +1,5 @@
+"""Build Rich renderables for task lists and interactive style pickers."""
+
 from __future__ import annotations
 
 import textwrap
@@ -69,6 +71,7 @@ def render_task_line(
     wrap_width: int = 88,
     priority_styles: dict[str, str] | None = None,
 ) -> Group:
+    """Wrap one task while reserving fixed columns for index, priority, and date."""
     priority, tags, body = split_task_prefix(task_text)
     display_priority = priority if priority is not None else 4
     prefix_parts = [f"{{{tag.upper()}}}" for tag in tags]
@@ -104,11 +107,6 @@ def _format_task_date(value) -> str:
     return f"{value.strftime('%a, %b')} {value.day:>2}{ordinal_suffix(value.day)}"
 
 
-def split_leading_tags(task_text: str) -> tuple[list[str], str]:
-    _, tags, body = split_task_prefix(task_text)
-    return tags, body
-
-
 def style_wrapped_task_line(
     line: str,
     initial_indent: str,
@@ -117,6 +115,7 @@ def style_wrapped_task_line(
     priority: int | None = None,
     priority_styles: dict[str, str] | None = None,
 ) -> Text:
+    """Apply styles after wrapping so prefixes and right-aligned dates stay intact."""
     if line.startswith(initial_indent):
         prefix = initial_indent
     else:
@@ -159,10 +158,12 @@ def style_wrapped_task_line(
 
 
 def task_wrap_width(current_console: Console) -> int:
+    """Clamp output width to remain readable on narrow and very wide terminals."""
     return max(40, min(current_console.size.width, 96))
 
 
 def render_tag_style_picker(tag: str, selected_index: int, current_style: str | None = None) -> Group:
+    """Build the full-screen tag palette with selection and current markers."""
     title = Text("Choose a color for ")
     title.append(f"{{{tag.upper()}}}", style=TAG_STYLES[selected_index])
     instructions = Text("Use up/down or j/k, Enter to save, q or Esc to cancel.", style="dim")
@@ -182,6 +183,7 @@ def render_tag_style_picker(tag: str, selected_index: int, current_style: str | 
 def render_priority_style_picker(
     priority_key: str, selected_index: int, current_style: str | None = None
 ) -> Group:
+    """Build the priority palette using the marker users will actually see."""
     priority = int(priority_key.removeprefix("p"))
     marker = PRIORITY_MARKERS[priority]
     title = Text(f"Choose a style for {priority_key.upper()}: ")
@@ -200,19 +202,8 @@ def render_priority_style_picker(
     return Group(*rows)
 
 
-def _parse_tag_token(text: str) -> tuple[str, str] | None:
-    if text.startswith("{"):
-        closing = text.find("}")
-        if closing <= 1:
-            return None
-        tag = text[1:closing].strip()
-        if not tag:
-            return None
-        return (tag, text[closing + 1 :])
-    return None
-
-
 def _wrap_task_content(text: str, first_width: int, subsequent_width: int) -> list[str]:
+    """Wrap the first line more narrowly to leave room for its date suffix."""
     if not text:
         return [""]
 

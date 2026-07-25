@@ -1,3 +1,5 @@
+"""Integration-style tests for Markdown persistence and task mutations."""
+
 from __future__ import annotations
 
 from datetime import date

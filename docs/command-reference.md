@@ -60,9 +60,10 @@ egdo list -t chores
 - shows incomplete active tasks grouped as `Today` and `Old`
 - also shows future tasks grouped by scheduled date, with tomorrow labeled explicitly
 - `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
+- `--future` shows only tasks scheduled after today and can be combined with `--tag`
 - numbering continues across `Today`, `Old`, and `Future` without restarting
 - normal `done`, `edit`, `move`, `delete`, `tag`, and `priority` commands automatically route each index to the correct group
-- `egdo future` is an optional filtered view that preserves the same global indexes
+- `egdo list --future` is an optional filtered view that preserves the same global indexes
 
 ## `egdo finished`
 
@@ -77,32 +78,20 @@ egdo finished -t chores
 - shows only completed tasks from today
 - `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
 
-## `egdo future`
+## `egdo list --future`
 
 List incomplete tasks scheduled after today.
 
 ```bash
-egdo future
-egdo future -t chores
-egdo future done 1
-egdo future done 1 3 7
-egdo future delete 2
-egdo future edit 1 "Buy oat milk"
-egdo future move 2 sunday
-egdo future move 1 3 7 sunday
-egdo future tag 1 chores
-egdo future priority 1 high
-egdo future unmove 1
+egdo list --future
+egdo list --future -t chores
 ```
 
 - shows incomplete tasks on dates later than today
 - groups tasks by their scheduled day
 - preserves the global task numbers from the combined `egdo list` view
 - shows each task with its original created date
-- `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
-- `future done`, `delete`, `move`, `tag`, `priority`, and `unmove` accept multiple indexes from the numbering shown by `egdo future`; `edit` remains single-task
-- `future unmove` removes a task from its future day and puts it back on today’s active list
-- `future move` accepts the same date forms as `egdo move`: `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
+- this command is view-only; use the normal top-level commands with the displayed indexes
 
 Example output:
 
@@ -129,7 +118,7 @@ egdo priority 3 none
 - renders priority as a three-slot meter: `!!!` (P1), `.!!` (P2), `..!` (P3), and `...` (P4), with gray dots as placeholders
 - displays tasks without an explicit priority as low (`...`) without adding a marker to Markdown
 - `none`, `clear`, or `off` removes the marker
-- use `egdo future priority INDEX LEVEL` for a future task
+- the same command works for future tasks using their global indexes
 
 ## `egdo done`
 
@@ -179,6 +168,19 @@ egdo move 2 2026-04-10
 - accepts `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
 - weekday names mean the next occurrence of that weekday, never today
 - rejects non-future destinations
+
+## `egdo unmove`
+
+Bring one or more future tasks back to today's active list.
+
+```bash
+egdo unmove 12
+egdo unmove 10 12 15
+```
+
+- accepts the global task indexes shown by `egdo` or `egdo list --future`
+- accepts only tasks that are currently scheduled after today
+- preserves each task's original creation date
 
 ## `egdo delete`
 
@@ -230,6 +232,7 @@ Set the terminal color for a tag or priority level.
 egdo color --tag chores
 egdo color --tag chores --style green_yellow
 egdo color --tag chores home --style green_yellow
+egdo color --tag career --copy-from work
 egdo color --priority high --style "bold orange1"
 egdo color --priority high critical --style "bold red"
 ```
@@ -241,6 +244,8 @@ egdo color --priority high critical --style "bold red"
 - supports `j` and `k` in addition to the arrow keys
 - saves the selected Rich style in `[tag_colors]` in the config file
 - `--style` skips the picker and writes the provided Rich style directly
+- `--copy-from TAG` copies a saved tag style to one or more other tags
+- `--style` and `--copy-from` are mutually exclusive; `--copy-from` applies only to tags
 - priority levels accept the same numeric and named values as `egdo priority`
 - priority styles are saved as `p1` through `p4` in `[priority_styles]`
 - P1–P3 control the filled exclamation slots; P4 controls every placeholder dot

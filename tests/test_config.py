@@ -1,3 +1,5 @@
+"""Behavior tests for loading and saving egdo configuration."""
+
 from __future__ import annotations
 
 from pathlib import Path

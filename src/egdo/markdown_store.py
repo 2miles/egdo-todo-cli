@@ -1,3 +1,5 @@
+"""Parse and deterministically rewrite egdo's monthly Markdown files."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -16,6 +18,7 @@ NOTES_HEADING = "### Notes"
 
 @dataclass(slots=True)
 class Task:
+    """A checklist item with its original creation date."""
     text: str
     created: date
     done: bool
@@ -30,12 +33,14 @@ class Task:
 
 @dataclass(slots=True)
 class DayState:
+    """The tasks and free-form notes stored under one daily heading."""
     tasks: list[Task] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
 class FileState:
+    """Parsed month content, including text before the first managed day."""
     prefix: str
     days: dict[date, DayState]
     normalized: bool = False
@@ -47,6 +52,7 @@ def file_path(notes_dir: Path, target_date: date) -> Path:
 
 
 def parse_file(content: str, default_year: int | None = None) -> FileState:
+    """Parse day sections while preserving content before the first day header."""
     lines = content.splitlines()
     prefix_lines: list[str] = []
     days: dict[date, DayState] = {}
@@ -92,6 +98,7 @@ def parse_file(content: str, default_year: int | None = None) -> FileState:
 
 
 def render_file(state: FileState) -> str:
+    """Render populated bounds deterministically, including empty days between them."""
     sections: list[str] = []
     prefix = state.prefix.strip()
     if prefix:
@@ -117,6 +124,7 @@ def ensure_state(path: Path) -> FileState:
 
 
 def write_state(path: Path, state: FileState) -> None:
+    """Persist a state, removing the month file when it has no content."""
     content = render_file(state)
     if not content:
         if path.exists():
@@ -138,6 +146,7 @@ def file_year_from_path(path: Path) -> int | None:
 
 
 def render_day(day_date: date, day: DayState) -> str:
+    """Render one canonical day section, omitting empty subsections."""
     lines = [f"## {day_date:%b-%d} {day_date.strftime('%a')}"]
     if day.tasks:
         lines.extend(["", TASKS_HEADING, ""])
@@ -154,6 +163,7 @@ def render_task(task: Task) -> str:
 
 
 def parse_task_line(line: str, section_date: date) -> Task:
+    """Parse a checklist line, defaulting a missing creation date to its section."""
     match = TASK_LINE_RE.match(line)
     if match is None:
         raise ValueError(f"Invalid task line: {line}")
@@ -165,6 +175,7 @@ def parse_task_line(line: str, section_date: date) -> Task:
 
 
 def parse_compact_date(value: str, section_date: date) -> date:
+    """Infer the creation year, allowing December tasks to roll into January."""
     month = int(value[:2])
     day = int(value[3:5])
     candidate = date(section_date.year, month, day)
@@ -191,12 +202,8 @@ def parse_leading_tags(text: str) -> tuple[str, ...]:
     return tuple(tags)
 
 
-def split_leading_tags_and_body(text: str) -> tuple[list[str], str]:
-    _, tags, body = split_task_prefix(text)
-    return tags, body
-
-
 def split_task_prefix(text: str) -> tuple[int | None, list[str], str]:
+    """Extract interleaved leading priority/tag tokens from a task body."""
     priority: int | None = None
     tags: list[str] = []
     remaining = text.lstrip()
@@ -221,6 +228,7 @@ def split_task_prefix(text: str) -> tuple[int | None, list[str], str]:
 
 
 def normalize_priority(value: str | int | None, *, allow_none: bool = False) -> int | None:
+    """Map numeric and named priority aliases to P1-P4, optionally allowing clear."""
     if value is None:
         return None
     normalized = str(value).strip().lower()
@@ -251,12 +259,14 @@ def normalize_priority(value: str | int | None, *, allow_none: bool = False) -> 
 
 
 def merge_priority_into_text(text: str, value: str | int | None) -> str:
+    """Replace a task's priority while preserving its tags and body."""
     existing_priority, tags, body = split_task_prefix(text)
     priority = existing_priority if value is None else normalize_priority(value)
     return format_task_text(priority, tags, body)
 
 
 def format_task_text(priority: int | None, tags: list[str], body: str) -> str:
+    """Rebuild task text in canonical priority, tags, then body order."""
     parts: list[str] = []
     if priority is not None:
         parts.append(f"!P{priority}!")
@@ -267,6 +277,7 @@ def format_task_text(priority: int | None, tags: list[str], body: str) -> str:
 
 
 def normalize_tags(tags: list[str]) -> list[str]:
+    """Normalize tag spelling and order while removing blanks and duplicates."""
     normalized: list[str] = []
     for tag in tags:
         value = _normalize_tag_value(tag)
@@ -278,6 +289,7 @@ def normalize_tags(tags: list[str]) -> list[str]:
 
 
 def merge_tags_into_text(text: str, tags: list[str]) -> str:
+    """Append new unique tags without disturbing priority or existing tag order."""
     normalized_tags = normalize_tags(tags)
     priority, existing_tags, body = split_task_prefix(text)
     if not normalized_tags and not existing_tags:
@@ -289,10 +301,6 @@ def merge_tags_into_text(text: str, tags: list[str]) -> str:
     return format_task_text(priority, merged_tags, body)
 
 
-def format_tag(tag: str) -> str:
-    return _format_tag(_normalize_tag_value(tag))
-
-
 def _format_tag(tag: str) -> str:
     return f"{{{tag.upper()}}}"
 
@@ -302,6 +310,7 @@ def _normalize_tag_value(tag: str) -> str:
 
 
 def _parse_tag_token(text: str) -> tuple[str, str] | None:
+    """Consume one leading brace tag and return its unparsed remainder."""
     if text.startswith("{"):
         closing = text.find("}")
         if closing <= 1:

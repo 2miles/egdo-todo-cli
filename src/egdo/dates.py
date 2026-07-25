@@ -1,3 +1,5 @@
+"""Parse scheduling expressions and format dates for terminal output."""
+
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -8,6 +10,7 @@ def format_display_date(value: date) -> str:
 
 
 def parse_future_date(value: str, today: date) -> date:
+    """Resolve a supported date expression and require a date after ``today``."""
     token = value.strip()
     if not token:
         raise ValueError("Move date cannot be empty")
@@ -44,6 +47,7 @@ def parse_future_date(value: str, today: date) -> date:
 
 
 def parse_weekday_name(value: str) -> int | None:
+    """Return a weekday number for an unambiguous full name or abbreviation."""
     weekday_names = {
         "monday": 0,
         "mon": 0,

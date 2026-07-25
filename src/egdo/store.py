@@ -1,23 +1,28 @@
+"""Provide task operations over the Markdown persistence layer."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from egdo.markdown_store import DayState
-from egdo.markdown_store import FileState
-from egdo.markdown_store import Task
-from egdo.markdown_store import ensure_state
-from egdo.markdown_store import file_path
-from egdo.markdown_store import format_task_text
-from egdo.markdown_store import is_month_file
-from egdo.markdown_store import normalize_tags
-from egdo.markdown_store import normalize_priority
-from egdo.markdown_store import split_task_prefix
-from egdo.markdown_store import write_state
+from egdo.markdown_store import (
+    DayState,
+    FileState,
+    Task,
+    ensure_state,
+    file_path,
+    format_task_text,
+    is_month_file,
+    normalize_priority,
+    normalize_tags,
+    split_task_prefix,
+    write_state,
+)
 
 
 @dataclass(frozen=True, slots=True)
 class TaskRef:
+    """Pair a task with its scheduled date in the global index space."""
     scheduled: date
     task: Task
 
@@ -27,6 +32,7 @@ def add_task(notes_dir: Path, target_date: date, text: str) -> Task:
 
 
 def create_task(notes_dir: Path, target_date: date, text: str, done: bool) -> Task:
+    """Roll unfinished work forward, then append a task to the target day."""
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
@@ -38,6 +44,7 @@ def create_task(notes_dir: Path, target_date: date, text: str, done: bool) -> Ta
 
 
 def add_note(notes_dir: Path, target_date: date, text: str) -> list[str]:
+    """Append note text as a paragraph while preserving embedded line breaks."""
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
     day = state.days.setdefault(target_date, DayState())
@@ -49,34 +56,31 @@ def add_note(notes_dir: Path, target_date: date, text: str) -> list[str]:
 
 
 def list_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> list[Task]:
+    """Return today's incomplete tasks after rollover, ordered Today then Old."""
     rollover(notes_dir, target_date)
     state = ensure_state(file_path(notes_dir, target_date))
     day = state.days.get(target_date)
     if day is None:
         return []
     tasks = _active_tasks_for_list(day, target_date)
-    if tag is None:
-        return tasks
-    normalized_tag = tag.strip().lower()
-    return [task for task in tasks if normalized_tag in task.tags]
+    return _filter_tasks_by_tag(tasks, tag)
 
 
 def list_finished_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> list[Task]:
+    """Return completed tasks stored on the target day."""
     rollover(notes_dir, target_date)
     state = ensure_state(file_path(notes_dir, target_date))
     day = state.days.get(target_date)
     if day is None:
         return []
     tasks = [task for task in day.tasks if task.done]
-    if tag is None:
-        return tasks
-    normalized_tag = tag.strip().lower()
-    return [task for task in tasks if normalized_tag in task.tags]
+    return _filter_tasks_by_tag(tasks, tag)
 
 
 def list_future_tasks(
     notes_dir: Path, target_date: date, tag: str | None = None
 ) -> list[tuple[date, Task]]:
+    """Scan month files for incomplete tasks scheduled after the target day."""
     if not notes_dir.exists():
         return []
 
@@ -100,6 +104,7 @@ def list_future_tasks(
 
 
 def list_task_refs(notes_dir: Path, target_date: date) -> list[TaskRef]:
+    """Create the single active-then-future sequence used by every task index."""
     active = [TaskRef(target_date, task) for task in list_tasks(notes_dir, target_date)]
     future = [TaskRef(scheduled, task) for scheduled, task in list_future_tasks(notes_dir, target_date)]
     return active + future
@@ -110,10 +115,9 @@ def complete_task(notes_dir: Path, target_date: date, index: int) -> Task:
 
 
 def complete_tasks(notes_dir: Path, target_date: date, indexes: list[int]) -> list[Task]:
+    """Complete several global indexes without index shifting between updates."""
     refs = _select_task_refs(notes_dir, target_date, indexes)
     _mutate_refs(notes_dir, refs, lambda task: setattr(task, "done", True))
-    for ref in refs:
-        ref.task.done = True
     return [ref.task for ref in refs]
 
 
@@ -122,6 +126,7 @@ def delete_task(notes_dir: Path, target_date: date, index: int) -> Task:
 
 
 def delete_tasks(notes_dir: Path, target_date: date, indexes: list[int]) -> list[Task]:
+    """Remove selected incomplete tasks from each scheduled day."""
     refs = _select_task_refs(notes_dir, target_date, indexes)
     for scheduled, selected in _group_refs(refs).items():
         path = file_path(notes_dir, scheduled)
@@ -134,9 +139,9 @@ def delete_tasks(notes_dir: Path, target_date: date, indexes: list[int]) -> list
 
 
 def edit_task(notes_dir: Path, target_date: date, index: int, text: str) -> Task:
+    """Replace task text while retaining scheduling and creation dates."""
     ref = _select_task_refs(notes_dir, target_date, [index])[0]
     _mutate_refs(notes_dir, [ref], lambda task: setattr(task, "text", text))
-    ref.task.text = text
     return ref.task
 
 
@@ -147,6 +152,7 @@ def move_task(notes_dir: Path, target_date: date, index: int, destination_date: 
 def move_tasks(
     notes_dir: Path, target_date: date, indexes: list[int], destination_date: date
 ) -> list[Task]:
+    """Relocate selected global indexes to one future scheduled date."""
     if destination_date <= target_date:
         raise ValueError("Move destination must be a future date")
     refs = _select_task_refs(notes_dir, target_date, indexes)
@@ -161,6 +167,7 @@ def unmove_task(notes_dir: Path, target_date: date, index: int) -> Task:
 
 
 def unmove_tasks(notes_dir: Path, target_date: date, indexes: list[int]) -> list[Task]:
+    """Bring selected future tasks back to the target day's active list."""
     refs = _select_task_refs(notes_dir, target_date, indexes)
     if any(ref.scheduled <= target_date for ref in refs):
         raise ValueError("Only future tasks can be unmoved")
@@ -175,6 +182,7 @@ def tag_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) ->
 def tag_tasks(
     notes_dir: Path, target_date: date, indexes: list[int], tags: list[str]
 ) -> list[Task]:
+    """Add normalized unique tags while preserving priority and task body."""
     normalized_tags = normalize_tags(tags)
     if not normalized_tags:
         raise ValueError("At least one non-empty tag is required")
@@ -186,14 +194,13 @@ def tag_tasks(
         task.text = format_task_text(priority, merged, body)
 
     _mutate_refs(notes_dir, refs, add_tags)
-    for ref in refs:
-        add_tags(ref.task)
     return [ref.task for ref in refs]
 
 
 def untag_tasks(
     notes_dir: Path, target_date: date, indexes: list[int], tags: list[str]
 ) -> list[Task]:
+    """Remove matching tags while preserving priority and unrelated tags."""
     normalized_tags = normalize_tags(tags)
     if not normalized_tags:
         raise ValueError("At least one non-empty tag is required")
@@ -205,8 +212,6 @@ def untag_tasks(
         task.text = format_task_text(priority, remaining, body)
 
     _mutate_refs(notes_dir, refs, remove_tags)
-    for ref in refs:
-        remove_tags(ref.task)
     return [ref.task for ref in refs]
 
 
@@ -217,6 +222,7 @@ def prioritize_task(notes_dir: Path, target_date: date, index: int, priority: st
 def prioritize_tasks(
     notes_dir: Path, target_date: date, indexes: list[int], priority: str | int
 ) -> list[Task]:
+    """Set or clear priority on multiple globally indexed tasks."""
     normalized = normalize_priority(priority, allow_none=True)
     refs = _select_task_refs(notes_dir, target_date, indexes)
 
@@ -225,12 +231,11 @@ def prioritize_tasks(
         task.text = format_task_text(normalized, tags, body)
 
     _mutate_refs(notes_dir, refs, set_priority)
-    for ref in refs:
-        set_priority(ref.task)
     return [ref.task for ref in refs]
 
 
 def rollover(notes_dir: Path, target_date: date) -> None:
+    """Move all earlier unfinished work into ``target_date`` exactly once."""
     target_path = file_path(notes_dir, target_date)
     target_state = ensure_state(target_path)
 
@@ -249,6 +254,7 @@ def _carry_tasks_forward(
     previous_date: date,
     target_date: date,
 ) -> FileState:
+    """Transfer unfinished tasks from one prior day, preserving creation dates."""
     if previous_path == target_path:
         state = target_state
         previous_state = state
@@ -275,6 +281,7 @@ def _carry_tasks_forward(
 
 
 def _find_latest_prior_day(notes_dir: Path, target_date: date) -> tuple[Path, date] | None:
+    """Find the newest earlier day that still contains unfinished work."""
     if not notes_dir.exists():
         return None
 
@@ -294,12 +301,14 @@ def _find_latest_prior_day(notes_dir: Path, target_date: date) -> tuple[Path, da
 
 
 def _select_task_refs(notes_dir: Path, target_date: date, indexes: list[int]) -> list[TaskRef]:
+    """Resolve and validate global one-based indexes before any mutation occurs."""
     refs = list_task_refs(notes_dir, target_date)
     selected_indexes = _validated_indexes(indexes, len(refs))
     return [refs[index - 1] for index in selected_indexes]
 
 
 def _group_refs(refs: list[TaskRef]) -> dict[date, list[TaskRef]]:
+    """Group selections by physical day so each month state is rewritten once."""
     grouped: dict[date, list[TaskRef]] = {}
     for ref in refs:
         grouped.setdefault(ref.scheduled, []).append(ref)
@@ -307,6 +316,7 @@ def _group_refs(refs: list[TaskRef]) -> dict[date, list[TaskRef]]:
 
 
 def _mutate_refs(notes_dir: Path, refs: list[TaskRef], mutate) -> None:
+    """Apply one mutation to persisted tasks and synchronize returned snapshots."""
     for scheduled, selected in _group_refs(refs).items():
         path = file_path(notes_dir, scheduled)
         state = ensure_state(path)
@@ -320,9 +330,12 @@ def _mutate_refs(notes_dir: Path, refs: list[TaskRef], mutate) -> None:
         if matched < len(selected):
             raise RuntimeError("Task disappeared before update")
         write_state(path, state)
+    for ref in refs:
+        mutate(ref.task)
 
 
 def _move_refs(notes_dir: Path, refs: list[TaskRef], destination: date) -> None:
+    """Load all affected files before relocating tasks and writing each once."""
     paths = {file_path(notes_dir, ref.scheduled) for ref in refs}
     paths.add(file_path(notes_dir, destination))
     states = {path: ensure_state(path) for path in paths}
@@ -354,13 +367,22 @@ def _move_refs(notes_dir: Path, refs: list[TaskRef], destination: date) -> None:
 
 
 def _active_tasks_for_list(day: DayState, target_date: date) -> list[Task]:
+    """Order incomplete tasks created today before carried-forward tasks."""
     active = [task for task in day.tasks if not task.done]
     todays_tasks = [task for task in active if task.created == target_date]
     carried_tasks = [task for task in active if task.created != target_date]
     return todays_tasks + carried_tasks
 
 
+def _filter_tasks_by_tag(tasks: list[Task], tag: str | None) -> list[Task]:
+    if tag is None:
+        return tasks
+    normalized_tag = tag.strip().lower()
+    return [task for task in tasks if normalized_tag in task.tags]
+
+
 def _dedupe_indexes(indexes: list[int]) -> list[int]:
+    """Keep the first occurrence of each index so an action runs only once."""
     deduped: list[int] = []
     seen: set[int] = set()
     for index in indexes:
@@ -372,6 +394,7 @@ def _dedupe_indexes(indexes: list[int]) -> list[int]:
 
 
 def _validated_indexes(indexes: list[int], task_count: int) -> list[int]:
+    """Deduplicate and validate one-based indexes as a complete batch."""
     unique_indexes = _dedupe_indexes(indexes)
     if not unique_indexes:
         raise ValueError("At least one task index is required")

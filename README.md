@@ -79,13 +79,12 @@ egdo add --done -t car -t errands "Call the DMV"
 egdo
 egdo list -t chores
 egdo finished
-egdo future
-egdo future done 1
+egdo list --future
 egdo done 1
 egdo done 1 3 12
 egdo edit 2 "Buy oat milk"
 egdo move 1 6 7 tomorrow
-egdo future unmove 1
+egdo unmove 1
 egdo delete 1 6 7
 egdo tag 1 6 7 chores home
 egdo tag 3 6 7 --remove work
@@ -94,13 +93,14 @@ egdo priority 3 critical
 egdo note "Need to test villager trading setup"
 egdo color --tag chores
 egdo color --tag chores home --style blue
+egdo color --tag career --copy-from work
 ```
 
 Running `egdo` with no command is the same as `egdo list`.
 
 `egdo list` groups tasks as `Today`, `Old`, and `Future` using one continuous set of indexes. Normal commands such as `done`, `delete`, `move`, `tag`, `priority`, and `edit` automatically operate on the selected task regardless of its group.
 
-`egdo future` remains available as an optional filtered view, but it preserves the same global indexes shown by the main list.
+`egdo list --future` provides an optional future-only view while preserving the same global indexes shown by the main list.
 
 You can create tags either from the CLI with repeated `-t` or `--tag` flags or by typing leading brace tags directly in the markdown, such as `{CHORES} {HOME} Do the dishes`.
 
@@ -108,7 +108,8 @@ Priorities use `!P1!` through `!P4!` in Markdown. Add one with `-p` or `--priori
 
 In terminal lists, egdo renders priority as a three-slot meter: `!!!` for P1, `.!!` for P2, `..!` for P3, and `...` for P4. Dots are gray placeholders and exclamation marks carry the priority color. Tasks without an explicit priority display as low priority (`...`) without changing their stored Markdown.
 
-For the full command reference, see [docs/command-reference.md](/Users/miles/Code/Github/egdo-todo-cli/docs/command-reference.md).
+For a practical walkthrough and cheat sheet, see [The Complete egdo Guide](docs/guide.md).
+For every command and argument, see the [command reference](docs/command-reference.md).
 
 ## Storage Format
 
