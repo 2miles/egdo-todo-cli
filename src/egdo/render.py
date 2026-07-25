@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import textwrap
 
-from egdo.dates import format_display_date
+from egdo.dates import format_display_date, ordinal_suffix
 from rich.console import Console, Group
 from rich.text import Text
 
@@ -11,8 +11,12 @@ from egdo.markdown_store import split_task_prefix
 HEADER_DATE_STYLE = "bold cyan"
 SEPARATOR_STYLE = "dim"
 PRIORITY_MARKERS = {1: "!!!", 2: ".!!", 3: "..!", 4: "..."}
-PRIORITY_STYLES = {1: "bold white on red", 2: "bold orange1", 3: "yellow"}
-PRIORITY_PLACEHOLDER_STYLE = "grey50"
+DEFAULT_PRIORITY_STYLES = {
+    "p1": "bold white on red",
+    "p2": "bold orange1",
+    "p3": "yellow",
+    "p4": "grey50",
+}
 
 ## Available colors: https://rich.readthedocs.io/en/stable/appendix/colors.html
 TAG_STYLES = (
@@ -58,13 +62,18 @@ def render_separator(width: int) -> Text:
 
 
 def render_task_line(
-    index: int, task_text: str, created, tag_styles: dict[str, str], wrap_width: int = 88
+    index: int,
+    task_text: str,
+    created,
+    tag_styles: dict[str, str],
+    wrap_width: int = 88,
+    priority_styles: dict[str, str] | None = None,
 ) -> Group:
     priority, tags, body = split_task_prefix(task_text)
     display_priority = priority if priority is not None else 4
     prefix_parts = [f"{{{tag.upper()}}}" for tag in tags]
     label = " ".join(prefix_parts + ([body] if body else []))
-    date_text = f" ({format_display_date(created)})"
+    date_text = f" ({_format_task_date(created)})"
     total_width = max(20, wrap_width)
     marker = PRIORITY_MARKERS[display_priority]
     initial_indent = f"{index:>2}. {marker:<3} "
@@ -79,11 +88,20 @@ def render_task_line(
     return Group(
         *[
             style_wrapped_task_line(
-                line, initial_indent, date_text, tag_styles, priority=display_priority
+                line,
+                initial_indent,
+                date_text,
+                tag_styles,
+                priority=display_priority,
+                priority_styles=priority_styles,
             )
             for line in wrapped_lines
         ]
     )
+
+
+def _format_task_date(value) -> str:
+    return f"{value.strftime('%a, %b')} {value.day:>2}{ordinal_suffix(value.day)}"
 
 
 def split_leading_tags(task_text: str) -> tuple[list[str], str]:
@@ -97,6 +115,7 @@ def style_wrapped_task_line(
     date_text: str,
     tag_styles: dict[str, str],
     priority: int | None = None,
+    priority_styles: dict[str, str] | None = None,
 ) -> Text:
     if line.startswith(initial_indent):
         prefix = initial_indent
@@ -118,14 +137,11 @@ def style_wrapped_task_line(
     styled = Text()
     if priority is not None and line.startswith(initial_indent):
         marker = PRIORITY_MARKERS[priority]
+        resolved_priority_styles = {**DEFAULT_PRIORITY_STYLES, **(priority_styles or {})}
         index_prefix = prefix[:-4].rstrip()
         styled.append(f"{index_prefix} ", style="white")
         for character in marker:
-            style = (
-                PRIORITY_PLACEHOLDER_STYLE
-                if character == "."
-                else PRIORITY_STYLES[priority]
-            )
+            style = resolved_priority_styles["p4" if character == "." else f"p{priority}"]
             styled.append(character, style=style)
         styled.append(" ")
     else:
@@ -156,6 +172,27 @@ def render_tag_style_picker(tag: str, selected_index: int, current_style: str | 
         marker = ">" if index == selected_index else " "
         row.append(f"{marker} ", style="bold" if index == selected_index else "dim")
         row.append(f"{{{tag.upper()}}} ", style=style_name)
+        row.append(style_name, style="bold" if index == selected_index else "default")
+        if style_name == current_style:
+            row.append(" current", style="dim")
+        rows.append(row)
+    return Group(*rows)
+
+
+def render_priority_style_picker(
+    priority_key: str, selected_index: int, current_style: str | None = None
+) -> Group:
+    priority = int(priority_key.removeprefix("p"))
+    marker = PRIORITY_MARKERS[priority]
+    title = Text(f"Choose a style for {priority_key.upper()}: ")
+    title.append(marker, style=TAG_STYLES[selected_index])
+    instructions = Text("Use up/down or j/k, Enter to save, q or Esc to cancel.", style="dim")
+    rows: list[Text] = [title, instructions, Text("")]
+    for index, style_name in enumerate(TAG_STYLES):
+        row = Text()
+        selection = ">" if index == selected_index else " "
+        row.append(f"{selection} ", style="bold" if index == selected_index else "dim")
+        row.append(f"{marker} ", style=style_name)
         row.append(style_name, style="bold" if index == selected_index else "default")
         if style_name == current_style:
             row.append(" current", style="dim")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from egdo.markdown_store import DayState
@@ -11,9 +12,14 @@ from egdo.markdown_store import format_task_text
 from egdo.markdown_store import is_month_file
 from egdo.markdown_store import normalize_tags
 from egdo.markdown_store import normalize_priority
-from egdo.markdown_store import parse_file
 from egdo.markdown_store import split_task_prefix
 from egdo.markdown_store import write_state
+
+
+@dataclass(frozen=True, slots=True)
+class TaskRef:
+    scheduled: date
+    task: Task
 
 
 def add_task(notes_dir: Path, target_date: date, text: str) -> Task:
@@ -93,85 +99,10 @@ def list_future_tasks(
     return future_tasks
 
 
-def complete_future_task(notes_dir: Path, target_date: date, index: int) -> Task:
-    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
-    path = file_path(notes_dir, source_date)
-    state = ensure_state(path)
-    day = state.days.setdefault(source_date, DayState())
-    for task in day.tasks:
-        if task.key() == selected_task.key() and not task.done:
-            task.done = True
-            write_state(path, state)
-            return task
-    raise RuntimeError("Future task disappeared before completion")
-
-
-def delete_future_task(notes_dir: Path, target_date: date, index: int) -> Task:
-    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
-    path = file_path(notes_dir, source_date)
-    state = ensure_state(path)
-    day = state.days.setdefault(source_date, DayState())
-    for task_index, task in enumerate(day.tasks):
-        if task.key() == selected_task.key() and not task.done:
-            removed = day.tasks.pop(task_index)
-            write_state(path, state)
-            return removed
-    raise RuntimeError("Future task disappeared before deletion")
-
-
-def edit_future_task(notes_dir: Path, target_date: date, index: int, text: str) -> Task:
-    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
-    path = file_path(notes_dir, source_date)
-    state = ensure_state(path)
-    day = state.days.setdefault(source_date, DayState())
-    for task in day.tasks:
-        if task.key() == selected_task.key() and not task.done:
-            task.text = text
-            write_state(path, state)
-            return task
-    raise RuntimeError("Future task disappeared before editing")
-
-
-def move_future_task(notes_dir: Path, target_date: date, index: int, destination_date: date) -> Task:
-    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
-    if destination_date <= target_date:
-        raise ValueError("Move destination must be a future date")
-    if destination_date == source_date:
-        raise ValueError("Move destination must be different from the current future date")
-
-    return _move_task_by_key(notes_dir, source_date, selected_task, destination_date)
-
-
-def tag_future_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) -> Task:
-    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
-    path = file_path(notes_dir, source_date)
-    state = ensure_state(path)
-    day = state.days.setdefault(source_date, DayState())
-    normalized_tags = normalize_tags(tags)
-    if not normalized_tags:
-        raise ValueError("At least one non-empty tag is required")
-
-    for task in day.tasks:
-        if task.key() == selected_task.key() and not task.done:
-            priority, existing_tags, body = split_task_prefix(task.text)
-            merged_tags = list(existing_tags)
-            for tag in normalized_tags:
-                if tag not in merged_tags:
-                    merged_tags.append(tag)
-            task.text = format_task_text(priority, merged_tags, body)
-            write_state(path, state)
-            return task
-    raise RuntimeError("Future task disappeared before tagging")
-
-
-def prioritize_future_task(
-    notes_dir: Path, target_date: date, index: int, priority: str | int
-) -> Task:
-    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
-    path = file_path(notes_dir, source_date)
-    state = ensure_state(path)
-    day = state.days.setdefault(source_date, DayState())
-    return _set_task_priority(path, state, day, selected_task, priority)
+def list_task_refs(notes_dir: Path, target_date: date) -> list[TaskRef]:
+    active = [TaskRef(target_date, task) for task in list_tasks(notes_dir, target_date)]
+    future = [TaskRef(scheduled, task) for scheduled, task in list_future_tasks(notes_dir, target_date)]
+    return active + future
 
 
 def complete_task(notes_dir: Path, target_date: date, index: int) -> Task:
@@ -179,147 +110,124 @@ def complete_task(notes_dir: Path, target_date: date, index: int) -> Task:
 
 
 def complete_tasks(notes_dir: Path, target_date: date, indexes: list[int]) -> list[Task]:
-    rollover(notes_dir, target_date)
-    path = file_path(notes_dir, target_date)
-    state = ensure_state(path)
-    day = state.days.setdefault(target_date, DayState())
-    active = _active_tasks_for_list(day, target_date)
-
-    unique_indexes = _dedupe_indexes(indexes)
-    if not unique_indexes:
-        raise ValueError("At least one task index is required")
-    for index in unique_indexes:
-        if index < 1 or index > len(active):
-            raise IndexError(f"Task index {index} is out of range")
-
-    selected_tasks = [active[index - 1] for index in unique_indexes]
-    selected_ids = {id(task) for task in selected_tasks}
-    completed: list[Task] = []
-    for task in day.tasks:
-        if id(task) in selected_ids:
-            task.done = True
-            completed.append(task)
-
-    if len(completed) != len(selected_tasks):
-        raise RuntimeError("Active task disappeared before completion")
-
-    write_state(path, state)
-    return selected_tasks
+    refs = _select_task_refs(notes_dir, target_date, indexes)
+    _mutate_refs(notes_dir, refs, lambda task: setattr(task, "done", True))
+    for ref in refs:
+        ref.task.done = True
+    return [ref.task for ref in refs]
 
 
 def delete_task(notes_dir: Path, target_date: date, index: int) -> Task:
-    rollover(notes_dir, target_date)
-    path = file_path(notes_dir, target_date)
-    state = ensure_state(path)
-    day = state.days.setdefault(target_date, DayState())
-    active = _active_tasks_for_list(day, target_date)
-    if index < 1 or index > len(active):
-        raise IndexError(f"Task index {index} is out of range")
+    return delete_tasks(notes_dir, target_date, [index])[0]
 
-    selected_task = active[index - 1]
-    for idx, task in enumerate(day.tasks):
-        if task is selected_task:
-            removed = day.tasks.pop(idx)
-            write_state(path, state)
-            return removed
-    raise RuntimeError("Active task disappeared before deletion")
+
+def delete_tasks(notes_dir: Path, target_date: date, indexes: list[int]) -> list[Task]:
+    refs = _select_task_refs(notes_dir, target_date, indexes)
+    for scheduled, selected in _group_refs(refs).items():
+        path = file_path(notes_dir, scheduled)
+        state = ensure_state(path)
+        day = state.days.setdefault(scheduled, DayState())
+        keys = {ref.task.key() for ref in selected}
+        day.tasks = [task for task in day.tasks if task.done or task.key() not in keys]
+        write_state(path, state)
+    return [ref.task for ref in refs]
 
 
 def edit_task(notes_dir: Path, target_date: date, index: int, text: str) -> Task:
-    rollover(notes_dir, target_date)
-    path = file_path(notes_dir, target_date)
-    state = ensure_state(path)
-    day = state.days.setdefault(target_date, DayState())
-    active = _active_tasks_for_list(day, target_date)
-    if index < 1 or index > len(active):
-        raise IndexError(f"Task index {index} is out of range")
-
-    selected_task = active[index - 1]
-    for task in day.tasks:
-        if task is selected_task:
-            task.text = text
-            write_state(path, state)
-            return task
-    raise RuntimeError("Active task disappeared before editing")
+    ref = _select_task_refs(notes_dir, target_date, [index])[0]
+    _mutate_refs(notes_dir, [ref], lambda task: setattr(task, "text", text))
+    ref.task.text = text
+    return ref.task
 
 
-def move_task(notes_dir: Path, source_date: date, index: int, destination_date: date) -> Task:
-    if destination_date <= source_date:
+def move_task(notes_dir: Path, target_date: date, index: int, destination_date: date) -> Task:
+    return move_tasks(notes_dir, target_date, [index], destination_date)[0]
+
+
+def move_tasks(
+    notes_dir: Path, target_date: date, indexes: list[int], destination_date: date
+) -> list[Task]:
+    if destination_date <= target_date:
         raise ValueError("Move destination must be a future date")
-
-    rollover(notes_dir, source_date)
-    source_path = file_path(notes_dir, source_date)
-    source_state = ensure_state(source_path)
-    source_day = source_state.days.setdefault(source_date, DayState())
-    active = _active_tasks_for_list(source_day, source_date)
-    if index < 1 or index > len(active):
-        raise IndexError(f"Task index {index} is out of range")
-
-    selected_task = active[index - 1]
-
-    return _move_task_by_key(notes_dir, source_date, selected_task, destination_date)
+    refs = _select_task_refs(notes_dir, target_date, indexes)
+    if any(ref.scheduled == destination_date for ref in refs):
+        raise ValueError("Move destination must be different from the current scheduled date")
+    _move_refs(notes_dir, refs, destination_date)
+    return [ref.task for ref in refs]
 
 
 def unmove_task(notes_dir: Path, target_date: date, index: int) -> Task:
-    source_date, selected_task = _resolve_future_task_index(notes_dir, target_date, index)
-    if source_date <= target_date:
+    return unmove_tasks(notes_dir, target_date, [index])[0]
+
+
+def unmove_tasks(notes_dir: Path, target_date: date, indexes: list[int]) -> list[Task]:
+    refs = _select_task_refs(notes_dir, target_date, indexes)
+    if any(ref.scheduled <= target_date for ref in refs):
         raise ValueError("Only future tasks can be unmoved")
-    return _move_task_by_key(notes_dir, source_date, selected_task, target_date, rollover_target=True)
+    _move_refs(notes_dir, refs, target_date)
+    return [ref.task for ref in refs]
 
 
 def tag_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) -> Task:
-    rollover(notes_dir, target_date)
-    path = file_path(notes_dir, target_date)
-    state = ensure_state(path)
-    day = state.days.setdefault(target_date, DayState())
-    active = _active_tasks_for_list(day, target_date)
-    if index < 1 or index > len(active):
-        raise IndexError(f"Task index {index} is out of range")
+    return tag_tasks(notes_dir, target_date, [index], tags)[0]
 
-    selected_task = active[index - 1]
+
+def tag_tasks(
+    notes_dir: Path, target_date: date, indexes: list[int], tags: list[str]
+) -> list[Task]:
     normalized_tags = normalize_tags(tags)
     if not normalized_tags:
         raise ValueError("At least one non-empty tag is required")
+    refs = _select_task_refs(notes_dir, target_date, indexes)
 
-    for task in day.tasks:
-        if task is selected_task:
-            priority, existing_tags, body = split_task_prefix(task.text)
-            merged_tags = list(existing_tags)
-            for tag in normalized_tags:
-                if tag not in merged_tags:
-                    merged_tags.append(tag)
-            task.text = format_task_text(priority, merged_tags, body)
-            write_state(path, state)
-            return task
-    raise RuntimeError("Active task disappeared before tagging")
+    def add_tags(task: Task) -> None:
+        priority, existing, body = split_task_prefix(task.text)
+        merged = existing + [tag for tag in normalized_tags if tag not in existing]
+        task.text = format_task_text(priority, merged, body)
+
+    _mutate_refs(notes_dir, refs, add_tags)
+    for ref in refs:
+        add_tags(ref.task)
+    return [ref.task for ref in refs]
+
+
+def untag_tasks(
+    notes_dir: Path, target_date: date, indexes: list[int], tags: list[str]
+) -> list[Task]:
+    normalized_tags = normalize_tags(tags)
+    if not normalized_tags:
+        raise ValueError("At least one non-empty tag is required")
+    refs = _select_task_refs(notes_dir, target_date, indexes)
+
+    def remove_tags(task: Task) -> None:
+        priority, existing, body = split_task_prefix(task.text)
+        remaining = [tag for tag in existing if tag not in normalized_tags]
+        task.text = format_task_text(priority, remaining, body)
+
+    _mutate_refs(notes_dir, refs, remove_tags)
+    for ref in refs:
+        remove_tags(ref.task)
+    return [ref.task for ref in refs]
 
 
 def prioritize_task(notes_dir: Path, target_date: date, index: int, priority: str | int) -> Task:
-    rollover(notes_dir, target_date)
-    path = file_path(notes_dir, target_date)
-    state = ensure_state(path)
-    day = state.days.setdefault(target_date, DayState())
-    active = _active_tasks_for_list(day, target_date)
-    if index < 1 or index > len(active):
-        raise IndexError(f"Task index {index} is out of range")
-    return _set_task_priority(path, state, day, active[index - 1], priority)
+    return prioritize_tasks(notes_dir, target_date, [index], priority)[0]
 
 
-def _set_task_priority(
-    path: Path,
-    state: FileState,
-    day: DayState,
-    selected_task: Task,
-    priority_value: str | int,
-) -> Task:
-    priority = normalize_priority(priority_value, allow_none=True)
-    for task in day.tasks:
-        if task is selected_task or task.key() == selected_task.key():
-            _, tags, body = split_task_prefix(task.text)
-            task.text = format_task_text(priority, tags, body)
-            write_state(path, state)
-            return task
-    raise RuntimeError("Task disappeared before setting priority")
+def prioritize_tasks(
+    notes_dir: Path, target_date: date, indexes: list[int], priority: str | int
+) -> list[Task]:
+    normalized = normalize_priority(priority, allow_none=True)
+    refs = _select_task_refs(notes_dir, target_date, indexes)
+
+    def set_priority(task: Task) -> None:
+        _, tags, body = split_task_prefix(task.text)
+        task.text = format_task_text(normalized, tags, body)
+
+    _mutate_refs(notes_dir, refs, set_priority)
+    for ref in refs:
+        set_priority(ref.task)
+    return [ref.task for ref in refs]
 
 
 def rollover(notes_dir: Path, target_date: date) -> None:
@@ -385,11 +293,64 @@ def _find_latest_prior_day(notes_dir: Path, target_date: date) -> tuple[Path, da
     return latest
 
 
-def _resolve_future_task_index(notes_dir: Path, target_date: date, index: int) -> tuple[date, Task]:
-    future_tasks = list_future_tasks(notes_dir, target_date)
-    if index < 1 or index > len(future_tasks):
-        raise IndexError(f"Future task index {index} is out of range")
-    return future_tasks[index - 1]
+def _select_task_refs(notes_dir: Path, target_date: date, indexes: list[int]) -> list[TaskRef]:
+    refs = list_task_refs(notes_dir, target_date)
+    selected_indexes = _validated_indexes(indexes, len(refs))
+    return [refs[index - 1] for index in selected_indexes]
+
+
+def _group_refs(refs: list[TaskRef]) -> dict[date, list[TaskRef]]:
+    grouped: dict[date, list[TaskRef]] = {}
+    for ref in refs:
+        grouped.setdefault(ref.scheduled, []).append(ref)
+    return grouped
+
+
+def _mutate_refs(notes_dir: Path, refs: list[TaskRef], mutate) -> None:
+    for scheduled, selected in _group_refs(refs).items():
+        path = file_path(notes_dir, scheduled)
+        state = ensure_state(path)
+        day = state.days.setdefault(scheduled, DayState())
+        keys = {ref.task.key() for ref in selected}
+        matched = 0
+        for task in day.tasks:
+            if task.key() in keys and not task.done:
+                mutate(task)
+                matched += 1
+        if matched < len(selected):
+            raise RuntimeError("Task disappeared before update")
+        write_state(path, state)
+
+
+def _move_refs(notes_dir: Path, refs: list[TaskRef], destination: date) -> None:
+    paths = {file_path(notes_dir, ref.scheduled) for ref in refs}
+    paths.add(file_path(notes_dir, destination))
+    states = {path: ensure_state(path) for path in paths}
+
+    for scheduled, selected in _group_refs(refs).items():
+        source_day = states[file_path(notes_dir, scheduled)].days.setdefault(scheduled, DayState())
+        keys = {ref.task.key() for ref in selected}
+        original_count = len(source_day.tasks)
+        source_day.tasks = [
+            task for task in source_day.tasks if task.done or task.key() not in keys
+        ]
+        if original_count - len(source_day.tasks) < len(selected):
+            raise RuntimeError("Task disappeared before moving")
+
+    destination_day = states[file_path(notes_dir, destination)].days.setdefault(
+        destination, DayState()
+    )
+    existing_keys = {task.key() for task in destination_day.tasks}
+    for ref in refs:
+        if ref.task.key() in existing_keys:
+            raise ValueError(f"Task already exists on {destination.isoformat()}")
+        destination_day.tasks.append(
+            Task(text=ref.task.text, created=ref.task.created, done=False)
+        )
+        existing_keys.add(ref.task.key())
+
+    for path, state in states.items():
+        write_state(path, state)
 
 
 def _active_tasks_for_list(day: DayState, target_date: date) -> list[Task]:
@@ -410,50 +371,11 @@ def _dedupe_indexes(indexes: list[int]) -> list[int]:
     return deduped
 
 
-def _move_task_by_key(
-    notes_dir: Path,
-    source_date: date,
-    selected_task: Task,
-    destination_date: date,
-    rollover_target: bool = False,
-) -> Task:
-    if rollover_target:
-        rollover(notes_dir, destination_date)
-
-    source_path = file_path(notes_dir, source_date)
-    destination_path = file_path(notes_dir, destination_date)
-    source_state = ensure_state(source_path)
-    source_day = source_state.days.setdefault(source_date, DayState())
-
-    selected_index: int | None = None
-    for task_index, task in enumerate(source_day.tasks):
-        if task.key() == selected_task.key() and not task.done:
-            selected_index = task_index
-            break
-    if selected_index is None:
-        raise RuntimeError("Task disappeared before moving")
-
-    if source_path == destination_path:
-        state = source_state
-        destination_day = state.days.setdefault(destination_date, DayState())
-        if any(task.key() == selected_task.key() for task in destination_day.tasks):
-            raise ValueError(f"Task already exists on {destination_date.isoformat()}")
-        source_day.tasks.pop(selected_index)
-        destination_day.tasks.append(
-            Task(text=selected_task.text, created=selected_task.created, done=False)
-        )
-        write_state(source_path, state)
-        return selected_task
-
-    destination_state = ensure_state(destination_path)
-    destination_day = destination_state.days.setdefault(destination_date, DayState())
-    if any(task.key() == selected_task.key() for task in destination_day.tasks):
-        raise ValueError(f"Task already exists on {destination_date.isoformat()}")
-
-    source_day.tasks.pop(selected_index)
-    destination_day.tasks.append(
-        Task(text=selected_task.text, created=selected_task.created, done=False)
-    )
-    write_state(source_path, source_state)
-    write_state(destination_path, destination_state)
-    return selected_task
+def _validated_indexes(indexes: list[int], task_count: int) -> list[int]:
+    unique_indexes = _dedupe_indexes(indexes)
+    if not unique_indexes:
+        raise ValueError("At least one task index is required")
+    for index in unique_indexes:
+        if index < 1 or index > task_count:
+            raise IndexError(f"Task index {index} is out of range")
+    return unique_indexes

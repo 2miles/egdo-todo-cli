@@ -60,8 +60,9 @@ egdo list -t chores
 - shows incomplete active tasks grouped as `Today` and `Old`
 - also shows future tasks grouped by scheduled date, with tomorrow labeled explicitly
 - `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
-- active task numbers can be completed with `done`, or edited, deleted, and tagged by index
-- future task numbers are the same indexes used by `egdo future` subcommands
+- numbering continues across `Today`, `Old`, and `Future` without restarting
+- normal `done`, `edit`, `move`, `delete`, `tag`, and `priority` commands automatically route each index to the correct group
+- `egdo future` is an optional filtered view that preserves the same global indexes
 
 ## `egdo finished`
 
@@ -84,9 +85,11 @@ List incomplete tasks scheduled after today.
 egdo future
 egdo future -t chores
 egdo future done 1
+egdo future done 1 3 7
 egdo future delete 2
 egdo future edit 1 "Buy oat milk"
 egdo future move 2 sunday
+egdo future move 1 3 7 sunday
 egdo future tag 1 chores
 egdo future priority 1 high
 egdo future unmove 1
@@ -94,10 +97,10 @@ egdo future unmove 1
 
 - shows incomplete tasks on dates later than today
 - groups tasks by their scheduled day
-- numbers tasks across the whole future view
+- preserves the global task numbers from the combined `egdo list` view
 - shows each task with its original created date
 - `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
-- `future done`, `delete`, `edit`, `move`, `tag`, `priority`, and `unmove` use the numbering shown by `egdo future`
+- `future done`, `delete`, `move`, `tag`, `priority`, and `unmove` accept multiple indexes from the numbering shown by `egdo future`; `edit` remains single-task
 - `future unmove` removes a task from its future day and puts it back on today’s active list
 - `future move` accepts the same date forms as `egdo move`: `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
 
@@ -116,10 +119,11 @@ Set or clear the priority of an active task.
 
 ```bash
 egdo priority 3 critical
+egdo priority 1 6 7 high
 egdo priority 3 none
 ```
 
-- uses the numeric index shown by `egdo list`
+- accepts one or more numeric indexes shown by `egdo list`
 - accepts `1`/`critical`, `2`/`high`, `3`/`normal`, and `4`/`low`
 - stores the priority as a leading plain-Markdown marker such as `!P1!`
 - renders priority as a three-slot meter: `!!!` (P1), `.!!` (P2), `..!` (P3), and `...` (P4), with gray dots as placeholders
@@ -158,17 +162,18 @@ egdo edit 1 "{CHORES} Pick up detergent"
 
 ## `egdo move`
 
-Move a numbered active task to a future date.
+Move one or more numbered active tasks to a future date.
 
 ```bash
 egdo move 2 tomorrow
+egdo move 1 6 7 tomorrow
 egdo move 2 +3
 egdo move 2 sunday
 egdo move 2 2026-04-10
 ```
 
 - uses today as the source day
-- moves by the numeric index shown in `egdo list`
+- accepts one or more numeric indexes shown in `egdo list`
 - physically relocates the task into the destination day section
 - preserves the original created date suffix such as `(04-05)`
 - accepts `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
@@ -177,27 +182,31 @@ egdo move 2 2026-04-10
 
 ## `egdo delete`
 
-Delete a numbered active task from today’s file.
+Delete one or more numbered active tasks from today’s file.
 
 ```bash
 egdo delete 2
+egdo delete 1 6 7
 ```
 
 - uses today by default
-- deletes by the numeric index shown in `egdo list`
+- accepts one or more numeric indexes shown in `egdo list`
 - removes the task entirely instead of marking it complete
 
 ## `egdo tag`
 
-Add one or more tags to a numbered active task in today’s file.
+Add one or more tags to one or more numbered active tasks in today’s file.
 
 ```bash
 egdo tag 3 chores
 egdo tag 3 chores home
+egdo tag 1 6 7 chores home
+egdo tag 3 6 7 --remove work
 ```
 
 - uses today by default
-- updates the task by the numeric index shown in `egdo list`
+- reads leading numbers as task indexes and applies the remaining tags to all of them
+- `--remove TAG...` removes one or more tags from every selected task
 - stores tags as leading brace groups such as `{CHORES} {HOME}`
 - ignores duplicate tags and normalizes tag names case-insensitively
 
@@ -215,20 +224,30 @@ egdo note "Need to test villager trading setup"
 
 ## `egdo color`
 
-Set the terminal color for a tag.
+Set the terminal color for a tag or priority level.
 
 ```bash
-egdo color chores
-egdo color chores --style green_yellow
+egdo color --tag chores
+egdo color --tag chores --style green_yellow
+egdo color --tag chores home --style green_yellow
+egdo color --priority high --style "bold orange1"
+egdo color --priority high critical --style "bold red"
 ```
 
-- normalizes the tag name to lowercase
+- requires either `--tag TAG...` or `--priority LEVEL...`
+- applies one `--style` value to every supplied tag or priority level
+- normalizes tag names to lowercase
 - opens an interactive up/down picker by default so you can see the available colors before saving
 - supports `j` and `k` in addition to the arrow keys
 - saves the selected Rich style in `[tag_colors]` in the config file
 - `--style` skips the picker and writes the provided Rich style directly
+- priority levels accept the same numeric and named values as `egdo priority`
+- priority styles are saved as `p1` through `p4` in `[priority_styles]`
+- P1–P3 control the filled exclamation slots; P4 controls every placeholder dot
 
 Available Rich colors: https://rich.readthedocs.io/en/stable/appendix/colors.html
+
+If `[priority_styles]` is absent, egdo uses its built-in defaults.
 
 ## Behavior Notes
 

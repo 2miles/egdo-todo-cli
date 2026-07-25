@@ -11,30 +11,51 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from egdo.store import (
     add_note,
     add_task,
-    complete_future_task,
     complete_task,
     complete_tasks,
     create_task,
-    delete_future_task,
     delete_task,
-    edit_future_task,
+    delete_tasks,
     edit_task,
     ensure_state,
     file_path,
     list_finished_tasks,
     list_future_tasks,
     list_tasks,
-    move_future_task,
+    list_task_refs,
     move_task,
-    prioritize_future_task,
+    move_tasks,
     prioritize_task,
-    tag_future_task,
+    prioritize_tasks,
     tag_task,
+    tag_tasks,
     unmove_task,
+    untag_tasks,
 )
 
 
 class StoreTests(unittest.TestCase):
+    def test_task_refs_and_mutations_share_one_global_index_space(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 4, 5)
+            future = date(2026, 4, 8)
+            add_task(notes_dir, future, "Future task")
+            add_task(notes_dir, today, "Today task")
+
+            refs = list_task_refs(notes_dir, today)
+
+            self.assertEqual(
+                [(ref.scheduled, ref.task.text) for ref in refs],
+                [(today, "Today task"), (future, "Future task")],
+            )
+
+            completed = complete_tasks(notes_dir, today, [1, 2])
+
+            self.assertEqual([task.text for task in completed], ["Today task", "Future task"])
+            self.assertEqual(list_tasks(notes_dir, today), [])
+            self.assertEqual(list_future_tasks(notes_dir, today), [])
+
     def test_add_task_creates_month_file_and_day_section(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
@@ -319,6 +340,50 @@ class StoreTests(unittest.TestCase):
             content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
             self.assertIn("- [ ] {CHORES} Buy oat milk (04-05)", content)
 
+    def test_delete_tasks_uses_original_indexes_for_all_selections(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+            for text in ["One", "Two", "Three", "Four"]:
+                add_task(notes_dir, target_date, text)
+
+            deleted = delete_tasks(notes_dir, target_date, [1, 3, 4])
+
+            self.assertEqual([task.text for task in deleted], ["One", "Three", "Four"])
+            self.assertEqual([task.text for task in list_tasks(notes_dir, target_date)], ["Two"])
+
+    def test_bulk_tag_and_priority_update_every_selected_task(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+            for text in ["One", "Two", "Three"]:
+                add_task(notes_dir, target_date, text)
+
+            tag_tasks(notes_dir, target_date, [1, 3], ["work"])
+            prioritized = prioritize_tasks(notes_dir, target_date, [1, 3], "high")
+
+            self.assertEqual(
+                [task.text for task in prioritized],
+                ["!P2! {WORK} One", "!P2! {WORK} Three"],
+            )
+
+    def test_move_tasks_moves_original_indexes_to_one_destination(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            source_date = date(2026, 4, 5)
+            destination_date = date(2026, 4, 8)
+            for text in ["One", "Two", "Three"]:
+                add_task(notes_dir, source_date, text)
+
+            moved = move_tasks(notes_dir, source_date, [1, 3], destination_date)
+
+            self.assertEqual([task.text for task in moved], ["One", "Three"])
+            destination_state = ensure_state(file_path(notes_dir, destination_date))
+            self.assertEqual(
+                [task.text for task in destination_state.days[destination_date].tasks],
+                ["One", "Three"],
+            )
+
     def test_edit_indexes_only_active_tasks(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
@@ -369,7 +434,7 @@ class StoreTests(unittest.TestCase):
             future_date = date(2026, 4, 8)
             add_task(notes_dir, future_date, "Plan trip")
 
-            task = prioritize_future_task(notes_dir, today, 1, "low")
+            task = prioritize_task(notes_dir, today, 1, "low")
 
             self.assertEqual(task.text, "!P4! Plan trip")
             content = file_path(notes_dir, future_date).read_text(encoding="utf-8")
@@ -385,6 +450,20 @@ class StoreTests(unittest.TestCase):
 
             self.assertEqual(task.text, "!P2! {CHORES} Do the dishes")
             self.assertEqual(task.tags, ("chores",))
+
+    def test_untag_tasks_removes_tags_and_preserves_priority_and_other_tags(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+            add_task(notes_dir, target_date, "!P2! {WORK} {FINANCE} One")
+            add_task(notes_dir, target_date, "{WORK} Two")
+
+            tasks = untag_tasks(notes_dir, target_date, [1, 2], ["work"])
+
+            self.assertEqual(
+                [task.text for task in tasks],
+                ["!P2! {FINANCE} One", "Two"],
+            )
 
     def test_move_moves_active_task_to_future_day_and_preserves_created_date(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -532,7 +611,7 @@ class StoreTests(unittest.TestCase):
             add_task(notes_dir, today, "Buy milk")
             move_task(notes_dir, today, 1, date(2026, 4, 10))
 
-            task = complete_future_task(notes_dir, today, 1)
+            task = complete_task(notes_dir, today, 1)
 
             self.assertTrue(task.done)
             self.assertEqual(list_future_tasks(notes_dir, today), [])
@@ -544,7 +623,7 @@ class StoreTests(unittest.TestCase):
             add_task(notes_dir, today, "Buy milk")
             move_task(notes_dir, today, 1, date(2026, 4, 10))
 
-            task = delete_future_task(notes_dir, today, 1)
+            task = delete_task(notes_dir, today, 1)
 
             self.assertEqual(task.text, "Buy milk")
             self.assertEqual(list_future_tasks(notes_dir, today), [])
@@ -556,7 +635,7 @@ class StoreTests(unittest.TestCase):
             add_task(notes_dir, today, "Buy milk")
             move_task(notes_dir, today, 1, date(2026, 4, 10))
 
-            task = edit_future_task(notes_dir, today, 1, "{CHORES} Buy oat milk")
+            task = edit_task(notes_dir, today, 1, "{CHORES} Buy oat milk")
 
             self.assertEqual(task.text, "{CHORES} Buy oat milk")
             future_tasks = list_future_tasks(notes_dir, today)
@@ -569,7 +648,7 @@ class StoreTests(unittest.TestCase):
             add_task(notes_dir, today, "Buy milk")
             move_task(notes_dir, today, 1, date(2026, 4, 10))
 
-            task = move_future_task(notes_dir, today, 1, date(2026, 4, 12))
+            task = move_task(notes_dir, today, 1, date(2026, 4, 12))
 
             self.assertEqual(task.text, "Buy milk")
             future_tasks = list_future_tasks(notes_dir, today)
@@ -585,7 +664,7 @@ class StoreTests(unittest.TestCase):
             add_task(notes_dir, today, "Buy milk")
             move_task(notes_dir, today, 1, date(2026, 4, 10))
 
-            task = tag_future_task(notes_dir, today, 1, ["chores", "home"])
+            task = tag_task(notes_dir, today, 1, ["chores", "home"])
 
             self.assertEqual(task.text, "{CHORES} {HOME} Buy milk")
             future_tasks = list_future_tasks(notes_dir, today)

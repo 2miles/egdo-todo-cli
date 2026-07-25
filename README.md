@@ -84,20 +84,23 @@ egdo future done 1
 egdo done 1
 egdo done 1 3 12
 egdo edit 2 "Buy oat milk"
-egdo move 2 tomorrow
+egdo move 1 6 7 tomorrow
 egdo future unmove 1
-egdo delete 2
-egdo tag 3 chores home
+egdo delete 1 6 7
+egdo tag 1 6 7 chores home
+egdo tag 3 6 7 --remove work
+egdo priority 1 6 7 high
 egdo priority 3 critical
 egdo note "Need to test villager trading setup"
-egdo color chores
+egdo color --tag chores
+egdo color --tag chores home --style blue
 ```
 
 Running `egdo` with no command is the same as `egdo list`.
 
-`egdo list` groups active tasks as `Today` and `Old`, then shows future tasks grouped by scheduled date. Future task indexes correspond to the `egdo future` commands.
+`egdo list` groups tasks as `Today`, `Old`, and `Future` using one continuous set of indexes. Normal commands such as `done`, `delete`, `move`, `tag`, `priority`, and `edit` automatically operate on the selected task regardless of its group.
 
-`egdo future unmove INDEX` takes a task from the `egdo future` view and puts it back on today's active list.
+`egdo future` remains available as an optional filtered view, but it preserves the same global indexes shown by the main list.
 
 You can create tags either from the CLI with repeated `-t` or `--tag` flags or by typing leading brace tags directly in the markdown, such as `{CHORES} {HOME} Do the dishes`.
 
@@ -179,10 +182,23 @@ chores = "blue"
 important = "bold red"
 ```
 
+Priority styles use a separate table:
+
+```toml
+[priority_styles]
+p1 = "bold white on red"
+p2 = "bold orange1"
+p3 = "yellow"
+p4 = "grey50"
+```
+
+P1–P3 style their exclamation marks. P4 styles all gray placeholder dots, including dots shown in higher-priority meters.
+
 If you prefer not to edit that by hand, use:
 
 ```bash
-egdo color chores
+egdo color --tag chores
+egdo color --priority high --style "bold orange1"
 ```
 
 ## Development

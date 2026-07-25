@@ -22,6 +22,10 @@ class ConfigTests(unittest.TestCase):
                         "[tag_colors]",
                         'minecraft = "green"',
                         'fun = "blue"',
+                        "",
+                        "[priority_styles]",
+                        'p1 = "bold red"',
+                        'p4 = "grey37"',
                     ]
                 )
                 + "\n",
@@ -31,17 +35,24 @@ class ConfigTests(unittest.TestCase):
             config = load_config(path)
 
             self.assertEqual(config.tag_colors, {"minecraft": "green", "fun": "blue"})
+            self.assertEqual(config.priority_styles, {"p1": "bold red", "p4": "grey37"})
 
     def test_save_config_writes_tag_colors_table(self) -> None:
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "config.toml"
-            config = Config(root=Path("/tmp/notes/egdo"), tag_colors={"fun": "blue"})
+            config = Config(
+                root=Path("/tmp/notes/egdo"),
+                tag_colors={"fun": "blue"},
+                priority_styles={"p2": "orange3"},
+            )
 
             save_config(config, path)
 
             content = path.read_text(encoding="utf-8")
             self.assertIn("[tag_colors]", content)
             self.assertIn('fun = "blue"', content)
+            self.assertIn("[priority_styles]", content)
+            self.assertIn('p2 = "orange3"', content)
 
     def test_write_config_defaults_tag_colors_to_empty(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -51,6 +62,7 @@ class ConfigTests(unittest.TestCase):
 
             config = load_config(path)
             self.assertEqual(config.tag_colors, {})
+            self.assertEqual(config.priority_styles, {})
 
 
 if __name__ == "__main__":

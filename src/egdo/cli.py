@@ -11,26 +11,20 @@ from egdo.handlers import HandlerDeps
 from egdo.handlers import dispatch_command
 from egdo.store import (
     add_note,
-    complete_task,
     complete_tasks,
     create_task,
-    delete_future_task,
-    delete_task,
-    edit_future_task,
+    delete_tasks,
     edit_task,
-    complete_future_task,
     list_finished_tasks,
-    list_future_tasks,
-    list_tasks,
-    move_future_task,
-    move_task,
-    prioritize_future_task,
-    prioritize_task,
-    tag_future_task,
-    tag_task,
-    unmove_task,
+    list_task_refs,
+    move_tasks,
+    prioritize_tasks,
+    tag_tasks,
+    untag_tasks,
+    unmove_tasks,
 )
 from egdo.render import render_list_header as _render_list_header
+from egdo.render import render_priority_style_picker as _render_priority_style_picker
 from egdo.render import render_separator as _render_separator
 from egdo.render import render_tag_style_picker as _render_tag_style_picker
 from egdo.render import render_task_line as _render_task_line
@@ -44,26 +38,15 @@ console = Console()
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="egdo",
-        description="Manage a rolling markdown-backed todo list. Run without a command to show today's active tasks.",
+        description="A rolling, Markdown-backed todo list. Run without a command to show your tasks.",
         epilog=(
             "Examples:\n"
             "  egdo\n"
-            '  egdo add "Do laundry"\n'
-            '  egdo add -t chores -t home "Do laundry"\n'
             '  egdo add -p high -t work "Submit application"\n'
-            '  egdo add --done "Call dad"\n'
-            "  egdo list\n"
-            "  egdo finished\n"
-            "  egdo future\n"
-            "  egdo list -t chores\n"
-            "  egdo done 1\n"
-            "  egdo done 1 3 12\n"
-            '  egdo edit 2 "Buy oat milk"\n'
-            "  egdo move 2 tomorrow\n"
-            "  egdo future unmove 1\n"
-            "  egdo delete 2\n"
-            "  egdo tag 3 chores home\n"
-            '  egdo note "Need to test villager trading setup"\n\n'
+            "  egdo done 1 3\n"
+            "  egdo move 2 5 tomorrow\n"
+            "  egdo priority 4 high\n"
+            "  egdo color --tag work\n\n"
             "Run `egdo COMMAND --help` for command-specific usage."
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
@@ -116,7 +99,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_parser = subparsers.add_parser(
         "list",
-        help="List active tasks",
+        help="List active and future tasks",
         description="List today's active tasks. Use -t or --tag to filter by leading tags.",
         epilog="Examples:\n  egdo list\n  egdo list -t chores",
         formatter_class=RawDescriptionRichHelpFormatter,
@@ -134,8 +117,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     future_parser = subparsers.add_parser(
         "future",
-        help="List or manage future tasks",
-        description="List incomplete tasks scheduled after today, or operate on them by future index.",
+        help="Show the future-task view",
+        description="Show incomplete tasks scheduled after today using their global task indexes.",
         epilog=(
             "Examples:\n"
             "  egdo future\n"
@@ -154,19 +137,19 @@ def build_parser() -> argparse.ArgumentParser:
         "done",
         help="Complete a future task",
         description="Mark a task complete using the index shown by `egdo future`.",
-        epilog="Example:\n  egdo future done 1",
+        epilog="Examples:\n  egdo future done 1\n  egdo future done 1 3 7",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    future_done_parser.add_argument("index", type=int, help="Task number from `egdo future`")
+    future_done_parser.add_argument("indexes", nargs="+", type=int, help="Task number(s) from `egdo future`")
 
     future_delete_parser = future_subparsers.add_parser(
         "delete",
         help="Delete a future task",
         description="Delete a task using the index shown by `egdo future`.",
-        epilog="Example:\n  egdo future delete 2",
+        epilog="Examples:\n  egdo future delete 2\n  egdo future delete 2 5 8",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    future_delete_parser.add_argument("index", type=int, help="Task number from `egdo future`")
+    future_delete_parser.add_argument("indexes", nargs="+", type=int, help="Task number(s) from `egdo future`")
 
     future_edit_parser = future_subparsers.add_parser(
         "edit",
@@ -185,13 +168,14 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Examples:\n"
             "  egdo future move 2 tomorrow\n"
+            "  egdo future move 2 5 8 tomorrow\n"
             "  egdo future move 2 +3\n"
             "  egdo future move 2 sunday\n"
             "  egdo future move 2 2026-04-12"
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    future_move_parser.add_argument("index", type=int, help="Task number from `egdo future`")
+    future_move_parser.add_argument("indexes", nargs="+", type=int, help="Task number(s) from `egdo future`")
     future_move_parser.add_argument(
         "when",
         help="Future date: tomorrow, +N, weekday name, or YYYY-MM-DD",
@@ -199,22 +183,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     future_tag_parser = future_subparsers.add_parser(
         "tag",
-        help="Add tag(s) to a future task",
-        description="Add one or more leading tags to a task using the index shown by `egdo future`.",
-        epilog="Example:\n  egdo future tag 1 chores home",
+        help="Add or remove future-task tags",
+        description="Add or remove tags from one or more future tasks.",
+        epilog="Examples:\n  egdo future tag 1 chores home\n  egdo future tag 1 3 7 chores home",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    future_tag_parser.add_argument("index", type=int, help="Task number from `egdo future`")
-    future_tag_parser.add_argument("tags", nargs="+", help="One or more tags to add")
+    future_tag_parser.add_argument("values", nargs="+", help="Task number(s), followed by tags")
+    future_tag_parser.add_argument("--remove", nargs="+", metavar="TAG", help="Remove tag(s)")
 
     future_priority_parser = future_subparsers.add_parser(
         "priority",
         help="Set or clear a future task's priority",
         description="Set priority using the index shown by `egdo future`.",
-        epilog="Examples:\n  egdo future priority 1 high\n  egdo future priority 1 none",
+        epilog="Examples:\n  egdo future priority 1 3 7 high\n  egdo future priority 1 none",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    future_priority_parser.add_argument("index", type=int, help="Task number from `egdo future`")
+    future_priority_parser.add_argument("indexes", nargs="+", type=int, help="Task number(s) from `egdo future`")
     future_priority_parser.add_argument(
         "level", help="1/critical, 2/high, 3/normal, 4/low, or none"
     )
@@ -223,10 +207,10 @@ def build_parser() -> argparse.ArgumentParser:
         "unmove",
         help="Bring a future task back to today",
         description="Move a task from `egdo future` back to today's active list.",
-        epilog="Example:\n  egdo future unmove 1",
+        epilog="Examples:\n  egdo future unmove 1\n  egdo future unmove 1 3 7",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    future_unmove_parser.add_argument("index", type=int, help="Task number from `egdo future`")
+    future_unmove_parser.add_argument("indexes", nargs="+", type=int, help="Task number(s) from `egdo future`")
 
     done_parser = subparsers.add_parser(
         "done",
@@ -254,13 +238,14 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Examples:\n"
             "  egdo move 2 tomorrow\n"
+            "  egdo move 1 6 7 tomorrow\n"
             "  egdo move 2 +3\n"
             "  egdo move 2 sunday\n"
             "  egdo move 2 2026-04-10"
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    move_parser.add_argument("index", type=int, help="Task number from `egdo list`")
+    move_parser.add_argument("indexes", nargs="+", type=int, help="Task number(s) from `egdo list`")
     move_parser.add_argument(
         "when",
         help="Future date: tomorrow, +N, weekday name, or YYYY-MM-DD",
@@ -270,29 +255,38 @@ def build_parser() -> argparse.ArgumentParser:
         "delete",
         help="Delete a task",
         description="Delete a task using the index shown by `egdo list`.",
-        epilog="Example:\n  egdo delete 2",
+        epilog="Examples:\n  egdo delete 2\n  egdo delete 1 6 7",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    delete_parser.add_argument("index", type=int, help="Task number from `egdo list`")
+    delete_parser.add_argument("indexes", nargs="+", type=int, help="Task number(s) from `egdo list`")
 
     tag_parser = subparsers.add_parser(
         "tag",
-        help="Add tag(s) to a task",
-        description="Add one or more leading tags to a task using the index shown by `egdo list`.",
-        epilog="Example:\n  egdo tag 3 chores home",
+        help="Add or remove task tags",
+        description="Add or remove tags from one or more tasks using their global indexes.",
+        epilog=(
+            "Examples:\n"
+            "  egdo tag 3 chores home\n"
+            "  egdo tag 1 6 7 chores home\n"
+            "  egdo tag 3 6 7 --remove work"
+        ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    tag_parser.add_argument("index", type=int, help="Task number from `egdo list`")
-    tag_parser.add_argument("tags", nargs="+", help="One or more tags to add")
+    tag_parser.add_argument(
+        "values",
+        nargs="+",
+        help="Task numbers followed by tags to add; with --remove, task numbers only",
+    )
+    tag_parser.add_argument("--remove", nargs="+", metavar="TAG", help="Remove tag(s)")
 
     priority_parser = subparsers.add_parser(
         "priority",
         help="Set or clear a task's priority",
         description="Set priority using the index shown by `egdo list`.",
-        epilog="Examples:\n  egdo priority 3 high\n  egdo priority 3 none",
+        epilog="Examples:\n  egdo priority 1 6 7 high\n  egdo priority 3 none",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    priority_parser.add_argument("index", type=int, help="Task number from `egdo list`")
+    priority_parser.add_argument("indexes", nargs="+", type=int, help="Task number(s) from `egdo list`")
     priority_parser.add_argument("level", help="1/critical, 2/high, 3/normal, 4/low, or none")
 
     note_parser = subparsers.add_parser(
@@ -306,12 +300,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     color_parser = subparsers.add_parser(
         "color",
-        help="Set a tag color",
-        description="Set the terminal style used for a tag. Defaults to an interactive picker.",
-        epilog="Examples:\n  egdo color chores\n  egdo color chores --style green_yellow",
+        help="Set a tag or priority color",
+        description="Set the terminal style used for a tag or priority. Defaults to an interactive picker.",
+        epilog=(
+            "Examples:\n"
+            "  egdo color --tag chores\n"
+            "  egdo color --tag chores --style green_yellow\n"
+            "  egdo color --tag chores home --style green_yellow\n"
+            '  egdo color --priority high --style "bold orange1"\n\n'
+            "Rich color reference:\n"
+            "  https://rich.readthedocs.io/en/stable/appendix/colors.html"
+        ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    color_parser.add_argument("tag", help="Tag name to style")
+    color_target = color_parser.add_mutually_exclusive_group(required=True)
+    color_target.add_argument("--tag", nargs="+", help="Tag name(s) to style")
+    color_target.add_argument(
+        "--priority", nargs="+", help="Priorities to style: 1/critical, 2/high, 3/normal, or 4/low"
+    )
     color_parser.add_argument("--style", help="Rich style name to save without opening the picker")
 
     return parser
@@ -332,31 +338,25 @@ def main(argv: list[str] | None = None) -> int:
         target_date = date.today()
         deps = HandlerDeps(
             add_note=add_note,
-            complete_future_task=complete_future_task,
-            complete_task=complete_task,
             complete_tasks=complete_tasks,
             create_task=create_task,
-            delete_future_task=delete_future_task,
-            delete_task=delete_task,
-            edit_future_task=edit_future_task,
+            delete_tasks=delete_tasks,
             edit_task=edit_task,
             list_finished_tasks=list_finished_tasks,
-            list_future_tasks=list_future_tasks,
-            list_tasks=list_tasks,
-            move_future_task=move_future_task,
-            move_task=move_task,
+            list_task_refs=list_task_refs,
+            move_tasks=move_tasks,
             parse_future_date=_parse_future_date,
-            prioritize_future_task=prioritize_future_task,
-            prioritize_task=prioritize_task,
+            prioritize_tasks=prioritize_tasks,
             render_list_header=_render_list_header,
+            render_priority_style_picker=_render_priority_style_picker,
             render_separator=_render_separator,
             render_tag_style_picker=_render_tag_style_picker,
             render_task_line=_render_task_line,
             save_config=save_config,
-            tag_future_task=tag_future_task,
-            tag_task=tag_task,
+            tag_tasks=tag_tasks,
             task_wrap_width=_task_wrap_width,
-            unmove_task=unmove_task,
+            untag_tasks=untag_tasks,
+            unmove_tasks=unmove_tasks,
         )
         return dispatch_command(args, config, target_date, console, deps)
     except Exception as exc:  # noqa: BLE001

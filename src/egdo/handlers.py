@@ -9,7 +9,12 @@ import tty
 from typing import Any
 
 from egdo.dates import format_display_date
-from egdo.markdown_store import merge_priority_into_text, merge_tags_into_text, split_task_prefix
+from egdo.markdown_store import (
+    merge_priority_into_text,
+    merge_tags_into_text,
+    normalize_priority,
+    split_task_prefix,
+)
 from egdo.render import TAG_STYLES
 from rich.console import Console
 from rich.errors import StyleSyntaxError
@@ -20,31 +25,25 @@ from rich.text import Text
 @dataclass(slots=True)
 class HandlerDeps:
     add_note: Any
-    complete_future_task: Any
-    complete_task: Any
     complete_tasks: Any
     create_task: Any
-    delete_future_task: Any
-    delete_task: Any
-    edit_future_task: Any
+    delete_tasks: Any
     edit_task: Any
     list_finished_tasks: Any
-    list_future_tasks: Any
-    list_tasks: Any
-    move_future_task: Any
-    move_task: Any
+    list_task_refs: Any
+    move_tasks: Any
     parse_future_date: Any
-    prioritize_future_task: Any
-    prioritize_task: Any
+    prioritize_tasks: Any
     render_list_header: Any
+    render_priority_style_picker: Any
     render_separator: Any
     render_tag_style_picker: Any
     render_task_line: Any
     save_config: Any
-    tag_future_task: Any
-    tag_task: Any
+    tag_tasks: Any
     task_wrap_width: Any
-    unmove_task: Any
+    untag_tasks: Any
+    unmove_tasks: Any
 
 
 def dispatch_command(args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps) -> int:
@@ -65,54 +64,20 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
     if args.command == "future" and args.future_command is None:
         return _handle_future_list(args, config, target_date, console, deps)
 
-    if args.command == "future" and args.future_command == "done":
-        task = deps.complete_future_task(config.root, target_date, args.index)
-        _print_task_message(
-            console,
-            "Completed",
-            f"{target_date.isoformat()} <= {task.created.isoformat()}",
-            task.text,
-        )
-        return 0
-
-    if args.command == "future" and args.future_command == "delete":
-        task = deps.delete_future_task(config.root, target_date, args.index)
-        _print_task_message(console, "Deleted future", task.created.isoformat(), task.text)
-        return 0
-
-    if args.command == "future" and args.future_command == "edit":
-        task = deps.edit_future_task(config.root, target_date, args.index, args.text)
-        _print_task_message(console, "Edited future", task.created.isoformat(), task.text)
-        return 0
-
-    if args.command == "future" and args.future_command == "move":
-        destination_date = deps.parse_future_date(args.when, target_date)
-        task = deps.move_future_task(config.root, target_date, args.index, destination_date)
-        _print_task_message(
-            console,
-            "Moved future",
-            task.created.isoformat(),
-            task.text,
-            suffix=f" -> {destination_date.isoformat()}",
-        )
-        return 0
-
-    if args.command == "future" and args.future_command == "tag":
-        task = deps.tag_future_task(config.root, target_date, args.index, args.tags)
-        _print_task_message(console, "Tagged future", task.created.isoformat(), task.text)
-        return 0
-
-    if args.command == "future" and args.future_command == "priority":
-        task = deps.prioritize_future_task(config.root, target_date, args.index, args.level)
-        _print_task_message(console, "Prioritized future", task.created.isoformat(), task.text)
-        return 0
-
     if args.command == "future" and args.future_command == "unmove":
-        task = deps.unmove_task(config.root, target_date, args.index)
-        _print_task_message(
-            console, "Unmoved", task.created.isoformat(), task.text, suffix=f" -> {target_date.isoformat()}"
-        )
+        tasks = deps.unmove_tasks(config.root, target_date, args.indexes)
+        for task in tasks:
+            _print_task_message(
+                console,
+                "Unmoved",
+                task.created.isoformat(),
+                task.text,
+                suffix=f" -> {target_date.isoformat()}",
+            )
         return 0
+
+    if args.command == "future":
+        args.command = args.future_command
 
     if args.command == "done":
         tasks = deps.complete_tasks(config.root, target_date, args.indexes)
@@ -127,25 +92,40 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
 
     if args.command == "move":
         destination_date = deps.parse_future_date(args.when, target_date)
-        task = deps.move_task(config.root, target_date, args.index, destination_date)
-        _print_task_message(
-            console, "Moved", task.created.isoformat(), task.text, suffix=f" -> {destination_date.isoformat()}"
-        )
+        tasks = deps.move_tasks(config.root, target_date, args.indexes, destination_date)
+        for task in tasks:
+            _print_task_message(
+                console,
+                "Moved",
+                task.created.isoformat(),
+                task.text,
+                suffix=f" -> {destination_date.isoformat()}",
+            )
         return 0
 
     if args.command == "delete":
-        task = deps.delete_task(config.root, target_date, args.index)
-        _print_task_message(console, "Deleted", target_date.isoformat(), task.text)
+        tasks = deps.delete_tasks(config.root, target_date, args.indexes)
+        for task in tasks:
+            _print_task_message(console, "Deleted", target_date.isoformat(), task.text)
         return 0
 
     if args.command == "tag":
-        task = deps.tag_task(config.root, target_date, args.index, args.tags)
-        _print_task_message(console, "Tagged", target_date.isoformat(), task.text)
+        if args.remove:
+            indexes = _parse_indexes(args.values, "tag removal")
+            tasks = deps.untag_tasks(config.root, target_date, indexes, args.remove)
+            action = "Untagged"
+        else:
+            indexes, tags = _split_indexed_values(args.values, "tag")
+            tasks = deps.tag_tasks(config.root, target_date, indexes, tags)
+            action = "Tagged"
+        for task in tasks:
+            _print_task_message(console, action, target_date.isoformat(), task.text)
         return 0
 
     if args.command == "priority":
-        task = deps.prioritize_task(config.root, target_date, args.index, args.level)
-        _print_task_message(console, "Prioritized", target_date.isoformat(), task.text)
+        tasks = deps.prioritize_tasks(config.root, target_date, args.indexes, args.level)
+        for task in tasks:
+            _print_task_message(console, "Prioritized", target_date.isoformat(), task.text)
         return 0
 
     if args.command == "note":
@@ -160,56 +140,88 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
 
 
 def _handle_list(args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps) -> int:
-    tasks = deps.list_tasks(config.root, target_date, tag=args.tag)
-    future_tasks = deps.list_future_tasks(config.root, target_date, tag=args.tag)
+    indexed_refs = [
+        (index, ref)
+        for index, ref in enumerate(deps.list_task_refs(config.root, target_date), start=1)
+        if args.tag is None or args.tag.strip().lower() in ref.task.tags
+    ]
     tag_styles, updated, warnings = build_tag_styles(
-        [task.text for task in tasks] + [task.text for _, task in future_tasks],
+        [ref.task.text for _, ref in indexed_refs],
         config.tag_colors,
     )
     if updated:
         config.tag_colors = tag_styles
         deps.save_config(config)
     wrap_width = deps.task_wrap_width(console)
+    priority_styles = getattr(config, "priority_styles", {})
     console.print()
     console.print(deps.render_list_header(target_date))
     console.print(deps.render_separator(wrap_width))
     for warning in warnings:
         console.print(Text(warning, style="yellow"))
-    if not tasks and not future_tasks:
+    if not indexed_refs:
         console.print(Text("No active tasks.", style="dim"))
         return 0
 
-    todays_tasks = [task for task in tasks if task.created == target_date]
-    old_tasks = [task for task in tasks if task.created != target_date]
-    next_index = 1
+    todays_tasks = [
+        (index, ref.task)
+        for index, ref in indexed_refs
+        if ref.scheduled == target_date and ref.task.created == target_date
+    ]
+    old_tasks = [
+        (index, ref.task)
+        for index, ref in indexed_refs
+        if ref.scheduled == target_date and ref.task.created != target_date
+    ]
+    future_tasks = [
+        (index, ref.scheduled, ref.task)
+        for index, ref in indexed_refs
+        if ref.scheduled > target_date
+    ]
     rendered_active_sections = False
     if todays_tasks:
         console.print(Text("Today", style="bold"))
-        for task in todays_tasks:
+        for index, task in todays_tasks:
             console.print(
                 deps.render_task_line(
-                    next_index, task.text, task.created, tag_styles, wrap_width=wrap_width
+                    index,
+                    task.text,
+                    task.created,
+                    tag_styles,
+                    wrap_width=wrap_width,
+                    priority_styles=priority_styles,
                 )
             )
-            next_index += 1
         rendered_active_sections = True
     if old_tasks:
         if rendered_active_sections:
             console.print()
         console.print(Text("Old", style="bold"))
-        for task in old_tasks:
+        for index, task in old_tasks:
             console.print(
                 deps.render_task_line(
-                    next_index, task.text, task.created, tag_styles, wrap_width=wrap_width
+                    index,
+                    task.text,
+                    task.created,
+                    tag_styles,
+                    wrap_width=wrap_width,
+                    priority_styles=priority_styles,
                 )
             )
-            next_index += 1
         rendered_active_sections = True
     if future_tasks:
         if rendered_active_sections:
             console.print()
         console.print(_render_future_divider(wrap_width))
-        _render_future_groups(console, deps, target_date, future_tasks, tag_styles, wrap_width)
+        _render_future_groups(
+            console,
+            deps,
+            target_date,
+            future_tasks,
+            tag_styles,
+            priority_styles,
+            wrap_width,
+        )
     return 0
 
 
@@ -240,6 +252,7 @@ def _render_task_collection(
         config.tag_colors = tag_styles
         deps.save_config(config)
     wrap_width = deps.task_wrap_width(console)
+    priority_styles = getattr(config, "priority_styles", {})
     console.print()
     console.print(deps.render_list_header(target_date))
     console.print(deps.render_separator(wrap_width))
@@ -249,21 +262,36 @@ def _render_task_collection(
         console.print(Text(empty_message, style="dim"))
         return 0
     for idx, task in enumerate(tasks, start=1):
-        console.print(deps.render_task_line(idx, task.text, task.created, tag_styles, wrap_width=wrap_width))
+        console.print(
+            deps.render_task_line(
+                idx,
+                task.text,
+                task.created,
+                tag_styles,
+                wrap_width=wrap_width,
+                priority_styles=priority_styles,
+            )
+        )
     return 0
 
 
 def _handle_future_list(
     args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps
 ) -> int:
-    future_tasks = deps.list_future_tasks(config.root, target_date, tag=args.tag)
+    future_tasks = [
+        (index, ref.scheduled, ref.task)
+        for index, ref in enumerate(deps.list_task_refs(config.root, target_date), start=1)
+        if ref.scheduled > target_date
+        and (args.tag is None or args.tag.strip().lower() in ref.task.tags)
+    ]
     tag_styles, updated, warnings = build_tag_styles(
-        (task.text for _, task in future_tasks), config.tag_colors
+        (task.text for _, _, task in future_tasks), config.tag_colors
     )
     if updated:
         config.tag_colors = tag_styles
         deps.save_config(config)
     wrap_width = deps.task_wrap_width(console)
+    priority_styles = getattr(config, "priority_styles", {})
     console.print()
     for warning in warnings:
         console.print(Text(warning, style="yellow"))
@@ -271,14 +299,23 @@ def _handle_future_list(
         console.print(Text("No future tasks.", style="dim"))
         return 0
     current_day: date | None = None
-    for idx, (scheduled_date, task) in enumerate(future_tasks, start=1):
+    for idx, scheduled_date, task in future_tasks:
         if scheduled_date != current_day:
             if current_day is not None:
                 console.print()
             console.print(deps.render_list_header(scheduled_date))
             console.print(deps.render_separator(wrap_width))
             current_day = scheduled_date
-        console.print(deps.render_task_line(idx, task.text, task.created, tag_styles, wrap_width=wrap_width))
+        console.print(
+            deps.render_task_line(
+                idx,
+                task.text,
+                task.created,
+                tag_styles,
+                wrap_width=wrap_width,
+                priority_styles=priority_styles,
+            )
+        )
     return 0
 
 
@@ -286,18 +323,28 @@ def _render_future_groups(
     console: Console,
     deps: HandlerDeps,
     target_date: date,
-    future_tasks: list[tuple[date, Any]],
+    future_tasks: list[tuple[int, date, Any]],
     tag_styles: dict[str, str],
+    priority_styles: dict[str, str],
     wrap_width: int,
 ) -> None:
     current_day: date | None = None
-    for idx, (scheduled_date, task) in enumerate(future_tasks, start=1):
+    for idx, scheduled_date, task in future_tasks:
         if scheduled_date != current_day:
             if current_day is not None:
                 console.print()
             console.print(Text(_future_group_label(target_date, scheduled_date), style="bold"))
             current_day = scheduled_date
-        console.print(deps.render_task_line(idx, task.text, task.created, tag_styles, wrap_width=wrap_width))
+        console.print(
+            deps.render_task_line(
+                idx,
+                task.text,
+                task.created,
+                tag_styles,
+                wrap_width=wrap_width,
+                priority_styles=priority_styles,
+            )
+        )
 
 
 def _render_future_divider(width: int) -> Text:
@@ -319,26 +366,63 @@ def _future_group_label(target_date: date, scheduled_date: date) -> str:
 
 
 def handle_color(args: Any, config: Any, console: Console, deps: HandlerDeps) -> int:
-    tag = normalize_tag_name(args.tag)
-    if not tag:
-        raise ValueError("Tag name cannot be empty")
-    if args.style:
-        selected_style = args.style.strip()
+    if args.priority is not None:
+        for priority in args.priority:
+            handle_priority_color(priority, args.style, config, console, deps)
+        return 0
+
+    for tag_value in args.tag:
+        tag = normalize_tag_name(tag_value)
+        if not tag:
+            raise ValueError("Tag name cannot be empty")
+        if args.style:
+            selected_style = args.style.strip()
+            if not is_valid_style(selected_style):
+                raise ValueError(f"Invalid style: {selected_style}")
+        else:
+            selected_style = choose_tag_style_interactive(
+                tag, console, deps.render_tag_style_picker, config.tag_colors.get(tag)
+            )
+            if selected_style is None:
+                console.print("Canceled tag color update.")
+                continue
+        config.tag_colors[tag] = selected_style
+        deps.save_config(config)
+        preview = Text()
+        preview.append(f"{{{tag.upper()}}}", style=selected_style)
+        preview.append(f" -> {selected_style}", style="dim")
+        console.print(Text("Saved tag color: ") + preview)
+    return 0
+
+
+def handle_priority_color(
+    priority_value: str, style_value: str | None, config: Any, console: Console, deps: HandlerDeps
+) -> int:
+    priority = normalize_priority(priority_value)
+    assert priority is not None
+    if not hasattr(config, "priority_styles"):
+        config.priority_styles = {}
+    key = f"p{priority}"
+    if style_value:
+        selected_style = style_value.strip()
         if not is_valid_style(selected_style):
             raise ValueError(f"Invalid style: {selected_style}")
     else:
         selected_style = choose_tag_style_interactive(
-            tag, console, deps.render_tag_style_picker, config.tag_colors.get(tag)
+            key,
+            console,
+            deps.render_priority_style_picker,
+            config.priority_styles.get(key),
+            command_hint=f"egdo color --priority {priority_value} --style STYLE",
         )
         if selected_style is None:
-            console.print("Canceled tag color update.")
+            console.print("Canceled priority style update.")
             return 0
-    config.tag_colors[tag] = selected_style
+    config.priority_styles[key] = selected_style
     deps.save_config(config)
-    preview = Text()
-    preview.append(f"{{{tag.upper()}}}", style=selected_style)
-    preview.append(f" -> {selected_style}", style="dim")
-    console.print(Text("Saved tag color: ") + preview)
+    preview = Text(f"{key.upper()} -> ")
+    preview.append(selected_style, style=selected_style)
+    console.print(Text("Saved priority style: ") + preview)
     return 0
 
 
@@ -350,6 +434,33 @@ def _print_task_message(
     if suffix:
         message.append(suffix)
     console.print(message)
+
+
+def _split_indexed_values(values: list[str], action: str) -> tuple[list[int], list[str]]:
+    indexes: list[int] = []
+    position = 0
+    while position < len(values):
+        try:
+            indexes.append(int(values[position]))
+        except ValueError:
+            break
+        position += 1
+    remaining = values[position:]
+    if not indexes:
+        raise ValueError(f"At least one task index is required for {action}")
+    if not remaining:
+        raise ValueError(f"At least one value is required for {action}")
+    return indexes, remaining
+
+
+def _parse_indexes(values: list[str], action: str) -> list[int]:
+    try:
+        indexes = [int(value) for value in values]
+    except ValueError as exc:
+        raise ValueError(f"Only task indexes may appear before --remove for {action}") from exc
+    if not indexes:
+        raise ValueError(f"At least one task index is required for {action}")
+    return indexes
 
 
 def build_tag_styles(
@@ -389,10 +500,11 @@ def choose_tag_style_interactive(
     console: Console,
     render_tag_style_picker: Any,
     current_style: str | None = None,
+    command_hint: str = "egdo color --tag TAG --style STYLE",
 ) -> str | None:
     if not sys.stdin.isatty():
         raise ValueError(
-            "Interactive color picker requires a TTY. Use `egdo color TAG --style STYLE`."
+            f"Interactive color picker requires a TTY. Use `{command_hint}`."
         )
 
     selected_index = TAG_STYLES.index(current_style) if current_style in TAG_STYLES else 0
