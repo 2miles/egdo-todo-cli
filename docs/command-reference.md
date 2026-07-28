@@ -30,6 +30,8 @@ Add a task to today’s active list.
 egdo add "Call dentist"
 egdo add -t chores -t home "Do the dishes"
 egdo add -p high -t work "Submit application"
+egdo add --parent 6 "Add tests"
+egdo add --parent 6a "Test missing values"
 egdo add --done -t car -t errands "Call the DMV"
 egdo add "{CHORES} Do the dishes"
 egdo add "{PERSONAL} {CHORES} {HOME} Do the dishes"
@@ -43,6 +45,8 @@ egdo add --done "Call dad"
 - `-p` or `--priority` accepts `1`/`critical`, `2`/`high`, `3`/`normal`, or `4`/`low`
 - preserves any leading tag groups in the task body and normalizes touched tags to `{UPPERCASE}`
 - `--done` creates the task already completed
+- `--parent ID` inserts a child beneath a task scheduled for today
+- nesting is limited to three total levels: `6`, `6a`, and `6a.a`
 
 ## `egdo list`
 
@@ -255,6 +259,15 @@ Available Rich colors: https://rich.readthedocs.io/en/stable/appendix/colors.htm
 If `[priority_styles]` is absent, egdo uses its built-in defaults.
 
 ## Behavior Notes
+
+### Nested tasks
+
+- Markdown uses two spaces of indentation per nesting level
+- top-level tasks use numeric IDs, children use IDs such as `6a`, and grandchildren use `6a.a`
+- `done`, `delete`, `move`, `unmove`, `tag`, and `priority` cascade to descendants
+- `edit` changes only the selected task while preserving its descendants
+- moving a child without its parent promotes that child to the top level at its destination
+- a parent may have at most 26 direct children
 
 ### Carry-Forward
 

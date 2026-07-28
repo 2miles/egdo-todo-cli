@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 import os
+import re
 import sys
 import termios
 import tty
@@ -17,6 +18,7 @@ from egdo.markdown_store import (
     merge_tags_into_text,
     normalize_priority,
     split_task_prefix,
+    task_identifiers,
 )
 from egdo.render import TAG_STYLES
 from rich.console import Console
@@ -55,7 +57,10 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
     if args.command == "add":
         task_text = merge_tags_into_text(args.text, args.tag or [])
         task_text = merge_priority_into_text(task_text, args.priority)
-        task = deps.create_task(config.root, target_date, task_text, done=args.done)
+        create_kwargs = {"done": args.done}
+        if args.parent is not None:
+            create_kwargs["parent"] = args.parent
+        task = deps.create_task(config.root, target_date, task_text, **create_kwargs)
         action = "Added" if not args.done else "Added done"
         _print_task_message(console, action, task.created.isoformat(), task.text)
         return 0
@@ -67,7 +72,7 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         return _handle_finished(args, config, target_date, console, deps)
 
     if args.command == "unmove":
-        tasks = deps.unmove_tasks(config.root, target_date, args.indexes)
+        tasks = deps.unmove_tasks(config.root, target_date, _normalize_task_ids(args.indexes))
         for task in tasks:
             _print_task_message(
                 console,
@@ -79,19 +84,21 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         return 0
 
     if args.command == "done":
-        tasks = deps.complete_tasks(config.root, target_date, args.indexes)
+        tasks = deps.complete_tasks(config.root, target_date, _normalize_task_ids(args.indexes))
         for task in tasks:
             _print_task_message(console, "Completed", target_date.isoformat(), task.text)
         return 0
 
     if args.command == "edit":
-        task = deps.edit_task(config.root, target_date, args.index, args.text)
+        task = deps.edit_task(config.root, target_date, _parse_task_id(str(args.index)), args.text)
         _print_task_message(console, "Edited", task.created.isoformat(), task.text)
         return 0
 
     if args.command == "move":
         destination_date = deps.parse_future_date(args.when, target_date)
-        tasks = deps.move_tasks(config.root, target_date, args.indexes, destination_date)
+        tasks = deps.move_tasks(
+            config.root, target_date, _normalize_task_ids(args.indexes), destination_date
+        )
         for task in tasks:
             _print_task_message(
                 console,
@@ -103,7 +110,7 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         return 0
 
     if args.command == "delete":
-        tasks = deps.delete_tasks(config.root, target_date, args.indexes)
+        tasks = deps.delete_tasks(config.root, target_date, _normalize_task_ids(args.indexes))
         for task in tasks:
             _print_task_message(console, "Deleted", target_date.isoformat(), task.text)
         return 0
@@ -122,7 +129,9 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         return 0
 
     if args.command == "priority":
-        tasks = deps.prioritize_tasks(config.root, target_date, args.indexes, args.level)
+        tasks = deps.prioritize_tasks(
+            config.root, target_date, _normalize_task_ids(args.indexes), args.level
+        )
         for task in tasks:
             _print_task_message(console, "Prioritized", target_date.isoformat(), task.text)
         return 0
@@ -141,8 +150,8 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
 def _handle_list(args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps) -> int:
     """Render filtered task refs without renumbering their global indexes."""
     indexed_refs = [
-        (index, ref)
-        for index, ref in enumerate(deps.list_task_refs(config.root, target_date), start=1)
+        (ref.identifier or str(position), ref)
+        for position, ref in enumerate(deps.list_task_refs(config.root, target_date), start=1)
         if (not args.future or ref.scheduled > target_date)
         and (args.tag is None or args.tag.strip().lower() in ref.task.tags)
     ]
@@ -168,12 +177,12 @@ def _handle_list(args: Any, config: Any, target_date: date, console: Console, de
     todays_tasks = [
         (index, ref.task)
         for index, ref in indexed_refs
-        if ref.scheduled == target_date and ref.task.created == target_date
+        if ref.scheduled == target_date and (ref.root_created or ref.task.created) == target_date
     ]
     old_tasks = [
         (index, ref.task)
         for index, ref in indexed_refs
-        if ref.scheduled == target_date and ref.task.created != target_date
+        if ref.scheduled == target_date and (ref.root_created or ref.task.created) != target_date
     ]
     future_tasks = [
         (index, ref.scheduled, ref.task)
@@ -227,6 +236,7 @@ def _render_indexed_tasks(
                 tag_styles,
                 wrap_width=wrap_width,
                 priority_styles=priority_styles,
+                depth=getattr(task, "depth", 0),
             )
         )
 
@@ -272,7 +282,7 @@ def _render_task_collection(
     _render_indexed_tasks(
         console,
         deps,
-        enumerate(tasks, start=1),
+        zip(task_identifiers(tasks), tasks),
         tag_styles,
         priority_styles,
         wrap_width,
@@ -419,15 +429,17 @@ def _print_task_message(
     console.print(message)
 
 
-def _split_indexed_values(values: list[str], action: str) -> tuple[list[int], list[str]]:
+TASK_ID_RE = re.compile(r"^\d+(?:[a-z]|[a-z]\.[a-z])?$")
+
+
+def _split_indexed_values(values: list[str], action: str) -> tuple[list[str | int], list[str]]:
     """Split ambiguous ``INDEX... VALUE...`` positionals at the first non-number."""
-    indexes: list[int] = []
+    indexes: list[str | int] = []
     position = 0
     while position < len(values):
-        try:
-            indexes.append(int(values[position]))
-        except ValueError:
+        if not TASK_ID_RE.fullmatch(values[position].lower()):
             break
+        indexes.append(_parse_task_id(values[position]))
         position += 1
     remaining = values[position:]
     if not indexes:
@@ -437,15 +449,23 @@ def _split_indexed_values(values: list[str], action: str) -> tuple[list[int], li
     return indexes, remaining
 
 
-def _parse_indexes(values: list[str], action: str) -> list[int]:
+def _parse_indexes(values: list[str], action: str) -> list[str | int]:
     """Validate positionals that must contain only task indexes."""
-    try:
-        indexes = [int(value) for value in values]
-    except ValueError as exc:
-        raise ValueError(f"Only task indexes may appear before --remove for {action}") from exc
+    if any(not TASK_ID_RE.fullmatch(value.lower()) for value in values):
+        raise ValueError(f"Only task indexes may appear before --remove for {action}")
+    indexes = [_parse_task_id(value) for value in values]
     if not indexes:
         raise ValueError(f"At least one task index is required for {action}")
     return indexes
+
+
+def _parse_task_id(value: str) -> str | int:
+    normalized = value.lower()
+    return int(normalized) if normalized.isdigit() else normalized
+
+
+def _normalize_task_ids(values: list[str | int]) -> list[str | int]:
+    return [_parse_task_id(str(value)) for value in values]
 
 
 def build_tag_styles(

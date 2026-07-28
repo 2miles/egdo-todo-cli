@@ -75,6 +75,8 @@ Common commands:
 egdo add "Buy milk"
 egdo add -t chores -t home "Do the dishes"
 egdo add -p high -t work "Submit application"
+egdo add --parent 1 "Add tests"
+egdo add --parent 1a "Test missing values"
 egdo add --done -t car -t errands "Call the DMV"
 egdo
 egdo list -t chores
@@ -103,6 +105,8 @@ Running `egdo` with no command is the same as `egdo list`.
 `egdo list --future` provides an optional future-only view while preserving the same global indexes shown by the main list.
 
 You can create tags either from the CLI with repeated `-t` or `--tag` flags or by typing leading brace tags directly in the markdown, such as `{CHORES} {HOME} Do the dishes`.
+
+Tasks may be nested three levels deep. Child IDs use letters (`1a`, `1b`) and grandchildren use dotted letters (`1a.a`). Actions on a parent cascade to its descendants, except `edit`, which changes only the selected task's text.
 
 Priorities use `!P1!` through `!P4!` in Markdown. Add one with `-p` or `--priority`, using `1`/`critical`, `2`/`high`, `3`/`normal`, or `4`/`low`. Use `egdo priority INDEX LEVEL` to change an existing task, or use `none` as the level to clear it.
 

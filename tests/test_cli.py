@@ -63,7 +63,26 @@ class CliTests(unittest.TestCase):
             )
         )
 
-        self.assertEqual(output.getvalue(), " 3. ... {MINECRAFT} Add sorter               (Sat, Apr  4th)\n")
+        self.assertEqual(output.getvalue(), " 3.    ... {MINECRAFT} Add sorter            (Sat, Apr  4th)\n")
+
+    def test_render_nested_task_uses_hierarchical_id_and_indentation(self) -> None:
+        output = StringIO()
+        console = Console(file=output, force_terminal=False, color_system=None)
+        console.print(
+            render_task_line(
+                "6a",
+                "Add tests",
+                date(2026, 7, 27),
+                {},
+                wrap_width=60,
+                depth=1,
+            )
+        )
+
+        self.assertEqual(
+            output.getvalue(),
+            " 6a.   ...   Add tests                       (Mon, Jul 27th)\n",
+        )
 
     def test_render_task_line_displays_priority_before_colored_tags(self) -> None:
         output = StringIO()
@@ -80,7 +99,7 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(
             output.getvalue(),
-            " 1. !!! {WORK} Submit application            (Sat, Apr  4th)\n",
+            " 1.    !!! {WORK} Submit application         (Sat, Apr  4th)\n",
         )
 
     def test_render_task_line_uses_less_emphasis_for_lower_priorities(self) -> None:
@@ -98,7 +117,7 @@ class CliTests(unittest.TestCase):
                         wrap_width=50,
                     )
                 )
-                self.assertIn(f"{priority}. {marker:<3} Task", output.getvalue())
+                self.assertIn(f"{priority}.    {marker:<3} Task", output.getvalue())
 
     def test_priority_meter_styles_placeholders_separately_from_filled_slots(self) -> None:
         styled = style_wrapped_task_line(
@@ -148,9 +167,9 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(
             output.getvalue(),
-            " 1. ... {MINECRAFT} Add            (Sat, Apr  4th)\n"
-            "        dripstone farm overflow protection and\n"
-            "        sorter\n",
+            " 1.    ... {MINECRAFT} Add         (Sat, Apr  4th)\n"
+            "           dripstone farm overflow protection and\n"
+            "           sorter\n",
         )
 
     def test_style_wrapped_task_line_dims_date_when_date_is_only_continuation_content(self) -> None:
@@ -619,9 +638,9 @@ class CliTests(unittest.TestCase):
         self.assertIn("Fri, Apr 10th", rendered)
         self.assertNotIn("Today\n", rendered)
         self.assertNotIn("Old\n", rendered)
-        self.assertIn("3. ... {CHORES} Buy milk", rendered)
+        self.assertIn("3.    ... {CHORES} Buy milk", rendered)
         self.assertIn("(Sun, Apr  5th)", rendered)
-        self.assertIn("4. ... Ship box", rendered)
+        self.assertIn("4.    ... Ship box", rendered)
         self.assertIn("(Sat, Apr  4th)", rendered)
 
     def test_main_finished_command_renders_completed_tasks(self) -> None:
@@ -649,7 +668,7 @@ class CliTests(unittest.TestCase):
         save_config_mock.assert_called_once_with(config)
         rendered = output.getvalue()
         self.assertIn("Mon, Apr 6th", rendered)
-        self.assertIn("1. ... {CHORES} Buy milk", rendered)
+        self.assertIn("1.    ... {CHORES} Buy milk", rendered)
         self.assertIn("(Sun, Apr  5th)", rendered)
 
     def test_main_list_groups_today_and_carried_forward_tasks(self) -> None:
@@ -688,9 +707,9 @@ class CliTests(unittest.TestCase):
         self.assertIn("Today", rendered)
         self.assertIn("Old", rendered)
         self.assertNotIn("Carried Forward", rendered)
-        self.assertIn("1. ... {CHORES} Wash the car", rendered)
+        self.assertIn("1.    ... {CHORES} Wash the car", rendered)
         self.assertIn("(Mon, Apr  6th)", rendered)
-        self.assertIn("2. ... {MINECRAFT} Add sorter", rendered)
+        self.assertIn("2.    ... {MINECRAFT} Add sorter", rendered)
         self.assertIn("(Sun, Apr  5th)", rendered)
 
     def test_main_list_includes_grouped_future_tasks(self) -> None:
@@ -727,12 +746,12 @@ class CliTests(unittest.TestCase):
         save_config_mock.assert_called_once_with(config)
         rendered = output.getvalue()
         self.assertIn("Today", rendered)
-        self.assertIn("1. ... Wash the car", rendered)
+        self.assertIn("1.    ... Wash the car", rendered)
         self.assertIn("── Future ─", rendered)
         self.assertIn("Tomorrow (Tue, Apr 7th)", rendered)
-        self.assertIn("2. ... {CHORES} Buy milk", rendered)
+        self.assertIn("2.    ... {CHORES} Buy milk", rendered)
         self.assertIn("Fri, Apr 10th", rendered)
-        self.assertIn("3. ... Ship box", rendered)
+        self.assertIn("3.    ... Ship box", rendered)
 
     def test_future_is_not_a_standalone_command(self) -> None:
         parser = build_parser()

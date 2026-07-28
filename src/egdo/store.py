@@ -16,6 +16,7 @@ from egdo.markdown_store import (
     normalize_priority,
     normalize_tags,
     split_task_prefix,
+    task_identifiers,
     write_state,
 )
 
@@ -25,26 +26,48 @@ class TaskRef:
     """Pair a task with its scheduled date in the global index space."""
     scheduled: date
     task: Task
+    identifier: str = ""
+    root_created: date | None = None
 
 
 def add_task(notes_dir: Path, target_date: date, text: str) -> Task:
     return create_task(notes_dir, target_date, text, done=False)
 
 
-def create_task(notes_dir: Path, target_date: date, text: str, done: bool) -> Task:
+def create_task(
+    notes_dir: Path, target_date: date, text: str, done: bool, parent: str | None = None
+) -> Task:
     """Roll unfinished work forward, then append a task to the target day."""
     rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
     day = state.days.setdefault(target_date, DayState())
     task = Task(text=text, created=target_date, done=done)
-    day.tasks.append(task)
+    if parent is None:
+        day.tasks.append(task)
+    else:
+        parent_ref = _select_task_refs(notes_dir, target_date, [parent])[0]
+        if parent_ref.scheduled != target_date:
+            raise ValueError("New subtasks can only be added to tasks scheduled for today")
+        if parent_ref.task.depth >= 2:
+            raise ValueError("Tasks may be nested at most three levels deep")
+        parent_position = _find_task_position(day.tasks, parent_ref.task.key())
+        insert_at = _subtree_end(day.tasks, parent_position)
+        direct_children = sum(
+            child.depth == parent_ref.task.depth + 1
+            for child in day.tasks[parent_position + 1 : insert_at]
+        )
+        if direct_children >= 26:
+            raise ValueError("A task may have at most 26 direct subtasks")
+        task.depth = parent_ref.task.depth + 1
+        day.tasks.insert(insert_at, task)
     write_state(path, state)
     return task
 
 
 def add_note(notes_dir: Path, target_date: date, text: str) -> list[str]:
-    """Append note text as a paragraph while preserving embedded line breaks."""
+    """Roll unfinished work forward, then append a note paragraph."""
+    rollover(notes_dir, target_date)
     path = file_path(notes_dir, target_date)
     state = ensure_state(path)
     day = state.days.setdefault(target_date, DayState())
@@ -74,6 +97,7 @@ def list_finished_tasks(notes_dir: Path, target_date: date, tag: str | None = No
     if day is None:
         return []
     tasks = [task for task in day.tasks if task.done]
+    _normalize_task_depths(tasks)
     return _filter_tasks_by_tag(tasks, tag)
 
 
@@ -105,52 +129,52 @@ def list_future_tasks(
 
 def list_task_refs(notes_dir: Path, target_date: date) -> list[TaskRef]:
     """Create the single active-then-future sequence used by every task index."""
-    active = [TaskRef(target_date, task) for task in list_tasks(notes_dir, target_date)]
-    future = [TaskRef(scheduled, task) for scheduled, task in list_future_tasks(notes_dir, target_date)]
-    return active + future
+    pairs = [(target_date, task) for task in list_tasks(notes_dir, target_date)]
+    pairs.extend(list_future_tasks(notes_dir, target_date))
+    return _identify_task_refs(pairs)
 
 
-def complete_task(notes_dir: Path, target_date: date, index: int) -> Task:
+def complete_task(notes_dir: Path, target_date: date, index: str | int) -> Task:
     return complete_tasks(notes_dir, target_date, [index])[0]
 
 
-def complete_tasks(notes_dir: Path, target_date: date, indexes: list[int]) -> list[Task]:
+def complete_tasks(notes_dir: Path, target_date: date, indexes: list[str | int]) -> list[Task]:
     """Complete several global indexes without index shifting between updates."""
     refs = _select_task_refs(notes_dir, target_date, indexes)
     _mutate_refs(notes_dir, refs, lambda task: setattr(task, "done", True))
     return [ref.task for ref in refs]
 
 
-def delete_task(notes_dir: Path, target_date: date, index: int) -> Task:
+def delete_task(notes_dir: Path, target_date: date, index: str | int) -> Task:
     return delete_tasks(notes_dir, target_date, [index])[0]
 
 
-def delete_tasks(notes_dir: Path, target_date: date, indexes: list[int]) -> list[Task]:
+def delete_tasks(notes_dir: Path, target_date: date, indexes: list[str | int]) -> list[Task]:
     """Remove selected incomplete tasks from each scheduled day."""
     refs = _select_task_refs(notes_dir, target_date, indexes)
     for scheduled, selected in _group_refs(refs).items():
         path = file_path(notes_dir, scheduled)
         state = ensure_state(path)
         day = state.days.setdefault(scheduled, DayState())
-        keys = {ref.task.key() for ref in selected}
-        day.tasks = [task for task in day.tasks if task.done or task.key() not in keys]
+        positions = _selected_subtree_positions(day.tasks, selected)
+        day.tasks = [task for position, task in enumerate(day.tasks) if position not in positions]
         write_state(path, state)
     return [ref.task for ref in refs]
 
 
-def edit_task(notes_dir: Path, target_date: date, index: int, text: str) -> Task:
+def edit_task(notes_dir: Path, target_date: date, index: str | int, text: str) -> Task:
     """Replace task text while retaining scheduling and creation dates."""
     ref = _select_task_refs(notes_dir, target_date, [index])[0]
-    _mutate_refs(notes_dir, [ref], lambda task: setattr(task, "text", text))
+    _mutate_refs(notes_dir, [ref], lambda task: setattr(task, "text", text), cascade=False)
     return ref.task
 
 
-def move_task(notes_dir: Path, target_date: date, index: int, destination_date: date) -> Task:
+def move_task(notes_dir: Path, target_date: date, index: str | int, destination_date: date) -> Task:
     return move_tasks(notes_dir, target_date, [index], destination_date)[0]
 
 
 def move_tasks(
-    notes_dir: Path, target_date: date, indexes: list[int], destination_date: date
+    notes_dir: Path, target_date: date, indexes: list[str | int], destination_date: date
 ) -> list[Task]:
     """Relocate selected global indexes to one future scheduled date."""
     if destination_date <= target_date:
@@ -162,11 +186,11 @@ def move_tasks(
     return [ref.task for ref in refs]
 
 
-def unmove_task(notes_dir: Path, target_date: date, index: int) -> Task:
+def unmove_task(notes_dir: Path, target_date: date, index: str | int) -> Task:
     return unmove_tasks(notes_dir, target_date, [index])[0]
 
 
-def unmove_tasks(notes_dir: Path, target_date: date, indexes: list[int]) -> list[Task]:
+def unmove_tasks(notes_dir: Path, target_date: date, indexes: list[str | int]) -> list[Task]:
     """Bring selected future tasks back to the target day's active list."""
     refs = _select_task_refs(notes_dir, target_date, indexes)
     if any(ref.scheduled <= target_date for ref in refs):
@@ -175,12 +199,12 @@ def unmove_tasks(notes_dir: Path, target_date: date, indexes: list[int]) -> list
     return [ref.task for ref in refs]
 
 
-def tag_task(notes_dir: Path, target_date: date, index: int, tags: list[str]) -> Task:
+def tag_task(notes_dir: Path, target_date: date, index: str | int, tags: list[str]) -> Task:
     return tag_tasks(notes_dir, target_date, [index], tags)[0]
 
 
 def tag_tasks(
-    notes_dir: Path, target_date: date, indexes: list[int], tags: list[str]
+    notes_dir: Path, target_date: date, indexes: list[str | int], tags: list[str]
 ) -> list[Task]:
     """Add normalized unique tags while preserving priority and task body."""
     normalized_tags = normalize_tags(tags)
@@ -198,7 +222,7 @@ def tag_tasks(
 
 
 def untag_tasks(
-    notes_dir: Path, target_date: date, indexes: list[int], tags: list[str]
+    notes_dir: Path, target_date: date, indexes: list[str | int], tags: list[str]
 ) -> list[Task]:
     """Remove matching tags while preserving priority and unrelated tags."""
     normalized_tags = normalize_tags(tags)
@@ -215,12 +239,12 @@ def untag_tasks(
     return [ref.task for ref in refs]
 
 
-def prioritize_task(notes_dir: Path, target_date: date, index: int, priority: str | int) -> Task:
+def prioritize_task(notes_dir: Path, target_date: date, index: str | int, priority: str | int) -> Task:
     return prioritize_tasks(notes_dir, target_date, [index], priority)[0]
 
 
 def prioritize_tasks(
-    notes_dir: Path, target_date: date, indexes: list[int], priority: str | int
+    notes_dir: Path, target_date: date, indexes: list[str | int], priority: str | int
 ) -> list[Task]:
     """Set or clear priority on multiple globally indexed tasks."""
     normalized = normalize_priority(priority, allow_none=True)
@@ -268,9 +292,12 @@ def _carry_tasks_forward(
     existing_keys = {task.key() for task in day.tasks}
     for task in carry:
         if task.key() not in existing_keys:
-            day.tasks.append(Task(text=task.text, created=task.created, done=False))
+            day.tasks.append(
+                Task(text=task.text, created=task.created, done=False, depth=task.depth)
+            )
 
     previous_day.tasks = [task for task in previous_day.tasks if task.done]
+    _normalize_task_depths(previous_day.tasks)
     if previous_path == target_path:
         write_state(target_path, state)
         return state
@@ -300,11 +327,14 @@ def _find_latest_prior_day(notes_dir: Path, target_date: date) -> tuple[Path, da
     return latest
 
 
-def _select_task_refs(notes_dir: Path, target_date: date, indexes: list[int]) -> list[TaskRef]:
+def _select_task_refs(
+    notes_dir: Path, target_date: date, indexes: list[str | int]
+) -> list[TaskRef]:
     """Resolve and validate global one-based indexes before any mutation occurs."""
     refs = list_task_refs(notes_dir, target_date)
-    selected_indexes = _validated_indexes(indexes, len(refs))
-    return [refs[index - 1] for index in selected_indexes]
+    identifiers = _validated_indexes(indexes, refs)
+    by_identifier = {ref.identifier: ref for ref in refs}
+    return [by_identifier[identifier] for identifier in identifiers]
 
 
 def _group_refs(refs: list[TaskRef]) -> dict[date, list[TaskRef]]:
@@ -315,20 +345,19 @@ def _group_refs(refs: list[TaskRef]) -> dict[date, list[TaskRef]]:
     return grouped
 
 
-def _mutate_refs(notes_dir: Path, refs: list[TaskRef], mutate) -> None:
+def _mutate_refs(notes_dir: Path, refs: list[TaskRef], mutate, *, cascade: bool = True) -> None:
     """Apply one mutation to persisted tasks and synchronize returned snapshots."""
     for scheduled, selected in _group_refs(refs).items():
         path = file_path(notes_dir, scheduled)
         state = ensure_state(path)
         day = state.days.setdefault(scheduled, DayState())
-        keys = {ref.task.key() for ref in selected}
-        matched = 0
-        for task in day.tasks:
-            if task.key() in keys and not task.done:
-                mutate(task)
-                matched += 1
-        if matched < len(selected):
-            raise RuntimeError("Task disappeared before update")
+        positions = (
+            _selected_subtree_positions(day.tasks, selected)
+            if cascade
+            else {_find_task_position(day.tasks, ref.task.key()) for ref in selected}
+        )
+        for position in positions:
+            mutate(day.tasks[position])
         write_state(path, state)
     for ref in refs:
         mutate(ref.task)
@@ -342,25 +371,23 @@ def _move_refs(notes_dir: Path, refs: list[TaskRef], destination: date) -> None:
 
     for scheduled, selected in _group_refs(refs).items():
         source_day = states[file_path(notes_dir, scheduled)].days.setdefault(scheduled, DayState())
-        keys = {ref.task.key() for ref in selected}
-        original_count = len(source_day.tasks)
+        roots = _selected_root_positions(source_day.tasks, selected)
+        positions = _positions_for_roots(source_day.tasks, roots)
+        moving: list[Task] = []
+        for position, task in enumerate(source_day.tasks):
+            if position not in positions:
+                continue
+            root = max(root for root in roots if root <= position)
+            moving.append(
+                Task(task.text, task.created, task.done, task.depth - source_day.tasks[root].depth)
+            )
         source_day.tasks = [
-            task for task in source_day.tasks if task.done or task.key() not in keys
+            task for position, task in enumerate(source_day.tasks) if position not in positions
         ]
-        if original_count - len(source_day.tasks) < len(selected):
-            raise RuntimeError("Task disappeared before moving")
-
-    destination_day = states[file_path(notes_dir, destination)].days.setdefault(
-        destination, DayState()
-    )
-    existing_keys = {task.key() for task in destination_day.tasks}
-    for ref in refs:
-        if ref.task.key() in existing_keys:
-            raise ValueError(f"Task already exists on {destination.isoformat()}")
-        destination_day.tasks.append(
-            Task(text=ref.task.text, created=ref.task.created, done=False)
+        destination_day = states[file_path(notes_dir, destination)].days.setdefault(
+            destination, DayState()
         )
-        existing_keys.add(ref.task.key())
+        destination_day.tasks.extend(moving)
 
     for path, state in states.items():
         write_state(path, state)
@@ -368,10 +395,15 @@ def _move_refs(notes_dir: Path, refs: list[TaskRef], destination: date) -> None:
 
 def _active_tasks_for_list(day: DayState, target_date: date) -> list[Task]:
     """Order incomplete tasks created today before carried-forward tasks."""
-    active = [task for task in day.tasks if not task.done]
-    todays_tasks = [task for task in active if task.created == target_date]
-    carried_tasks = [task for task in active if task.created != target_date]
-    return todays_tasks + carried_tasks
+    subtrees: list[list[Task]] = []
+    for task in day.tasks:
+        if task.depth == 0:
+            subtrees.append([])
+        if not task.done:
+            subtrees[-1].append(task)
+    today = [tree for tree in subtrees if tree and tree[0].created == target_date]
+    old = [tree for tree in subtrees if tree and tree[0].created != target_date]
+    return [task for tree in today + old for task in tree]
 
 
 def _filter_tasks_by_tag(tasks: list[Task], tag: str | None) -> list[Task]:
@@ -381,24 +413,85 @@ def _filter_tasks_by_tag(tasks: list[Task], tag: str | None) -> list[Task]:
     return [task for task in tasks if normalized_tag in task.tags]
 
 
-def _dedupe_indexes(indexes: list[int]) -> list[int]:
+def _normalize_task_depths(tasks: list[Task]) -> None:
+    """Promote tasks whose ancestors were removed without changing relative nesting."""
+    ancestor_depths: list[int] = []
+    for task in tasks:
+        original_depth = task.depth
+        while ancestor_depths and ancestor_depths[-1] >= original_depth:
+            ancestor_depths.pop()
+        task.depth = len(ancestor_depths)
+        ancestor_depths.append(original_depth)
+
+
+def _dedupe_indexes(indexes: list[str | int]) -> list[str]:
     """Keep the first occurrence of each index so an action runs only once."""
-    deduped: list[int] = []
-    seen: set[int] = set()
+    deduped: list[str] = []
+    seen: set[str] = set()
     for index in indexes:
-        if index in seen:
+        identifier = str(index).lower()
+        if identifier in seen:
             continue
-        deduped.append(index)
-        seen.add(index)
+        deduped.append(identifier)
+        seen.add(identifier)
     return deduped
 
 
-def _validated_indexes(indexes: list[int], task_count: int) -> list[int]:
+def _validated_indexes(indexes: list[str | int], refs: list[TaskRef]) -> list[str]:
     """Deduplicate and validate one-based indexes as a complete batch."""
     unique_indexes = _dedupe_indexes(indexes)
     if not unique_indexes:
         raise ValueError("At least one task index is required")
+    valid = {ref.identifier for ref in refs}
     for index in unique_indexes:
-        if index < 1 or index > task_count:
+        if index not in valid:
             raise IndexError(f"Task index {index} is out of range")
     return unique_indexes
+
+
+def _identify_task_refs(pairs: list[tuple[date, Task]]) -> list[TaskRef]:
+    refs: list[TaskRef] = []
+    root_created: date | None = None
+    active_pairs = [(scheduled, task) for scheduled, task in pairs if not task.done]
+    identifiers = task_identifiers([task for _, task in active_pairs])
+    for (scheduled, task), identifier in zip(active_pairs, identifiers):
+        if task.depth == 0:
+            root_created = task.created
+        refs.append(TaskRef(scheduled, task, identifier, root_created))
+    return refs
+
+
+def _find_task_position(tasks: list[Task], key: tuple[str, date, int]) -> int:
+    for position, task in enumerate(tasks):
+        if task.key() == key:
+            return position
+    raise RuntimeError("Task disappeared before update")
+
+
+def _subtree_end(tasks: list[Task], position: int) -> int:
+    depth = tasks[position].depth
+    end = position + 1
+    while end < len(tasks) and tasks[end].depth > depth:
+        end += 1
+    return end
+
+
+def _selected_subtree_positions(tasks: list[Task], refs: list[TaskRef]) -> set[int]:
+    return _positions_for_roots(tasks, _selected_root_positions(tasks, refs))
+
+
+def _selected_root_positions(tasks: list[Task], refs: list[TaskRef]) -> list[int]:
+    candidates = sorted(_find_task_position(tasks, ref.task.key()) for ref in refs)
+    roots: list[int] = []
+    for position in candidates:
+        if roots and position < _subtree_end(tasks, roots[-1]):
+            continue
+        roots.append(position)
+    return roots
+
+
+def _positions_for_roots(tasks: list[Task], roots: list[int]) -> set[int]:
+    positions: set[int] = set()
+    for start in roots:
+        positions.update(range(start, _subtree_end(tasks, start)))
+    return positions

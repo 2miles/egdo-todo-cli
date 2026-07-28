@@ -37,6 +37,101 @@ from egdo.store import (
 
 
 class StoreTests(unittest.TestCase):
+    def test_nested_tasks_get_hierarchical_ids_and_round_trip_markdown(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 7, 27)
+            create_task(notes_dir, today, "Parent", done=False)
+            create_task(notes_dir, today, "Child", done=False, parent="1")
+            create_task(notes_dir, today, "Grandchild", done=False, parent="1a")
+
+            refs = list_task_refs(notes_dir, today)
+
+            self.assertEqual(
+                [(ref.identifier, ref.task.text, ref.task.depth) for ref in refs],
+                [("1", "Parent", 0), ("1a", "Child", 1), ("1a.a", "Grandchild", 2)],
+            )
+            content = file_path(notes_dir, today).read_text(encoding="utf-8")
+            self.assertIn("- [ ] Parent (07-27)", content)
+            self.assertIn("  - [ ] Child (07-27)", content)
+            self.assertIn("    - [ ] Grandchild (07-27)", content)
+
+            with self.assertRaisesRegex(ValueError, "three levels"):
+                create_task(notes_dir, today, "Too deep", done=False, parent="1a.a")
+
+    def test_parent_mutations_cascade_to_descendants(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 7, 27)
+            create_task(notes_dir, today, "Parent", done=False)
+            create_task(notes_dir, today, "Child", done=False, parent="1")
+            create_task(notes_dir, today, "Grandchild", done=False, parent="1a")
+
+            tag_tasks(notes_dir, today, ["1"], ["work"])
+            prioritize_tasks(notes_dir, today, ["1"], "high")
+
+            state = ensure_state(file_path(notes_dir, today))
+            self.assertEqual(
+                [task.text for task in state.days[today].tasks],
+                [
+                    "!P2! {WORK} Parent",
+                    "!P2! {WORK} Child",
+                    "!P2! {WORK} Grandchild",
+                ],
+            )
+
+            complete_tasks(notes_dir, today, ["1"])
+            state = ensure_state(file_path(notes_dir, today))
+            self.assertTrue(all(task.done for task in state.days[today].tasks))
+
+    def test_editing_parent_preserves_descendant_text(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 7, 27)
+            create_task(notes_dir, today, "Parent", done=False)
+            create_task(notes_dir, today, "Child", done=False, parent="1")
+
+            edit_task(notes_dir, today, "1", "Renamed parent")
+
+            state = ensure_state(file_path(notes_dir, today))
+            self.assertEqual(
+                [task.text for task in state.days[today].tasks],
+                ["Renamed parent", "Child"],
+            )
+
+    def test_moving_child_promotes_its_subtree_at_destination(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 7, 27)
+            destination = date(2026, 7, 30)
+            create_task(notes_dir, today, "Parent", done=False)
+            create_task(notes_dir, today, "Child", done=False, parent="1")
+            create_task(notes_dir, today, "Grandchild", done=False, parent="1a")
+
+            move_tasks(notes_dir, today, ["1a"], destination)
+
+            refs = list_task_refs(notes_dir, today)
+            self.assertEqual(
+                [(ref.identifier, ref.scheduled, ref.task.text, ref.task.depth) for ref in refs],
+                [
+                    ("1", today, "Parent", 0),
+                    ("2", destination, "Child", 0),
+                    ("2a", destination, "Grandchild", 1),
+                ],
+            )
+
+    def test_deleting_parent_deletes_its_entire_subtree(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 7, 27)
+            create_task(notes_dir, today, "Parent", done=False)
+            create_task(notes_dir, today, "Child", done=False, parent="1")
+            create_task(notes_dir, today, "Sibling", done=False)
+
+            delete_tasks(notes_dir, today, ["1"])
+
+            self.assertEqual([task.text for task in list_tasks(notes_dir, today)], ["Sibling"])
+
     def test_task_refs_and_mutations_share_one_global_index_space(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
@@ -683,6 +778,21 @@ class StoreTests(unittest.TestCase):
             content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
             self.assertIn("### Notes", content)
             self.assertIn("First note.\n\nSecond note.", content)
+
+    def test_add_note_rolls_unfinished_tasks_forward(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            previous_date = date(2026, 4, 4)
+            target_date = date(2026, 4, 5)
+            add_task(notes_dir, previous_date, "Buy milk")
+
+            add_note(notes_dir, target_date, "Remember cat meds.")
+
+            current = ensure_state(file_path(notes_dir, target_date))
+            previous = current.days.get(previous_date)
+            self.assertTrue(previous is None or previous.tasks == [])
+            self.assertEqual([task.text for task in current.days[target_date].tasks], ["Buy milk"])
+            self.assertEqual(current.days[target_date].notes, ["Remember cat meds."])
 
     def test_add_note_does_not_accumulate_extra_blank_line_after_notes_heading_on_rewrite(self) -> None:
         with TemporaryDirectory() as tmp:

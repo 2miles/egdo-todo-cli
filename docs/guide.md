@@ -136,6 +136,44 @@ egdo delete 2
 egdo delete 1 6 7
 ```
 
+## Nested Tasks
+
+Create children with `--parent`:
+
+```bash
+egdo add "Build finance dashboard"
+egdo add --parent 1 "Add tests"
+egdo add --parent 1a "Test missing values"
+```
+
+They are stored as ordinary nested Markdown checkboxes:
+
+```markdown
+- [ ] Build finance dashboard (07-27)
+  - [ ] Add tests (07-27)
+    - [ ] Test missing values (07-27)
+```
+
+The terminal IDs describe the hierarchy. The numeric part remains aligned with its
+parent, the suffix grows to the right, and the priority markers occupy their own fixed
+column:
+
+```text
+ 1.    ... Build finance dashboard
+ 1a.   ...   Add tests
+ 1a.a. ...     Test missing values
+10.    ... Another top-level task
+10a.   ...   Its child
+```
+
+This makes the `1` in `1`, `1a`, and `1a.a` line up vertically. Task text receives two
+additional spaces of indentation at each nesting level.
+
+Nesting is limited to three total levels and 26 direct children per parent. Completing,
+deleting, moving, tagging, prioritizing, or unmoving a task applies to its entire subtree.
+Editing changes only the selected task's wording. Acting directly on a child affects that
+child and its descendants, not its parent or siblings.
+
 ## Tags
 
 Tags describe the area or context of a task. Examples include `work`, `money`, `home`,

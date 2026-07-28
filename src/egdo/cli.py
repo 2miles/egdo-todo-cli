@@ -46,6 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Examples:\n"
             "  egdo\n"
             '  egdo add -p high -t work "Submit application"\n'
+            '  egdo add --parent 6 "Add tests"\n'
             "  egdo done 1 3\n"
             "  egdo move 2 5 tomorrow\n"
             "  egdo priority 4 high\n"
@@ -79,6 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
             'Examples:\n  egdo add "Buy milk"\n'
             '  egdo add -t chores -t home "Do laundry"\n'
             '  egdo add -p high -t work "Submit application"\n'
+            '  egdo add --parent 6 "Add tests"\n'
             '  egdo add "{CHORES} Do laundry"\n'
             '  egdo add --done -t car -t errands "Call the DMV"\n'
             '  egdo add --done "Call dad"'
@@ -99,6 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Set priority: 1/critical, 2/high, 3/normal, or 4/low",
     )
     add_parser.add_argument("--done", action="store_true", help="Create the task already completed")
+    add_parser.add_argument("--parent", help="Parent task ID, such as 6 or 6a")
 
     list_parser = subparsers.add_parser(
         "list",
@@ -132,7 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="Examples:\n  egdo done 1\n  egdo done 1 3 12",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    done_parser.add_argument("indexes", nargs="+", type=int, help="Task number(s) from `egdo list`")
+    done_parser.add_argument("indexes", nargs="+", help="Task ID(s) from `egdo list`")
 
     edit_parser = subparsers.add_parser(
         "edit",
@@ -141,7 +144,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog='Example:\n  egdo edit 2 "Buy oat milk"',
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    edit_parser.add_argument("index", type=int, help="Task number from `egdo list`")
+    edit_parser.add_argument("index", help="Task ID from `egdo list`")
     edit_parser.add_argument("text", help="Replacement task text")
 
     move_parser = subparsers.add_parser(
@@ -158,7 +161,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    move_parser.add_argument("indexes", nargs="+", type=int, help="Task number(s) from `egdo list`")
+    move_parser.add_argument("indexes", nargs="+", help="Task ID(s) from `egdo list`")
     move_parser.add_argument(
         "when",
         help="Future date: tomorrow, +N, weekday name, or YYYY-MM-DD",
@@ -171,7 +174,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="Examples:\n  egdo unmove 12\n  egdo unmove 10 12 15",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    unmove_parser.add_argument("indexes", nargs="+", type=int, help="Future task number(s) from `egdo list`")
+    unmove_parser.add_argument("indexes", nargs="+", help="Future task ID(s) from `egdo list`")
 
     delete_parser = subparsers.add_parser(
         "delete",
@@ -180,7 +183,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="Examples:\n  egdo delete 2\n  egdo delete 1 6 7",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    delete_parser.add_argument("indexes", nargs="+", type=int, help="Task number(s) from `egdo list`")
+    delete_parser.add_argument("indexes", nargs="+", help="Task ID(s) from `egdo list`")
 
     tag_parser = subparsers.add_parser(
         "tag",
@@ -208,7 +211,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="Examples:\n  egdo priority 1 6 7 high\n  egdo priority 3 none",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    priority_parser.add_argument("indexes", nargs="+", type=int, help="Task number(s) from `egdo list`")
+    priority_parser.add_argument("indexes", nargs="+", help="Task ID(s) from `egdo list`")
     priority_parser.add_argument("level", help="1/critical, 2/high, 3/normal, 4/low, or none")
 
     note_parser = subparsers.add_parser(

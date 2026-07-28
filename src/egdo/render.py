@@ -13,6 +13,7 @@ from egdo.markdown_store import split_task_prefix
 HEADER_DATE_STYLE = "bold cyan"
 SEPARATOR_STYLE = "dim"
 PRIORITY_MARKERS = {1: "!!!", 2: ".!!", 3: "..!", 4: "..."}
+INDEX_COLUMN_WIDTH = 7
 DEFAULT_PRIORITY_STYLES = {
     "p1": "bold white on red",
     "p2": "bold orange1",
@@ -64,12 +65,13 @@ def render_separator(width: int) -> Text:
 
 
 def render_task_line(
-    index: int,
+    index: str | int,
     task_text: str,
     created,
     tag_styles: dict[str, str],
     wrap_width: int = 88,
     priority_styles: dict[str, str] | None = None,
+    depth: int = 0,
 ) -> Group:
     """Wrap one task while reserving fixed columns for index, priority, and date."""
     priority, tags, body = split_task_prefix(task_text)
@@ -79,7 +81,7 @@ def render_task_line(
     date_text = f" ({_format_task_date(created)})"
     total_width = max(20, wrap_width)
     marker = PRIORITY_MARKERS[display_priority]
-    initial_indent = f"{index:>2}. {marker:<3} "
+    initial_indent = f"{_format_task_index(index)}{marker:<3} {'  ' * depth}"
     subsequent_indent = " " * len(initial_indent)
     first_line_width = max(8, total_width - len(initial_indent) - len(date_text) - 2)
     subsequent_width = max(8, total_width - len(subsequent_indent))
@@ -105,6 +107,16 @@ def render_task_line(
 
 def _format_task_date(value) -> str:
     return f"{value.strftime('%a, %b')} {value.day:>2}{ordinal_suffix(value.day)}"
+
+
+def _format_task_index(index: str | int) -> str:
+    """Align the numeric parent portion while reserving room for nested suffixes."""
+    token = str(index)
+    digit_count = 0
+    while digit_count < len(token) and token[digit_count].isdigit():
+        digit_count += 1
+    label = f"{token[:digit_count]:>2}{token[digit_count:]}."
+    return f"{label:<{INDEX_COLUMN_WIDTH}}"
 
 
 def style_wrapped_task_line(
@@ -137,12 +149,12 @@ def style_wrapped_task_line(
     if priority is not None and line.startswith(initial_indent):
         marker = PRIORITY_MARKERS[priority]
         resolved_priority_styles = {**DEFAULT_PRIORITY_STYLES, **(priority_styles or {})}
-        index_prefix = prefix[:-4].rstrip()
-        styled.append(f"{index_prefix} ", style="white")
+        marker_start = prefix.find(marker)
+        styled.append(prefix[:marker_start], style="white")
         for character in marker:
             style = resolved_priority_styles["p4" if character == "." else f"p{priority}"]
             styled.append(character, style=style)
-        styled.append(" ")
+        styled.append(prefix[marker_start + len(marker) :])
     else:
         styled.append(prefix, style="white" if line.startswith(initial_indent) else None)
     for index, tag in enumerate(tags):

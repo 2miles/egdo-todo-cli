@@ -9,7 +9,7 @@ import re
 
 
 DAY_HEADER_RE = re.compile(r"^## ([A-Za-z]{3})-(\d{2}) ([A-Za-z]{3})$")
-TASK_LINE_RE = re.compile(r"^- \[( |x)\] (.*?)(?: \((\d{2}-\d{2})\))?$")
+TASK_LINE_RE = re.compile(r"^( *)- \[( |x)\] (.*?)(?: \((\d{2}-\d{2})\))?$")
 MONTH_FILE_RE = re.compile(r"^(\d{4})_(\d{2})_([a-z]{3})$")
 PRIORITY_TOKEN_RE = re.compile(r"^!P([1-4])!", re.IGNORECASE)
 TASKS_HEADING = "### Tasks"
@@ -22,13 +22,14 @@ class Task:
     text: str
     created: date
     done: bool
+    depth: int = 0
 
     @property
     def tags(self) -> tuple[str, ...]:
         return parse_leading_tags(self.text)
 
-    def key(self) -> tuple[str, date]:
-        return (self.text, self.created)
+    def key(self) -> tuple[str, date, int]:
+        return (self.text, self.created, self.depth)
 
 
 @dataclass(slots=True)
@@ -85,7 +86,12 @@ def parse_file(content: str, default_year: int | None = None) -> FileState:
         if section == "tasks":
             if not line.strip():
                 continue
-            current_day.tasks.append(parse_task_line(line, current_date))
+            task = parse_task_line(line, current_date)
+            if task.depth and not current_day.tasks:
+                raise ValueError("A nested task must follow a parent task")
+            if current_day.tasks and task.depth > current_day.tasks[-1].depth + 1:
+                raise ValueError("Task nesting cannot skip a level")
+            current_day.tasks.append(task)
             continue
 
         if section == "notes":
@@ -94,6 +100,8 @@ def parse_file(content: str, default_year: int | None = None) -> FileState:
             current_day.notes.append(line)
             continue
 
+    for day in days.values():
+        _complete_descendants_of_done_tasks(day.tasks)
     return FileState(prefix="\n".join(prefix_lines), days=days, normalized=False)
 
 
@@ -159,7 +167,7 @@ def render_day(day_date: date, day: DayState) -> str:
 
 def render_task(task: Task) -> str:
     status = "x" if task.done else " "
-    return f"- [{status}] {task.text} ({task.created:%m-%d})"
+    return f"{'  ' * task.depth}- [{status}] {task.text} ({task.created:%m-%d})"
 
 
 def parse_task_line(line: str, section_date: date) -> Task:
@@ -167,11 +175,27 @@ def parse_task_line(line: str, section_date: date) -> Task:
     match = TASK_LINE_RE.match(line)
     if match is None:
         raise ValueError(f"Invalid task line: {line}")
-    done = match.group(1) == "x"
-    text = match.group(2)
-    date_token = match.group(3)
+    indent = match.group(1)
+    if len(indent) % 2:
+        raise ValueError("Nested tasks must use two spaces per level")
+    depth = len(indent) // 2
+    if depth > 2:
+        raise ValueError("Tasks may be nested at most three levels deep")
+    done = match.group(2) == "x"
+    text = match.group(3)
+    date_token = match.group(4)
     created = parse_compact_date(date_token, section_date) if date_token else section_date
-    return Task(text=text, created=created, done=done)
+    return Task(text=text, created=created, done=done, depth=depth)
+
+
+def _complete_descendants_of_done_tasks(tasks: list[Task]) -> None:
+    """Enforce that a completed parent owns no unfinished descendants."""
+    completed_depth: int | None = None
+    for task in tasks:
+        if completed_depth is not None and task.depth > completed_depth:
+            task.done = True
+            continue
+        completed_depth = task.depth if task.done else None
 
 
 def parse_compact_date(value: str, section_date: date) -> date:
@@ -200,6 +224,31 @@ def day_range(start: date, end: date) -> list[date]:
 def parse_leading_tags(text: str) -> tuple[str, ...]:
     _, tags, _ = split_task_prefix(text)
     return tuple(tags)
+
+
+def task_identifiers(tasks: list[Task]) -> list[str]:
+    """Assign numeric, lettered, and dotted display IDs to a preorder task list."""
+    identifiers: list[str] = []
+    top_index = 0
+    child_counts = [0, 0, 0]
+    parent_ids = ["", "", ""]
+    for task in tasks:
+        depth = getattr(task, "depth", 0)
+        if depth == 0:
+            top_index += 1
+            identifier = str(top_index)
+            child_counts = [0, 0, 0]
+        else:
+            child_counts[depth] += 1
+            if child_counts[depth] > 26:
+                raise ValueError("A task may have at most 26 direct subtasks")
+            child_counts[depth + 1 :] = [0] * (2 - depth)
+            letter = chr(ord("a") + child_counts[depth] - 1)
+            separator = "" if depth == 1 else "."
+            identifier = f"{parent_ids[depth - 1]}{separator}{letter}"
+        parent_ids[depth] = identifier
+        identifiers.append(identifier)
+    return identifiers
 
 
 def split_task_prefix(text: str) -> tuple[int | None, list[str], str]:
