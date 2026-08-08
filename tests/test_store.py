@@ -552,6 +552,38 @@ class StoreTests(unittest.TestCase):
             content = file_path(notes_dir, future_date).read_text(encoding="utf-8")
             self.assertIn("- [ ] !P4! Plan trip (04-08)", content)
 
+    def test_tagging_orders_tags_by_configured_level(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 8, 8)
+            add_task(notes_dir, target_date, "!P4! {EGDO} Fix tag order")
+
+            task = tag_tasks(
+                notes_dir,
+                target_date,
+                [1],
+                ["projects"],
+                {"projects": 1, "egdo": 2},
+            )[0]
+
+            self.assertEqual(task.text, "!P4! {PROJECTS} {EGDO} Fix tag order")
+
+    def test_listing_normalizes_manually_reversed_tag_levels(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 8, 8)
+            add_task(notes_dir, target_date, "!P4! {EGDO} {PROJECTS} Fix tag order")
+
+            refs = list_task_refs(
+                notes_dir, target_date, {"projects": 1, "egdo": 2}
+            )
+
+            self.assertEqual(
+                refs[0].task.text, "!P4! {PROJECTS} {EGDO} Fix tag order"
+            )
+            content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
+            self.assertIn("!P4! {PROJECTS} {EGDO} Fix tag order", content)
+
     def test_tagging_preserves_manually_written_priority(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)

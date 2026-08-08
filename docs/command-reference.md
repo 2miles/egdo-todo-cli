@@ -269,6 +269,19 @@ Available Rich colors: https://rich.readthedocs.io/en/stable/appendix/colors.htm
 
 If `[priority_styles]` is absent, egdo uses its built-in defaults.
 
+Optional tag ordering is configured directly in the config file; no additional `-t`
+syntax is required:
+
+```toml
+[tag_levels]
+projects = 1
+egdo = 2
+photos = 2
+```
+
+Lower levels appear first. Same-level tags retain their existing order, and unconfigured
+tags use level 100. Levels control order only and do not imply mutual exclusivity.
+
 ## Behavior Notes
 
 ### Nested tasks

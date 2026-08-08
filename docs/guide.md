@@ -472,6 +472,12 @@ root = "/Users/you/Notes/egdo"
 work = "blue"
 money = "green_yellow"
 
+[tag_levels]
+projects = 1
+egdo = 2
+photos = 2
+activity-archive = 2
+
 [priority_styles]
 p1 = "bold white on red"
 p2 = "bold orange1"
@@ -479,9 +485,14 @@ p3 = "yellow"
 p4 = "grey50"
 ```
 
+Lower tag levels are placed first. Tags at the same level retain their current order,
+and tags absent from `[tag_levels]` use level 100. Levels only control ordering; they do
+not make tags mutually exclusive. Tag order is normalized after CLI changes and when
+active tasks are listed, including tasks added manually in Markdown.
+
 Your Markdown vault contains the important task and note history. The config contains the
-root location and terminal color preferences. Back up or sync both if you want identical
-colors after setting up egdo on another computer.
+root location, terminal color preferences, and tag levels. Back up or sync both if you
+want identical behavior after setting up egdo on another computer.
 
 ## “How Do I…?” Index
 

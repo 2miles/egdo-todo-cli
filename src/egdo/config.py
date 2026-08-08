@@ -14,6 +14,7 @@ class Config:
     root: Path
     tag_colors: dict[str, str]
     priority_styles: dict[str, str] = field(default_factory=dict)
+    tag_levels: dict[str, int] = field(default_factory=dict)
 
 
 def load_config(path: Path = CONFIG_PATH) -> Config:
@@ -32,8 +33,14 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
 
     tag_colors = _parse_tag_colors(raw)
     priority_styles = _parse_priority_styles(raw)
+    tag_levels = _parse_tag_levels(raw)
 
-    return Config(root=root, tag_colors=tag_colors, priority_styles=priority_styles)
+    return Config(
+        root=root,
+        tag_colors=tag_colors,
+        priority_styles=priority_styles,
+        tag_levels=tag_levels,
+    )
 
 
 def write_config(
@@ -41,6 +48,7 @@ def write_config(
     path: Path = CONFIG_PATH,
     tag_colors: dict[str, str] | None = None,
     priority_styles: dict[str, str] | None = None,
+    tag_levels: dict[str, int] | None = None,
 ) -> Path:
     """Rewrite configuration deterministically with alphabetized style keys."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -53,6 +61,10 @@ def write_config(
         content += "\n[priority_styles]\n"
         for priority, style in sorted(priority_styles.items()):
             content += f'{priority} = "{style}"\n'
+    if tag_levels:
+        content += "\n[tag_levels]\n"
+        for tag, level in sorted(tag_levels.items()):
+            content += f"{tag} = {level}\n"
     path.write_text(content, encoding="utf-8")
     return path
 
@@ -63,6 +75,7 @@ def save_config(config: Config, path: Path = CONFIG_PATH) -> Path:
         path=path,
         tag_colors=config.tag_colors,
         priority_styles=config.priority_styles,
+        tag_levels=config.tag_levels,
     )
 
 
@@ -76,14 +89,14 @@ def _parse_toml(content: str) -> dict[str, object]:
             continue
         if stripped.startswith("[") and stripped.endswith("]"):
             section = stripped[1:-1].strip()
-            if section in {"tag_colors", "priority_styles"} and section not in raw:
+            if section in {"tag_colors", "priority_styles", "tag_levels"} and section not in raw:
                 raw[section] = {}
             continue
         if "=" not in stripped:
             continue
         key, value = stripped.split("=", 1)
         parsed_value = value.strip().strip('"').strip("'")
-        if section in {"tag_colors", "priority_styles"}:
+        if section in {"tag_colors", "priority_styles", "tag_levels"}:
             values = raw.setdefault(section, {})
             assert isinstance(values, dict)
             values[key.strip()] = parsed_value
@@ -112,3 +125,22 @@ def _parse_priority_styles(raw: dict[str, object]) -> dict[str, str]:
     if not isinstance(value, dict):
         raise ValueError("Config key `priority_styles` must be a table")
     return {str(priority).lower(): str(style) for priority, style in value.items()}
+
+
+def _parse_tag_levels(raw: dict[str, object]) -> dict[str, int]:
+    """Validate positive integer tag levels and normalize tag names."""
+    value = raw.get("tag_levels")
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("Config key `tag_levels` must be a table")
+    levels: dict[str, int] = {}
+    for tag, raw_level in value.items():
+        try:
+            level = int(str(raw_level))
+        except ValueError as exc:
+            raise ValueError(f"Tag level for `{tag}` must be a positive integer") from exc
+        if level < 1:
+            raise ValueError(f"Tag level for `{tag}` must be a positive integer")
+        levels[str(tag).lower()] = level
+    return levels

@@ -337,7 +337,21 @@ def normalize_tags(tags: list[str]) -> list[str]:
     return normalized
 
 
-def merge_tags_into_text(text: str, tags: list[str]) -> str:
+def order_tags(tags: list[str], tag_levels: dict[str, int] | None = None) -> list[str]:
+    """Order tags by configured level while preserving order within a level."""
+    levels = tag_levels or {}
+    return sorted(tags, key=lambda tag: levels.get(tag, 100))
+
+
+def order_tags_in_text(text: str, tag_levels: dict[str, int] | None = None) -> str:
+    """Rebuild a task with its leading tags in configured level order."""
+    priority, tags, body = split_task_prefix(text)
+    return format_task_text(priority, order_tags(tags, tag_levels), body)
+
+
+def merge_tags_into_text(
+    text: str, tags: list[str], tag_levels: dict[str, int] | None = None
+) -> str:
     """Append new unique tags without disturbing priority or existing tag order."""
     normalized_tags = normalize_tags(tags)
     priority, existing_tags, body = split_task_prefix(text)
@@ -347,7 +361,7 @@ def merge_tags_into_text(text: str, tags: list[str]) -> str:
     for tag in normalized_tags:
         if tag not in merged_tags:
             merged_tags.append(tag)
-    return format_task_text(priority, merged_tags, body)
+    return format_task_text(priority, order_tags(merged_tags, tag_levels), body)
 
 
 def _format_tag(tag: str) -> str:

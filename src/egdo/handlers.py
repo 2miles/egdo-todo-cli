@@ -77,7 +77,8 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
                 form.priority,
                 form.scheduled,
             )
-        task_text = merge_tags_into_text(text, tags)
+        tag_levels = getattr(config, "tag_levels", {})
+        task_text = merge_tags_into_text(text, tags, tag_levels)
         task_text = merge_priority_into_text(task_text, priority)
         if split_task_prefix(task_text)[0] is None:
             task_text = merge_priority_into_text(task_text, "low")
@@ -120,7 +121,11 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         indexes = args.indexes
         if not indexes:
             indexes = deps.prompt_done_form(
-                deps.list_task_refs(config.root, target_date), target_date, console
+                deps.list_task_refs(
+                    config.root, target_date, getattr(config, "tag_levels", {})
+                ),
+                target_date,
+                console,
             )
             if not indexes:
                 console.print("Canceled task completion.")
@@ -135,7 +140,13 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         )
 
     if args.command == "edit":
-        task = deps.edit_task(config.root, target_date, _parse_task_id(str(args.index)), args.text)
+        task = deps.edit_task(
+            config.root,
+            target_date,
+            _parse_task_id(str(args.index)),
+            args.text,
+            getattr(config, "tag_levels", {}),
+        )
         return _finish_task_mutation(
             config,
             target_date,
@@ -173,11 +184,23 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
     if args.command == "tag":
         if args.remove:
             indexes = _parse_indexes(args.values, "tag removal")
-            tasks = deps.untag_tasks(config.root, target_date, indexes, args.remove)
+            tasks = deps.untag_tasks(
+                config.root,
+                target_date,
+                indexes,
+                args.remove,
+                getattr(config, "tag_levels", {}),
+            )
             action = "Untagged"
         else:
             indexes, tags = _split_indexed_values(args.values, "tag")
-            tasks = deps.tag_tasks(config.root, target_date, indexes, tags)
+            tasks = deps.tag_tasks(
+                config.root,
+                target_date,
+                indexes,
+                tags,
+                getattr(config, "tag_levels", {}),
+            )
             action = "Tagged"
         return _finish_task_mutation(
             config,
@@ -214,7 +237,12 @@ def _handle_list(args: Any, config: Any, target_date: date, console: Console, de
     """Render filtered task refs without renumbering their global indexes."""
     indexed_refs = [
         (ref.identifier or str(position), ref)
-        for position, ref in enumerate(deps.list_task_refs(config.root, target_date), start=1)
+        for position, ref in enumerate(
+            deps.list_task_refs(
+                config.root, target_date, getattr(config, "tag_levels", {})
+            ),
+            start=1,
+        )
         if (not args.future or ref.scheduled > target_date)
         and (args.tag is None or args.tag.strip().lower() in ref.task.tags)
     ]

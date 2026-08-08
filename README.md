@@ -202,6 +202,20 @@ chores = "blue"
 important = "bold red"
 ```
 
+Optional tag levels keep broad and specific tags in a consistent order:
+
+```toml
+[tag_levels]
+projects = 1
+egdo = 2
+photos = 2
+activity-archive = 2
+```
+
+Lower levels appear first, so both `{EGDO} {PROJECTS}` and `{PROJECTS} {EGDO}`
+normalize to `{PROJECTS} {EGDO}`. Tags at the same level keep their existing order;
+unconfigured tags use level 100. Levels affect ordering only, not which tags may coexist.
+
 Priority styles use a separate table:
 
 ```toml

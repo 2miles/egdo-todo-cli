@@ -422,7 +422,9 @@ class CliTests(unittest.TestCase):
             exit_code = main(["edit", "2", "Buy oat milk"])
 
         self.assertEqual(exit_code, 0)
-        edit_task_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, 2, "Buy oat milk")
+        edit_task_mock.assert_called_once_with(
+            Path("/tmp/notes/egdo"), mocked_today, 2, "Buy oat milk", {}
+        )
         self.assertIn("✓ Edited “Buy oat milk”", output.getvalue())
 
     def test_main_add_command_merges_repeated_tags_into_task_text(self) -> None:
@@ -481,7 +483,7 @@ class CliTests(unittest.TestCase):
             exit_code = main(["add", "Buy milk"])
 
         self.assertEqual(exit_code, 0)
-        list_task_refs_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today)
+        list_task_refs_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, {})
         rendered = output.getvalue()
         self.assertIn("\x1b[2J", rendered)
         self.assertLess(rendered.index("✓ Added “Buy milk”"), rendered.index("Today"))
@@ -666,7 +668,7 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         untag_tasks_mock.assert_called_once_with(
-            Path("/tmp/notes/egdo"), mocked_today, [3, 6, 7], ["work"]
+            Path("/tmp/notes/egdo"), mocked_today, [3, 6, 7], ["work"], {}
         )
 
     def test_main_list_future_flag_renders_only_grouped_future_tasks(self) -> None:
@@ -699,7 +701,7 @@ class CliTests(unittest.TestCase):
             exit_code = main(["list", "--future"])
 
         self.assertEqual(exit_code, 0)
-        list_task_refs_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today)
+        list_task_refs_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, {})
         save_config_mock.assert_called_once_with(config)
         rendered = output.getvalue()
         self.assertIn("Future", rendered)
@@ -770,7 +772,7 @@ class CliTests(unittest.TestCase):
             exit_code = main(["list"])
 
         self.assertEqual(exit_code, 0)
-        list_task_refs_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today)
+        list_task_refs_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, {})
         save_config_mock.assert_called_once_with(config)
         rendered = output.getvalue()
         self.assertIn("Today", rendered)
@@ -811,7 +813,7 @@ class CliTests(unittest.TestCase):
             exit_code = main(["list"])
 
         self.assertEqual(exit_code, 0)
-        list_task_refs_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today)
+        list_task_refs_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, {})
         save_config_mock.assert_called_once_with(config)
         rendered = output.getvalue()
         self.assertIn("Today", rendered)
