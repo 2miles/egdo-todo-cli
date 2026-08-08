@@ -448,7 +448,7 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         create_task_mock.assert_called_once_with(
-            Path("/tmp/notes/egdo"), mocked_today, "{HOUSE} {CHORES} Do the dishes", done=False
+            Path("/tmp/notes/egdo"), mocked_today, "!P4! {HOUSE} {CHORES} Do the dishes", done=False
         )
         self.assertIn("✓ Added “{HOUSE} {CHORES} Do the dishes”", output.getvalue())
 
@@ -570,7 +570,7 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         create_task_mock.assert_called_once_with(
-            Path("/tmp/notes/egdo"), mocked_today, "{HOUSE} {CHORES} Do the dishes", done=False
+            Path("/tmp/notes/egdo"), mocked_today, "!P4! {HOUSE} {CHORES} Do the dishes", done=False
         )
 
     def test_main_add_command_can_create_done_task_with_tags(self) -> None:
@@ -596,7 +596,7 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         create_task_mock.assert_called_once_with(
-            Path("/tmp/notes/egdo"), mocked_today, "{CAR} {ERRANDS} Call the DMV", done=True
+            Path("/tmp/notes/egdo"), mocked_today, "!P4! {CAR} {ERRANDS} Call the DMV", done=True
         )
         self.assertIn("✓ Added done “{CAR} {ERRANDS} Call the DMV”", output.getvalue())
 

@@ -523,7 +523,7 @@ class StoreTests(unittest.TestCase):
             content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
             self.assertIn("- [ ] {CHORES} {HOME} Do the dishes (04-05)", content)
 
-    def test_priority_sets_and_clears_plain_markdown_marker(self) -> None:
+    def test_priority_sets_marker_and_clear_alias_resets_to_low(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
             target_date = date(2026, 4, 5)
@@ -537,7 +537,7 @@ class StoreTests(unittest.TestCase):
 
             cleared = prioritize_task(notes_dir, target_date, 1, "none")
 
-            self.assertEqual(cleared.text, "{WORK} Submit application")
+            self.assertEqual(cleared.text, "!P4! {WORK} Submit application")
 
     def test_priority_can_update_a_future_task(self) -> None:
         with TemporaryDirectory() as tmp:

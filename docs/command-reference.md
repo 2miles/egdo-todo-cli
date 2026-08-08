@@ -117,20 +117,20 @@ Thu, Apr 3rd
 
 ## `egdo priority`
 
-Set or clear the priority of an active task.
+Set the priority of an active task. New tasks default to low priority.
 
 ```bash
 egdo priority 3 critical
 egdo priority 1 6 7 high
-egdo priority 3 none
+egdo priority 3 low
 ```
 
 - accepts one or more numeric indexes shown by `egdo list`
 - accepts `1`/`critical`, `2`/`high`, `3`/`normal`, and `4`/`low`
 - stores the priority as a leading plain-Markdown marker such as `!P1!`
 - renders priority as a three-slot meter: `!!!` (P1), `.!!` (P2), `..!` (P3), and `...` (P4), with gray dots as placeholders
-- displays tasks without an explicit priority as low (`...`) without adding a marker to Markdown
-- `none`, `clear`, or `off` removes the marker
+- displays manually written tasks without an explicit priority as low (`...`)
+- legacy `none`, `clear`, and `off` values reset the task to P4 (`low`)
 - the same command works for future tasks using their global indexes
 
 ## `egdo done`

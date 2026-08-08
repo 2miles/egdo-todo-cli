@@ -79,6 +79,8 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
             )
         task_text = merge_tags_into_text(text, tags)
         task_text = merge_priority_into_text(task_text, priority)
+        if split_task_prefix(task_text)[0] is None:
+            task_text = merge_priority_into_text(task_text, "low")
         create_kwargs = {"done": args.done}
         if args.parent is not None:
             create_kwargs["parent"] = args.parent

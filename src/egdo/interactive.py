@@ -221,12 +221,12 @@ def _run_tag_picker(
 
 
 def _choose_priority(console: Console, initial: str | None) -> str | None | object:
-    values: list[str | None] = [None, "low", "normal", "high", "critical"]
-    labels = ["No priority", "Low", "Normal", "High", "Critical"]
+    values = ["low", "normal", "high", "critical"]
+    labels = ["Low", "Normal", "High", "Critical"]
     selected = 0
     if initial is not None:
         priority = normalize_priority(initial)
-        selected = {4: 1, 3: 2, 2: 3, 1: 4}[priority]
+        selected = {4: 0, 3: 1, 2: 2, 1: 3}[priority]
     choice = _run_single_picker(console, "Choose priority", labels, selected)
     return _CANCELED if choice is None else values[choice]
 

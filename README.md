@@ -123,9 +123,9 @@ You can create tags either from the CLI with repeated `-t` or `--tag` flags or b
 
 Tasks may be nested three levels deep. Child IDs use letters (`1a`, `1b`) and grandchildren use dotted letters (`1a.a`). Actions on a parent cascade to its descendants, except `edit`, which changes only the selected task's text.
 
-Priorities use `!P1!` through `!P4!` in Markdown. Add one with `-p` or `--priority`, using `1`/`critical`, `2`/`high`, `3`/`normal`, or `4`/`low`. Use `egdo priority INDEX LEVEL` to change an existing task, or use `none` as the level to clear it.
+Priorities use `!P1!` through `!P4!` in Markdown. New tasks default to P4 (`low`). Choose another level with `-p` or `--priority`, using `1`/`critical`, `2`/`high`, `3`/`normal`, or `4`/`low`.
 
-In terminal lists, egdo renders priority as a three-slot meter: `!!!` for P1, `.!!` for P2, `..!` for P3, and `...` for P4. Dots are gray placeholders and exclamation marks carry the priority color. Tasks without an explicit priority display as low priority (`...`) without changing their stored Markdown.
+In terminal lists, egdo renders priority as a three-slot meter: `!!!` for P1, `.!!` for P2, `..!` for P3, and `...` for P4. Dots are gray placeholders and exclamation marks carry the priority color. Manually written tasks without an explicit priority are also treated as low.
 
 For a practical walkthrough and cheat sheet, see [The Complete egdo Guide](docs/guide.md).
 For every command and argument, see the [command reference](docs/command-reference.md).

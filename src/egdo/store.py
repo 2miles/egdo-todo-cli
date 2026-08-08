@@ -256,8 +256,10 @@ def prioritize_task(notes_dir: Path, target_date: date, index: str | int, priori
 def prioritize_tasks(
     notes_dir: Path, target_date: date, indexes: list[str | int], priority: str | int
 ) -> list[Task]:
-    """Set or clear priority on multiple globally indexed tasks."""
+    """Set priority on multiple globally indexed tasks, treating clear aliases as low."""
     normalized = normalize_priority(priority, allow_none=True)
+    if normalized is None:
+        normalized = 4
     refs = _select_task_refs(notes_dir, target_date, indexes)
 
     def set_priority(task: Task) -> None:

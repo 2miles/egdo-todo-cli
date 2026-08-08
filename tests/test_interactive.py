@@ -95,7 +95,6 @@ class InteractiveTests(unittest.TestCase):
                     "enter",
                     "down",
                     "down",
-                    "down",
                     "enter",
                     "down",
                     "enter",
@@ -121,7 +120,7 @@ class InteractiveTests(unittest.TestCase):
             result = prompt_add_form(config, date(2026, 7, 27), console, parse_future_date)
 
         self.assertEqual(result.tags, [])
-        self.assertIsNone(result.priority)
+        self.assertEqual(result.priority, "low")
         self.assertEqual(result.scheduled, date(2026, 7, 27))
 
     def test_no_tags_choice_clears_selected_tags(self) -> None:

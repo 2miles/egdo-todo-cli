@@ -210,13 +210,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     priority_parser = subparsers.add_parser(
         "priority",
-        help="Set or clear a task's priority",
+        help="Set a task's priority",
         description="Set priority using the index shown by `egdo list`.",
-        epilog="Examples:\n  egdo priority 1 6 7 high\n  egdo priority 3 none",
+        epilog="Examples:\n  egdo priority 1 6 7 high\n  egdo priority 3 low",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     priority_parser.add_argument("indexes", nargs="+", help="Task ID(s) from `egdo list`")
-    priority_parser.add_argument("level", help="1/critical, 2/high, 3/normal, 4/low, or none")
+    priority_parser.add_argument("level", help="1/critical, 2/high, 3/normal, or 4/low")
 
     note_parser = subparsers.add_parser(
         "note",

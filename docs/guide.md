@@ -251,7 +251,7 @@ egdo priority 3 1
 egdo priority 3 critical
 ```
 
-Clear an explicit priority with any of these values:
+The legacy clear aliases now reset a task to low priority:
 
 ```bash
 egdo priority 3 none
@@ -259,8 +259,8 @@ egdo priority 3 clear
 egdo priority 3 off
 ```
 
-A task without an explicit priority still displays as low (`...`). This is only a visual
-default; egdo does not add `!P4!` to its Markdown unless you explicitly assign P4.
+New tasks default to low and store `!P4!` in Markdown. A manually written task without
+an explicit priority is also treated as low (`...`).
 
 The dots in `.!!`, `..!`, and `...` are gray placeholders. In Markdown, explicit
 priorities are stored as `!P1!` through `!P4!`.
@@ -497,7 +497,7 @@ colors after setting up egdo on another computer.
 | add one tag to several tasks | `egdo tag 1 6 7 work` |
 | remove a tag from several tasks | `egdo tag 1 6 7 --remove work` |
 | set several priorities | `egdo priority 1 6 7 high` |
-| clear a priority | `egdo priority 3 none` |
+| reset a priority to low | `egdo priority 3 low` |
 | see completed tasks | `egdo finished` |
 | see only future tasks | `egdo list --future` |
 | bring a future task back | `egdo unmove 12` |
