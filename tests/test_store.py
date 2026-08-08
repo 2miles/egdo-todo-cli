@@ -178,6 +178,21 @@ class StoreTests(unittest.TestCase):
             content = file_path(notes_dir, target_date).read_text(encoding="utf-8")
             self.assertIn("- [x] Call dad (04-05)", content)
 
+    def test_create_task_can_schedule_for_future_while_preserving_created_date(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            today = date(2026, 7, 27)
+            scheduled = date(2026, 7, 30)
+
+            task = create_task(
+                notes_dir, today, "Submit application", done=False, scheduled_date=scheduled
+            )
+
+            self.assertEqual(task.created, today)
+            content = file_path(notes_dir, scheduled).read_text(encoding="utf-8")
+            self.assertIn("## Jul-30 Thu", content)
+            self.assertIn("- [ ] Submit application (07-27)", content)
+
     def test_month_file_path_uses_year_and_month(self) -> None:
         notes_dir = Path("/tmp/notes")
         self.assertEqual(file_path(notes_dir, date(2026, 4, 5)), notes_dir / "2026" / "2026_04_apr.md")

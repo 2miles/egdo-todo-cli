@@ -4,11 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-import os
 import re
 import sys
-import termios
-import tty
 from collections.abc import Iterable
 from typing import Any
 
@@ -21,6 +18,7 @@ from egdo.markdown_store import (
     task_identifiers,
 )
 from egdo.render import TAG_STYLES
+from egdo.terminal_keys import read_picker_key
 from rich.console import Console
 from rich.errors import StyleSyntaxError
 from rich.style import Style
@@ -39,6 +37,8 @@ class HandlerDeps:
     list_task_refs: Any
     move_tasks: Any
     parse_future_date: Any
+    prompt_add_form: Any
+    prompt_done_form: Any
     prioritize_tasks: Any
     render_list_header: Any
     render_priority_style_picker: Any
@@ -55,15 +55,45 @@ class HandlerDeps:
 def dispatch_command(args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps) -> int:
     """Route one parsed command while keeping process setup out of handlers."""
     if args.command == "add":
-        task_text = merge_tags_into_text(args.text, args.tag or [])
-        task_text = merge_priority_into_text(task_text, args.priority)
+        scheduled = target_date
+        text = args.text
+        tags = args.tag or []
+        priority = args.priority
+        if text is None:
+            form = deps.prompt_add_form(
+                config,
+                target_date,
+                console,
+                deps.parse_future_date,
+                initial_tags=tags,
+                initial_priority=priority,
+            )
+            if form is None:
+                console.print("Canceled task creation.")
+                return 0
+            text, tags, priority, scheduled = (
+                form.text,
+                form.tags,
+                form.priority,
+                form.scheduled,
+            )
+        task_text = merge_tags_into_text(text, tags)
+        task_text = merge_priority_into_text(task_text, priority)
         create_kwargs = {"done": args.done}
         if args.parent is not None:
             create_kwargs["parent"] = args.parent
+        if scheduled != target_date:
+            create_kwargs["scheduled_date"] = scheduled
         task = deps.create_task(config.root, target_date, task_text, **create_kwargs)
         action = "Added" if not args.done else "Added done"
-        _print_task_message(console, action, task.created.isoformat(), task.text)
-        return 0
+        suffix = f" -> {scheduled.isoformat()}" if scheduled != target_date else ""
+        return _finish_task_mutation(
+            config,
+            target_date,
+            console,
+            deps,
+            [(action, task.created.isoformat(), task.text, suffix)],
+        )
 
     if args.command == "list":
         return _handle_list(args, config, target_date, console, deps)
@@ -73,47 +103,70 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
 
     if args.command == "unmove":
         tasks = deps.unmove_tasks(config.root, target_date, _normalize_task_ids(args.indexes))
-        for task in tasks:
-            _print_task_message(
-                console,
-                "Unmoved",
-                task.created.isoformat(),
-                task.text,
-                suffix=f" -> {target_date.isoformat()}",
-            )
-        return 0
+        return _finish_task_mutation(
+            config,
+            target_date,
+            console,
+            deps,
+            [
+                ("Unmoved", task.created.isoformat(), task.text, f" -> {target_date.isoformat()}")
+                for task in tasks
+            ],
+        )
 
     if args.command == "done":
-        tasks = deps.complete_tasks(config.root, target_date, _normalize_task_ids(args.indexes))
-        for task in tasks:
-            _print_task_message(console, "Completed", target_date.isoformat(), task.text)
-        return 0
+        indexes = args.indexes
+        if not indexes:
+            indexes = deps.prompt_done_form(
+                deps.list_task_refs(config.root, target_date), target_date, console
+            )
+            if not indexes:
+                console.print("Canceled task completion.")
+                return 0
+        tasks = deps.complete_tasks(config.root, target_date, _normalize_task_ids(indexes))
+        return _finish_task_mutation(
+            config,
+            target_date,
+            console,
+            deps,
+            [("Completed", target_date.isoformat(), task.text, "") for task in tasks],
+        )
 
     if args.command == "edit":
         task = deps.edit_task(config.root, target_date, _parse_task_id(str(args.index)), args.text)
-        _print_task_message(console, "Edited", task.created.isoformat(), task.text)
-        return 0
+        return _finish_task_mutation(
+            config,
+            target_date,
+            console,
+            deps,
+            [("Edited", task.created.isoformat(), task.text, "")],
+        )
 
     if args.command == "move":
         destination_date = deps.parse_future_date(args.when, target_date)
         tasks = deps.move_tasks(
             config.root, target_date, _normalize_task_ids(args.indexes), destination_date
         )
-        for task in tasks:
-            _print_task_message(
-                console,
-                "Moved",
-                task.created.isoformat(),
-                task.text,
-                suffix=f" -> {destination_date.isoformat()}",
-            )
-        return 0
+        return _finish_task_mutation(
+            config,
+            target_date,
+            console,
+            deps,
+            [
+                ("Moved", task.created.isoformat(), task.text, f" -> {destination_date.isoformat()}")
+                for task in tasks
+            ],
+        )
 
     if args.command == "delete":
         tasks = deps.delete_tasks(config.root, target_date, _normalize_task_ids(args.indexes))
-        for task in tasks:
-            _print_task_message(console, "Deleted", target_date.isoformat(), task.text)
-        return 0
+        return _finish_task_mutation(
+            config,
+            target_date,
+            console,
+            deps,
+            [("Deleted", target_date.isoformat(), task.text, "") for task in tasks],
+        )
 
     if args.command == "tag":
         if args.remove:
@@ -124,17 +177,25 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
             indexes, tags = _split_indexed_values(args.values, "tag")
             tasks = deps.tag_tasks(config.root, target_date, indexes, tags)
             action = "Tagged"
-        for task in tasks:
-            _print_task_message(console, action, target_date.isoformat(), task.text)
-        return 0
+        return _finish_task_mutation(
+            config,
+            target_date,
+            console,
+            deps,
+            [(action, target_date.isoformat(), task.text, "") for task in tasks],
+        )
 
     if args.command == "priority":
         tasks = deps.prioritize_tasks(
             config.root, target_date, _normalize_task_ids(args.indexes), args.level
         )
-        for task in tasks:
-            _print_task_message(console, "Prioritized", target_date.isoformat(), task.text)
-        return 0
+        return _finish_task_mutation(
+            config,
+            target_date,
+            console,
+            deps,
+            [("Prioritized", target_date.isoformat(), task.text, "") for task in tasks],
+        )
 
     if args.command == "note":
         deps.add_note(config.root, target_date, args.text)
@@ -419,14 +480,34 @@ def _validated_style(value: str | None) -> str | None:
 
 
 def _print_task_message(
-    console: Console, action: str, date_label: str, text: str, suffix: str = ""
+    console: Console, action: str, _date_label: str, text: str, suffix: str = ""
 ) -> None:
-    """Print a consistently formatted confirmation for a task action."""
-    message = Text(f"{action} [{date_label}] ")
-    message.append(text)
+    """Print a compact, consistently styled confirmation banner."""
+    message = Text("✓ ", style="bold green")
+    message.append(action, style="bold")
+    message.append(f" “{text}”")
     if suffix:
-        message.append(suffix)
+        destination = suffix.removeprefix(" -> ")
+        message.append(f" → {destination}", style="dim")
     console.print(message)
+
+
+def _finish_task_mutation(
+    config: Any,
+    target_date: date,
+    console: Console,
+    deps: HandlerDeps,
+    messages: list[tuple[str, str, str, str]],
+) -> int:
+    """Confirm a successful task change and refresh interactive terminals."""
+    if console.is_terminal:
+        console.clear()
+    for action, date_label, text, suffix in messages:
+        _print_task_message(console, action, date_label, text, suffix=suffix)
+    if not console.is_terminal:
+        return 0
+    list_args = type("ListArgs", (), {"future": False, "tag": None})()
+    return _handle_list(list_args, config, target_date, console, deps)
 
 
 TASK_ID_RE = re.compile(r"^\d+(?:[a-z]|[a-z]\.[a-z])?$")
@@ -529,35 +610,6 @@ def choose_tag_style_interactive(
             else:
                 continue
             screen.update(render_tag_style_picker(tag, selected_index, current_style))
-
-
-def read_picker_key() -> str:
-    """Read one raw terminal key, translating arrows and vim keys to actions."""
-    fd = sys.stdin.fileno()
-    original = termios.tcgetattr(fd)
-    try:
-        tty.setraw(fd)
-        first = os.read(fd, 1)
-        if first in {b"\r", b"\n"}:
-            return "enter"
-        if first in {b"k"}:
-            return "up"
-        if first in {b"j"}:
-            return "down"
-        if first in {b"q"}:
-            return "quit"
-        if first == b"\x1b":
-            second = os.read(fd, 1)
-            if second == b"[":
-                third = os.read(fd, 1)
-                if third == b"A":
-                    return "up"
-                if third == b"B":
-                    return "down"
-            return "escape"
-        return ""
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, original)
 
 
 def is_valid_style(style: str) -> bool:

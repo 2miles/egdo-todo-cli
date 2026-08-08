@@ -11,6 +11,7 @@ from egdo.config import CONFIG_PATH, load_config, save_config, write_config
 from egdo.dates import parse_future_date as _parse_future_date
 from egdo.handlers import HandlerDeps
 from egdo.handlers import dispatch_command
+from egdo.interactive import prompt_add_form, prompt_done_form
 from egdo.store import (
     add_note,
     complete_tasks,
@@ -75,9 +76,10 @@ def build_parser() -> argparse.ArgumentParser:
     add_parser = subparsers.add_parser(
         "add",
         help="Add a task",
-        description="Add a task to today's rolling list.",
+        description="Add a task, or omit the text to open an interactive form.",
         epilog=(
-            'Examples:\n  egdo add "Buy milk"\n'
+            "Examples:\n  egdo add\n"
+            '  egdo add "Buy milk"\n'
             '  egdo add -t chores -t home "Do laundry"\n'
             '  egdo add -p high -t work "Submit application"\n'
             '  egdo add --parent 6 "Add tests"\n'
@@ -87,7 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    add_parser.add_argument("text", help="Task text to add")
+    add_parser.add_argument("text", nargs="?", help="Task text; omit to open the add form")
     add_parser.add_argument(
         "-t",
         "--tag",
@@ -131,11 +133,13 @@ def build_parser() -> argparse.ArgumentParser:
     done_parser = subparsers.add_parser(
         "done",
         help="Complete a task",
-        description="Mark a task complete using the index shown by `egdo list`.",
-        epilog="Examples:\n  egdo done 1\n  egdo done 1 3 12",
+        description="Complete task IDs, or omit them to open an interactive form.",
+        epilog="Examples:\n  egdo done\n  egdo done 1\n  egdo done 1 3 12",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    done_parser.add_argument("indexes", nargs="+", help="Task ID(s) from `egdo list`")
+    done_parser.add_argument(
+        "indexes", nargs="*", help="Task ID(s); omit to open the completion form"
+    )
 
     edit_parser = subparsers.add_parser(
         "edit",
@@ -279,6 +283,8 @@ def main(argv: list[str] | None = None) -> int:
             list_task_refs=list_task_refs,
             move_tasks=move_tasks,
             parse_future_date=_parse_future_date,
+            prompt_add_form=prompt_add_form,
+            prompt_done_form=prompt_done_form,
             prioritize_tasks=prioritize_tasks,
             render_list_header=_render_list_header,
             render_priority_style_picker=_render_priority_style_picker,

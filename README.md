@@ -72,6 +72,7 @@ That stores files under:
 Common commands:
 
 ```bash
+egdo add
 egdo add "Buy milk"
 egdo add -t chores -t home "Do the dishes"
 egdo add -p high -t work "Submit application"
@@ -99,6 +100,20 @@ egdo color --tag career --copy-from work
 ```
 
 Running `egdo` with no command is the same as `egdo list`.
+
+Running `egdo add` without task text opens an interactive form for the description,
+existing or new tags, priority, and schedule. The pickers use arrow or Vim navigation,
+Space to toggle tags, and Enter to continue. Supplying task text keeps the immediate
+one-line behavior used by scripts and quick entry.
+
+Running `egdo done` without IDs opens a completion form showing the current global task
+IDs. Use arrow keys or j/k to move, Space to select, and Enter to complete; direct
+`egdo done ID...` usage remains available.
+
+After a successful task mutation in an interactive terminal, egdo clears the screen,
+shows a confirmation at the top, and redraws the current list. This applies to `add`,
+`done`, `edit`, `move`, `unmove`, `delete`, `tag`, and `priority`. Redirected and piped
+output keeps the compact confirmation-only behavior.
 
 `egdo list` groups tasks as `Today`, `Old`, and `Future` using one continuous set of indexes. Normal commands such as `done`, `delete`, `move`, `tag`, `priority`, and `edit` automatically operate on the selected task regardless of its group.
 

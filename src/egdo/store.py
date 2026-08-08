@@ -35,13 +35,23 @@ def add_task(notes_dir: Path, target_date: date, text: str) -> Task:
 
 
 def create_task(
-    notes_dir: Path, target_date: date, text: str, done: bool, parent: str | None = None
+    notes_dir: Path,
+    target_date: date,
+    text: str,
+    done: bool,
+    parent: str | None = None,
+    scheduled_date: date | None = None,
 ) -> Task:
     """Roll unfinished work forward, then append a task to the target day."""
     rollover(notes_dir, target_date)
-    path = file_path(notes_dir, target_date)
+    scheduled = scheduled_date or target_date
+    if scheduled < target_date:
+        raise ValueError("Task schedule cannot be before its creation date")
+    if parent is not None and scheduled != target_date:
+        raise ValueError("A new subtask must use its parent's schedule")
+    path = file_path(notes_dir, scheduled)
     state = ensure_state(path)
-    day = state.days.setdefault(target_date, DayState())
+    day = state.days.setdefault(scheduled, DayState())
     task = Task(text=text, created=target_date, done=done)
     if parent is None:
         day.tasks.append(task)

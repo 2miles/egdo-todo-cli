@@ -4,6 +4,10 @@
 
 Running `egdo` with no command is a shortcut for `egdo list`.
 
+Successful task-changing commands clear and redraw the current list when run in an
+interactive terminal, with the confirmation shown above it. Piped or redirected output
+is not cleared and receives only the confirmation line(s).
+
 ## `egdo init`
 
 Creates the config file at:
@@ -27,6 +31,7 @@ Arguments:
 Add a task to today’s active list.
 
 ```bash
+egdo add
 egdo add "Call dentist"
 egdo add -t chores -t home "Do the dishes"
 egdo add -p high -t work "Submit application"
@@ -39,6 +44,10 @@ egdo add --done "Call dad"
 ```
 
 - uses today by default
+- when task text is omitted, opens an interactive form for text, tags, priority, and schedule
+- the form uses arrow or Vim navigation; Space toggles tags and Enter confirms a screen
+- No tags is explicit and mutually exclusive with selected tags; pressing n creates a tag
+- the form accepts `today`, `tomorrow`, `+N`, weekdays, and `YYYY-MM-DD` schedules
 - creates the monthly file and day section if they do not exist
 - first performs rollover for unfinished tasks from the most recent earlier day
 - `-t` or `--tag` can be repeated to prepend tags without typing tag syntax yourself
@@ -129,11 +138,13 @@ egdo priority 3 none
 Mark one or more numbered active tasks complete in today’s file.
 
 ```bash
+egdo done
 egdo done 1
 egdo done 1 3 12
 ```
 
 - uses today by default
+- without IDs, opens a multi-select picker using arrows or j/k, Space, and Enter
 - completes by the numeric index shown in `egdo list`
 - resolves all indexes before marking anything complete, so later indexes do not shift when completing multiple tasks
 - keeps the completed task in that day’s file as part of the archive

@@ -64,6 +64,19 @@ number if you have added, completed, moved, or deleted tasks since you last view
 
 ## Adding Tasks
 
+Open the guided add form:
+
+```bash
+egdo add
+```
+
+After the task-text prompt, full-screen pickers handle tags, priority, and scheduling.
+Use Up/Down or j/k to move and Enter to confirm. In the tag picker, Space toggles the
+current tag and n creates a new one. No tags is an explicit default choice: selecting a
+real tag turns it off, and clearing the last tag turns it back on. Priority defaults to
+none and scheduling defaults to today. The custom schedule option accepts `tomorrow`,
+`+3`, weekday names, and `YYYY-MM-DD` dates. Press q or Escape to cancel a picker.
+
 Add a plain task:
 
 ```bash
@@ -109,9 +122,14 @@ Using `-p` and `-t` is usually easier and avoids formatting mistakes.
 Complete one task or several tasks at once:
 
 ```bash
+egdo done
 egdo done 3
 egdo done 1 3 12
 ```
+
+With no IDs, `egdo done` opens a multi-select picker containing the global task list.
+Use Up/Down or j/k to move, Space to toggle, Enter to complete, and q or Escape to
+cancel. Selecting a parent visibly selects its descendants through cascading behavior.
 
 Completed tasks remain in the Markdown archive. They can be viewed with:
 
