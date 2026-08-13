@@ -18,7 +18,7 @@ class AddFormResult:
     """Values collected by the interactive add form."""
 
     text: str
-    tags: list[str]
+    tag: str | None
     priority: str | None
     scheduled: date
 
@@ -113,8 +113,9 @@ def prompt_add_form(
     today: date,
     console: Console,
     parse_future_date: Callable[[str, date], date],
-    initial_tags: list[str] | None = None,
+    initial_tag: str | None = None,
     initial_priority: str | None = None,
+    known_tags: list[str] | None = None,
 ) -> AddFormResult | None:
     """Collect task text, tags, priority, and schedule from a terminal."""
     if not sys.stdin.isatty():
@@ -123,8 +124,8 @@ def prompt_add_form(
     console.print(Text("\nAdd a task", style="bold"))
     console.print(Text("─" * 32, style="dim"))
     text = _prompt_required(console, "Task")
-    tags = _choose_tags(console, config.tag_colors, initial_tags or [])
-    if tags is None:
+    tag = _choose_tag(console, known_tags or [], initial_tag)
+    if tag is _CANCELED:
         return None
     priority = _choose_priority(console, initial_priority)
     if priority is _CANCELED:
@@ -132,7 +133,7 @@ def prompt_add_form(
     scheduled = _choose_schedule(console, today, parse_future_date)
     if scheduled is None:
         return None
-    return AddFormResult(text, tags, priority, scheduled)
+    return AddFormResult(text, tag, priority, scheduled)
 
 
 def _prompt_required(console: Console, label: str) -> str:
@@ -146,25 +147,25 @@ def _prompt_required(console: Console, label: str) -> str:
 _CANCELED = object()
 
 
-def _choose_tags(
-    console: Console, tag_styles: dict[str, str], initial: list[str]
-) -> list[str] | None:
-    tags = sorted(set(tag_styles) | {tag.lower() for tag in initial})
-    selected = {tag.lower() for tag in initial}
+def _choose_tag(
+    console: Console, known_tags: list[str], initial: str | None
+) -> str | None | object:
+    tags = sorted({tag.lower() for tag in known_tags} | ({initial.lower()} if initial else set()))
+    selected = initial.lower() if initial else None
     cursor = 0
     while True:
-        result = _run_tag_picker(console, tags, selected, cursor, tag_styles)
+        result = _run_tag_picker(console, tags, selected, cursor)
         if result[0] == "cancel":
-            return None
+            return _CANCELED
         if result[0] == "done":
-            return [tag for tag in tags if tag in selected]
+            return selected
         if result[0] == "new":
             new_tag = console.input("New tag: ").strip().strip("{}").strip().lower()
             if new_tag:
                 if new_tag not in tags:
                     tags.append(new_tag)
                     tags.sort()
-                selected.add(new_tag)
+                selected = new_tag
                 cursor = tags.index(new_tag) + 1
             continue
         _, cursor = result
@@ -173,32 +174,31 @@ def _choose_tags(
 def _run_tag_picker(
     console: Console,
     tags: list[str],
-    selected: set[str],
+    selected: str | None,
     cursor: int,
-    tag_styles: dict[str, str],
 ) -> tuple[str, int]:
     item_count = len(tags) + 2
     with console.screen(hide_cursor=True) as screen:
         while True:
             rows = [
-                Text("Choose tags", style="bold"),
-                Text("Up/down or j/k, Space to toggle, n for new, Enter to continue.", style="dim"),
+                Text("Choose a tag", style="bold"),
+                Text("Up/down or j/k, Space to select, n for new, Enter to continue.", style="dim"),
                 Text(""),
             ]
-            labels = ["No tags", *tags, "Create a new tag…"]
+            labels = ["No tag", *tags, "Create a new tag…"]
             for index, label in enumerate(labels):
                 row = Text("> " if index == cursor else "  ", style="bold" if index == cursor else "dim")
                 if index == 0:
-                    checked = not selected
+                    checked = selected is None
                 elif index == len(labels) - 1:
                     row.append("[+] ", style="cyan")
                     row.append(label)
                     rows.append(row)
                     continue
                 else:
-                    checked = label in selected
+                    checked = label == selected
                 row.append("[x] " if checked else "[ ] ", style="green" if checked else "dim")
-                row.append(label, style=tag_styles.get(label) if index else None)
+                row.append(label.upper() if index else label, style="dim cyan" if index else None)
                 rows.append(row)
             screen.update(Group(*rows))
             key = read_picker_key()
@@ -210,10 +210,9 @@ def _run_tag_picker(
                 return (("new", cursor))
             elif key == "toggle":
                 if cursor == 0:
-                    selected.clear()
+                    selected = None
                 else:
-                    tag = tags[cursor - 1]
-                    selected.remove(tag) if tag in selected else selected.add(tag)
+                    selected = tags[cursor - 1]
             elif key == "enter":
                 return (("done", cursor))
             elif key in {"escape", "quit"}:
@@ -221,12 +220,12 @@ def _run_tag_picker(
 
 
 def _choose_priority(console: Console, initial: str | None) -> str | None | object:
-    values = ["low", "normal", "high", "critical"]
-    labels = ["Low", "Normal", "High", "Critical"]
+    values = ["normal", "important"]
+    labels = ["Normal", "Important"]
     selected = 0
     if initial is not None:
         priority = normalize_priority(initial)
-        selected = {4: 0, 3: 1, 2: 2, 1: 3}[priority]
+        selected = 1 if priority else 0
     choice = _run_single_picker(console, "Choose priority", labels, selected)
     return _CANCELED if choice is None else values[choice]
 

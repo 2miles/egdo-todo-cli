@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 import sys
 
-from egdo.config import CONFIG_PATH, load_config, save_config, write_config
+from egdo.config import CONFIG_PATH, load_config, write_config
 from egdo.dates import parse_future_date as _parse_future_date
 from egdo.handlers import HandlerDeps
 from egdo.handlers import dispatch_command
@@ -27,9 +27,8 @@ from egdo.store import (
     unmove_tasks,
 )
 from egdo.render import render_list_header as _render_list_header
-from egdo.render import render_priority_style_picker as _render_priority_style_picker
 from egdo.render import render_separator as _render_separator
-from egdo.render import render_tag_style_picker as _render_tag_style_picker
+from egdo.render import render_section_header as _render_section_header
 from egdo.render import render_task_line as _render_task_line
 from egdo.render import task_wrap_width as _task_wrap_width
 from rich.console import Console
@@ -46,12 +45,11 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Examples:\n"
             "  egdo\n"
-            '  egdo add -p high -t work "Submit application"\n'
+            '  egdo add -p important -t work "Submit application"\n'
             '  egdo add --parent 6 "Add tests"\n'
             "  egdo done 1 3\n"
             "  egdo move 2 5 tomorrow\n"
-            "  egdo priority 4 high\n"
-            "  egdo color --tag work\n\n"
+            "  egdo priority 4 important\n\n"
             "Run `egdo COMMAND --help` for command-specific usage."
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
@@ -80,11 +78,11 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Examples:\n  egdo add\n"
             '  egdo add "Buy milk"\n'
-            '  egdo add -t chores -t home "Do laundry"\n'
-            '  egdo add -p high -t work "Submit application"\n'
+            '  egdo add -t chores "Do laundry"\n'
+            '  egdo add -p important -t work "Submit application"\n'
             '  egdo add --parent 6 "Add tests"\n'
             '  egdo add "{CHORES} Do laundry"\n'
-            '  egdo add --done -t car -t errands "Call the DMV"\n'
+            '  egdo add --done -t errands "Call the DMV"\n'
             '  egdo add --done "Call dad"'
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
@@ -93,14 +91,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_parser.add_argument(
         "-t",
         "--tag",
-        action="append",
-        default=[],
-        help="Add a leading tag. Repeat for multiple tags.",
+        help="Set the task's tag",
     )
     add_parser.add_argument(
         "-p",
         "--priority",
-        help="Set priority: 1/critical, 2/high, 3/normal, or 4/low",
+        help="Set priority: important or normal",
     )
     add_parser.add_argument("--done", action="store_true", help="Create the task already completed")
     add_parser.add_argument("--parent", help="Parent task ID, such as 6 or 6a")
@@ -191,32 +187,32 @@ def build_parser() -> argparse.ArgumentParser:
 
     tag_parser = subparsers.add_parser(
         "tag",
-        help="Add or remove task tags",
-        description="Add or remove tags from one or more tasks using their global indexes.",
+        help="Set or remove a task tag",
+        description="Set or remove the tag on one or more tasks using their global indexes.",
         epilog=(
             "Examples:\n"
-            "  egdo tag 3 chores home\n"
-            "  egdo tag 1 6 7 chores home\n"
-            "  egdo tag 3 6 7 --remove work"
+            "  egdo tag 3 chores\n"
+            "  egdo tag 1 6 7 work\n"
+            "  egdo tag 3 6 7 --remove"
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     tag_parser.add_argument(
         "values",
         nargs="+",
-        help="Task numbers followed by tags to add; with --remove, task numbers only",
+        help="Task numbers followed by one tag; with --remove, task numbers only",
     )
-    tag_parser.add_argument("--remove", nargs="+", metavar="TAG", help="Remove tag(s)")
+    tag_parser.add_argument("--remove", action="store_true", help="Remove the current tag")
 
     priority_parser = subparsers.add_parser(
         "priority",
         help="Set a task's priority",
         description="Set priority using the index shown by `egdo list`.",
-        epilog="Examples:\n  egdo priority 1 6 7 high\n  egdo priority 3 low",
+        epilog="Examples:\n  egdo priority 1 6 7 important\n  egdo priority 3 normal",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     priority_parser.add_argument("indexes", nargs="+", help="Task ID(s) from `egdo list`")
-    priority_parser.add_argument("level", help="1/critical, 2/high, 3/normal, or 4/low")
+    priority_parser.add_argument("level", help="important or normal")
 
     note_parser = subparsers.add_parser(
         "note",
@@ -226,35 +222,6 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     note_parser.add_argument("text", help="Note text to append")
-
-    color_parser = subparsers.add_parser(
-        "color",
-        help="Set a tag or priority color",
-        description="Set the terminal style used for a tag or priority. Defaults to an interactive picker.",
-        epilog=(
-            "Examples:\n"
-            "  egdo color --tag chores\n"
-            "  egdo color --tag chores --style green_yellow\n"
-            "  egdo color --tag chores home --style green_yellow\n"
-            "  egdo color --tag career --copy-from work\n"
-            '  egdo color --priority high --style "bold orange1"\n\n'
-            "Rich color reference:\n"
-            "  https://rich.readthedocs.io/en/stable/appendix/colors.html"
-        ),
-        formatter_class=RawDescriptionRichHelpFormatter,
-    )
-    color_target = color_parser.add_mutually_exclusive_group(required=True)
-    color_target.add_argument("--tag", nargs="+", help="Tag name(s) to style")
-    color_target.add_argument(
-        "--priority", nargs="+", help="Priorities to style: 1/critical, 2/high, 3/normal, or 4/low"
-    )
-    color_value = color_parser.add_mutually_exclusive_group()
-    color_value.add_argument("--style", help="Rich style name to save without opening the picker")
-    color_value.add_argument(
-        "--copy-from",
-        metavar="TAG",
-        help="Copy the saved style from another tag (tag targets only)",
-    )
 
     return parser
 
@@ -287,11 +254,9 @@ def main(argv: list[str] | None = None) -> int:
             prompt_done_form=prompt_done_form,
             prioritize_tasks=prioritize_tasks,
             render_list_header=_render_list_header,
-            render_priority_style_picker=_render_priority_style_picker,
             render_separator=_render_separator,
-            render_tag_style_picker=_render_tag_style_picker,
+            render_section_header=_render_section_header,
             render_task_line=_render_task_line,
-            save_config=save_config,
             tag_tasks=tag_tasks,
             task_wrap_width=_task_wrap_width,
             untag_tasks=untag_tasks,

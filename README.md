@@ -19,8 +19,8 @@ In practice:
 - each month has one markdown file
 - each day is a section inside that file
 - notes live alongside tasks for the same day
-- tags use leading brace groups such as `{CHORES}` or `{HOME}`
-- tag colors stay stable in the terminal once assigned
+- a tag uses one leading brace group such as `{CHORES}` or `{HOME}`
+- tags appear as subdued uppercase labels in terminal lists
 
 The result is a todo list that stays lightweight without throwing away history.
 
@@ -74,11 +74,11 @@ Common commands:
 ```bash
 egdo add
 egdo add "Buy milk"
-egdo add -t chores -t home "Do the dishes"
-egdo add -p high -t work "Submit application"
+egdo add -t chores "Do the dishes"
+egdo add -p important -t work "Submit application"
 egdo add --parent 1 "Add tests"
 egdo add --parent 1a "Test missing values"
-egdo add --done -t car -t errands "Call the DMV"
+egdo add --done -t errands "Call the DMV"
 egdo
 egdo list -t chores
 egdo finished
@@ -89,21 +89,18 @@ egdo edit 2 "Buy oat milk"
 egdo move 1 6 7 tomorrow
 egdo unmove 1
 egdo delete 1 6 7
-egdo tag 1 6 7 chores home
-egdo tag 3 6 7 --remove work
-egdo priority 1 6 7 high
-egdo priority 3 critical
+egdo tag 1 6 7 chores
+egdo tag 3 6 7 --remove
+egdo priority 1 6 7 important
+egdo priority 3 normal
 egdo note "Need to test villager trading setup"
-egdo color --tag chores
-egdo color --tag chores home --style blue
-egdo color --tag career --copy-from work
 ```
 
 Running `egdo` with no command is the same as `egdo list`.
 
 Running `egdo add` without task text opens an interactive form for the description,
-existing or new tags, priority, and schedule. The pickers use arrow or Vim navigation,
-Space to toggle tags, and Enter to continue. Supplying task text keeps the immediate
+an existing or new tag, priority, and schedule. The pickers use arrow or Vim navigation,
+Space to select a tag, and Enter to continue. Supplying task text keeps the immediate
 one-line behavior used by scripts and quick entry.
 
 Running `egdo done` without IDs opens a completion form showing the current global task
@@ -115,17 +112,17 @@ shows a confirmation at the top, and redraws the current list. This applies to `
 `done`, `edit`, `move`, `unmove`, `delete`, `tag`, and `priority`. Redirected and piped
 output keeps the compact confirmation-only behavior.
 
-`egdo list` groups tasks as `Today`, `Carried forward`, and `Upcoming` using one continuous set of indexes. Normal commands such as `done`, `delete`, `move`, `tag`, `priority`, and `edit` automatically operate on the selected task regardless of its group.
+`egdo list` groups tasks as `Today`, `Carried forward`, and scheduled future dates using one continuous set of indexes. Carried-forward tasks are ordered by creation date, newest first, while tasks from the same date retain their existing order. Normal commands such as `done`, `delete`, `move`, `tag`, `priority`, and `edit` automatically operate on the selected task regardless of its group.
 
 `egdo list --future` provides an optional future-only view while preserving the same global indexes shown by the main list.
 
-You can create tags either from the CLI with repeated `-t` or `--tag` flags or by typing leading brace tags directly in the markdown, such as `{CHORES} {HOME} Do the dishes`.
+Each task may have zero or one tag. Create it with `-t`/`--tag` or type one leading brace tag directly in Markdown, such as `{CHORES} Do the dishes`. Only the first leading brace group is treated as a tag; later brace groups are ordinary task text. Running `egdo tag IDS TAG` replaces the selected tasks' existing tag; `egdo tag IDS --remove` clears it.
 
 Tasks may be nested three levels deep. Child IDs use letters (`1a`, `1b`) and grandchildren use dotted letters (`1a.a`). Actions on a parent cascade to its descendants, except `edit`, which changes only the selected task's text.
 
-Priorities use `!P1!` through `!P4!` in Markdown. New tasks default to P4 (`low`). Choose another level with `-p` or `--priority`, using `1`/`critical`, `2`/`high`, `3`/`normal`, or `4`/`low`.
+Priority is binary: a leading `!` in Markdown marks a task as important, while no marker means normal. Use `-p important` when adding a task or `egdo priority ID important`; use `normal` to remove the marker.
 
-In terminal lists, egdo renders priority with a compact marker: `●` for P1, `◆` for P2, `•` for P3, and `·` for P4. Manually written tasks without an explicit priority are treated as low.
+Terminal lists show an uncolored `●` for important tasks and leave the priority column empty for normal tasks.
 
 For a practical walkthrough and cheat sheet, see [The Complete egdo Guide](docs/guide.md).
 For every command and argument, see the [command reference](docs/command-reference.md).
@@ -151,7 +148,7 @@ Each day is a section in that month file:
 
 ### Tasks
 
-- [ ] !P2! {CHORES} Buy milk (04-05)
+- [ ] ! {CHORES} Buy milk (04-05)
 
 ### Notes
 
@@ -168,8 +165,8 @@ You can safely:
 
 - change task text in a day’s `### Tasks` section
 - add simple checklist items in a `### Tasks` section
-- create tags by typing leading brace groups such as `{CHORES}` or `{HOME}`
-- add or change priority by typing a leading marker such as `!P1!`
+- create a tag by typing one leading brace group such as `{CHORES}` or `{HOME}`
+- mark a task important by typing a leading `!`
 - edit or add text in a day’s `### Notes` section
 - open and edit the files directly in any text editor
 
@@ -194,46 +191,9 @@ Minimal example:
 root = "/path/to/egdo"
 ```
 
-Tag colors are stored in the same file:
-
-```toml
-[tag_colors]
-chores = "blue"
-important = "bold red"
-```
-
-Optional tag levels keep broad and specific tags in a consistent order:
-
-```toml
-[tag_levels]
-projects = 1
-egdo = 2
-photos = 2
-activity-archive = 2
-```
-
-Lower levels appear first, so both `{EGDO} {PROJECTS}` and `{PROJECTS} {EGDO}`
-normalize to `{PROJECTS} {EGDO}`. Tags at the same level keep their existing order;
-unconfigured tags use level 100. Levels affect ordering only, not which tags may coexist.
-
-Priority styles use a separate table:
-
-```toml
-[priority_styles]
-p1 = "bold white on red"
-p2 = "bold orange1"
-p3 = "yellow"
-p4 = "grey50"
-```
-
-Each setting styles the compact marker shown for that priority level.
-
-If you prefer not to edit that by hand, use:
-
-```bash
-egdo color --tag chores
-egdo color --priority high --style "bold orange1"
-```
+Terminal lists render the tag as an uppercase, dim cyan label without the Markdown braces.
+The tag column has a fixed width; long labels are shortened with an ellipsis for display
+without changing the full tag stored in Markdown.
 
 ## Development
 

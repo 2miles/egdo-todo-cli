@@ -14,9 +14,6 @@ from egdo.markdown_store import (
     format_task_text,
     is_month_file,
     normalize_priority,
-    normalize_tags,
-    order_tags,
-    order_tags_in_text,
     split_task_prefix,
     task_identifiers,
     write_state,
@@ -45,6 +42,8 @@ def create_task(
     scheduled_date: date | None = None,
 ) -> Task:
     """Roll unfinished work forward, then append a task to the target day."""
+    important, tag, body = split_task_prefix(text)
+    text = format_task_text(important, tag, body)
     rollover(notes_dir, target_date)
     scheduled = scheduled_date or target_date
     if scheduled < target_date:
@@ -91,7 +90,7 @@ def add_note(notes_dir: Path, target_date: date, text: str) -> list[str]:
 
 
 def list_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> list[Task]:
-    """Return today's incomplete tasks after rollover, newest work before carried work."""
+    """Return today's work followed by carried work in reverse chronological order."""
     rollover(notes_dir, target_date)
     state = ensure_state(file_path(notes_dir, target_date))
     day = state.days.get(target_date)
@@ -133,28 +132,17 @@ def list_future_tasks(
             for task in day.tasks:
                 if task.done:
                     continue
-                if normalized_tag is not None and normalized_tag not in task.tags:
+                if normalized_tag is not None and normalized_tag != task.tag:
                     continue
                 future_tasks.append((day_date, task))
     return future_tasks
 
 
-def list_task_refs(
-    notes_dir: Path, target_date: date, tag_levels: dict[str, int] | None = None
-) -> list[TaskRef]:
+def list_task_refs(notes_dir: Path, target_date: date) -> list[TaskRef]:
     """Create the single active-then-future sequence used by every task index."""
     pairs = [(target_date, task) for task in list_tasks(notes_dir, target_date)]
     pairs.extend(list_future_tasks(notes_dir, target_date))
     refs = _identify_task_refs(pairs)
-    if tag_levels:
-        changed = [ref for ref in refs if order_tags_in_text(ref.task.text, tag_levels) != ref.task.text]
-        if changed:
-            _mutate_refs(
-                notes_dir,
-                changed,
-                lambda task: setattr(task, "text", order_tags_in_text(task.text, tag_levels)),
-                cascade=False,
-            )
     return refs
 
 
@@ -191,13 +179,11 @@ def edit_task(
     target_date: date,
     index: str | int,
     text: str,
-    tag_levels: dict[str, int] | None = None,
 ) -> Task:
     """Replace task text while retaining scheduling and creation dates."""
     ref = _select_task_refs(notes_dir, target_date, [index])[0]
-    ordered_text = order_tags_in_text(text, tag_levels)
     _mutate_refs(
-        notes_dir, [ref], lambda task: setattr(task, "text", ordered_text), cascade=False
+        notes_dir, [ref], lambda task: setattr(task, "text", text), cascade=False
     )
     return ref.task
 
@@ -232,29 +218,27 @@ def unmove_tasks(notes_dir: Path, target_date: date, indexes: list[str | int]) -
     return [ref.task for ref in refs]
 
 
-def tag_task(notes_dir: Path, target_date: date, index: str | int, tags: list[str]) -> Task:
-    return tag_tasks(notes_dir, target_date, [index], tags)[0]
+def tag_task(notes_dir: Path, target_date: date, index: str | int, tag: str) -> Task:
+    return tag_tasks(notes_dir, target_date, [index], tag)[0]
 
 
 def tag_tasks(
     notes_dir: Path,
     target_date: date,
     indexes: list[str | int],
-    tags: list[str],
-    tag_levels: dict[str, int] | None = None,
+    tag: str,
 ) -> list[Task]:
-    """Add normalized unique tags while preserving priority and task body."""
-    normalized_tags = normalize_tags(tags)
-    if not normalized_tags:
-        raise ValueError("At least one non-empty tag is required")
+    """Set one tag on each selected task, replacing any existing tag."""
+    normalized_tag = tag.strip().strip("{}").strip().lower()
+    if not normalized_tag:
+        raise ValueError("Tag cannot be empty")
     refs = _select_task_refs(notes_dir, target_date, indexes)
 
-    def add_tags(task: Task) -> None:
-        priority, existing, body = split_task_prefix(task.text)
-        merged = existing + [tag for tag in normalized_tags if tag not in existing]
-        task.text = format_task_text(priority, order_tags(merged, tag_levels), body)
+    def set_tag(task: Task) -> None:
+        priority, _, body = split_task_prefix(task.text)
+        task.text = format_task_text(priority, normalized_tag, body)
 
-    _mutate_refs(notes_dir, refs, add_tags)
+    _mutate_refs(notes_dir, refs, set_tag)
     return [ref.task for ref in refs]
 
 
@@ -262,19 +246,13 @@ def untag_tasks(
     notes_dir: Path,
     target_date: date,
     indexes: list[str | int],
-    tags: list[str],
-    tag_levels: dict[str, int] | None = None,
 ) -> list[Task]:
-    """Remove matching tags while preserving priority and unrelated tags."""
-    normalized_tags = normalize_tags(tags)
-    if not normalized_tags:
-        raise ValueError("At least one non-empty tag is required")
+    """Remove the tag from each selected task."""
     refs = _select_task_refs(notes_dir, target_date, indexes)
 
     def remove_tags(task: Task) -> None:
-        priority, existing, body = split_task_prefix(task.text)
-        remaining = [tag for tag in existing if tag not in normalized_tags]
-        task.text = format_task_text(priority, order_tags(remaining, tag_levels), body)
+        priority, _, body = split_task_prefix(task.text)
+        task.text = format_task_text(priority, None, body)
 
     _mutate_refs(notes_dir, refs, remove_tags)
     return [ref.task for ref in refs]
@@ -287,15 +265,14 @@ def prioritize_task(notes_dir: Path, target_date: date, index: str | int, priori
 def prioritize_tasks(
     notes_dir: Path, target_date: date, indexes: list[str | int], priority: str | int
 ) -> list[Task]:
-    """Set priority on multiple globally indexed tasks, treating clear aliases as low."""
-    normalized = normalize_priority(priority, allow_none=True)
-    if normalized is None:
-        normalized = 4
+    """Mark multiple globally indexed tasks as important or normal."""
+    normalized = normalize_priority(priority)
+    assert normalized is not None
     refs = _select_task_refs(notes_dir, target_date, indexes)
 
     def set_priority(task: Task) -> None:
-        _, tags, body = split_task_prefix(task.text)
-        task.text = format_task_text(normalized, tags, body)
+        _, tag, body = split_task_prefix(task.text)
+        task.text = format_task_text(normalized, tag, body)
 
     _mutate_refs(notes_dir, refs, set_priority)
     return [ref.task for ref in refs]
@@ -437,7 +414,7 @@ def _move_refs(notes_dir: Path, refs: list[TaskRef], destination: date) -> None:
 
 
 def _active_tasks_for_list(day: DayState, target_date: date) -> list[Task]:
-    """Order incomplete tasks created today before carried-forward tasks."""
+    """Order today's tasks first, then carried work newest-first by creation date."""
     subtrees: list[list[Task]] = []
     for task in day.tasks:
         if task.depth == 0:
@@ -446,6 +423,7 @@ def _active_tasks_for_list(day: DayState, target_date: date) -> list[Task]:
             subtrees[-1].append(task)
     today = [tree for tree in subtrees if tree and tree[0].created == target_date]
     old = [tree for tree in subtrees if tree and tree[0].created != target_date]
+    old.sort(key=lambda tree: tree[0].created, reverse=True)
     return [task for tree in today + old for task in tree]
 
 
@@ -453,7 +431,7 @@ def _filter_tasks_by_tag(tasks: list[Task], tag: str | None) -> list[Task]:
     if tag is None:
         return tasks
     normalized_tag = tag.strip().lower()
-    return [task for task in tasks if normalized_tag in task.tags]
+    return [task for task in tasks if normalized_tag == task.tag]
 
 
 def _normalize_task_depths(tasks: list[Task]) -> None:

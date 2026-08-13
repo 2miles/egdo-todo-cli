@@ -75,7 +75,7 @@ class InteractiveTests(unittest.TestCase):
         self.assertEqual(selected, ["1"])
 
     def test_add_form_selects_existing_and_new_tags(self) -> None:
-        config = type("ConfigStub", (), {"tag_colors": {"work": "blue", "home": "green"}})()
+        config = type("ConfigStub", (), {})()
         console = Console(file=StringIO(), force_terminal=False, color_system=None)
 
         with (
@@ -94,22 +94,27 @@ class InteractiveTests(unittest.TestCase):
                     "new",
                     "enter",
                     "down",
-                    "down",
                     "enter",
                     "down",
                     "enter",
                 ],
             ),
         ):
-            result = prompt_add_form(config, date(2026, 7, 27), console, parse_future_date)
+            result = prompt_add_form(
+                config,
+                date(2026, 7, 27),
+                console,
+                parse_future_date,
+                known_tags=["work", "home"],
+            )
 
         self.assertEqual(result.text, "Submit application")
-        self.assertEqual(result.tags, ["career", "work"])
-        self.assertEqual(result.priority, "high")
+        self.assertEqual(result.tag, "career")
+        self.assertEqual(result.priority, "important")
         self.assertEqual(result.scheduled, date(2026, 7, 28))
 
     def test_add_form_uses_blank_defaults(self) -> None:
-        config = type("ConfigStub", (), {"tag_colors": {}})()
+        config = type("ConfigStub", (), {})()
         console = Console(file=StringIO(), force_terminal=False, color_system=None)
 
         with (
@@ -119,12 +124,12 @@ class InteractiveTests(unittest.TestCase):
         ):
             result = prompt_add_form(config, date(2026, 7, 27), console, parse_future_date)
 
-        self.assertEqual(result.tags, [])
-        self.assertEqual(result.priority, "low")
+        self.assertIsNone(result.tag)
+        self.assertEqual(result.priority, "normal")
         self.assertEqual(result.scheduled, date(2026, 7, 27))
 
     def test_no_tags_choice_clears_selected_tags(self) -> None:
-        config = type("ConfigStub", (), {"tag_colors": {"work": "blue"}})()
+        config = type("ConfigStub", (), {})()
         console = Console(file=StringIO(), force_terminal=False, color_system=None)
 
         with (
@@ -135,9 +140,15 @@ class InteractiveTests(unittest.TestCase):
                 side_effect=["down", "toggle", "up", "toggle", "enter", "enter", "enter"],
             ),
         ):
-            result = prompt_add_form(config, date(2026, 7, 27), console, parse_future_date)
+            result = prompt_add_form(
+                config,
+                date(2026, 7, 27),
+                console,
+                parse_future_date,
+                known_tags=["work"],
+            )
 
-        self.assertEqual(result.tags, [])
+        self.assertIsNone(result.tag)
 
 
 if __name__ == "__main__":

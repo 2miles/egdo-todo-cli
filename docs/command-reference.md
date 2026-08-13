@@ -33,26 +33,25 @@ Add a task to today’s active list.
 ```bash
 egdo add
 egdo add "Call dentist"
-egdo add -t chores -t home "Do the dishes"
-egdo add -p high -t work "Submit application"
+egdo add -t chores "Do the dishes"
+egdo add -p important -t work "Submit application"
 egdo add --parent 6 "Add tests"
 egdo add --parent 6a "Test missing values"
-egdo add --done -t car -t errands "Call the DMV"
+egdo add --done -t errands "Call the DMV"
 egdo add "{CHORES} Do the dishes"
-egdo add "{PERSONAL} {CHORES} {HOME} Do the dishes"
 egdo add --done "Call dad"
 ```
 
 - uses today by default
-- when task text is omitted, opens an interactive form for text, tags, priority, and schedule
-- the form uses arrow or Vim navigation; Space toggles tags and Enter confirms a screen
-- No tags is explicit and mutually exclusive with selected tags; pressing n creates a tag
+- when task text is omitted, opens an interactive form for text, one optional tag, priority, and schedule
+- the form uses arrow or Vim navigation; Space selects a tag and Enter confirms a screen
+- No tag is explicit and mutually exclusive with a selected tag; pressing n creates a tag
 - the form accepts `today`, `tomorrow`, `+N`, weekdays, and `YYYY-MM-DD` schedules
 - creates the monthly file and day section if they do not exist
 - first performs rollover for unfinished tasks from the most recent earlier day
-- `-t` or `--tag` can be repeated to prepend tags without typing tag syntax yourself
-- `-p` or `--priority` accepts `1`/`critical`, `2`/`high`, `3`/`normal`, or `4`/`low`
-- preserves any leading tag groups in the task body and normalizes touched tags to `{UPPERCASE}`
+- `-t` or `--tag` prepends one tag without requiring Markdown tag syntax
+- `-p` or `--priority` accepts `important` or `normal`
+- preserves one leading tag in the task body and normalizes it to `{UPPERCASE}`
 - `--done` creates the task already completed
 - `--parent ID` inserts a child beneath a task scheduled for today
 - nesting is limited to three total levels: `6`, `6a`, and `6a.a`
@@ -70,11 +69,11 @@ egdo list -t chores
 - running bare `egdo` is the same as `egdo list`
 - uses today by default
 - first performs rollover for unfinished tasks from the most recent earlier day
-- shows incomplete active tasks grouped as `Today` and `Carried forward`
+- shows incomplete active tasks grouped as `Today` and `Carried forward`; carried tasks are ordered by creation date, newest first
 - also shows future tasks grouped by scheduled date, with tomorrow labeled explicitly
 - `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
 - `--future` shows only tasks scheduled after today and can be combined with `--tag`
-- numbering continues across `Today`, `Carried forward`, and `Upcoming` without restarting
+- numbering continues across `Today`, `Carried forward`, and future date sections without restarting
 - normal `done`, `edit`, `move`, `delete`, `tag`, and `priority` commands automatically route each index to the correct group
 - `egdo list --future` is an optional filtered view that preserves the same global indexes
 
@@ -117,20 +116,18 @@ Thu, Apr 3rd
 
 ## `egdo priority`
 
-Set the priority of an active task. New tasks default to low priority.
+Mark active tasks as important or return them to normal. New tasks default to normal.
 
 ```bash
-egdo priority 3 critical
-egdo priority 1 6 7 high
-egdo priority 3 low
+egdo priority 3 important
+egdo priority 1 6 7 important
+egdo priority 3 normal
 ```
 
 - accepts one or more numeric indexes shown by `egdo list`
-- accepts `1`/`critical`, `2`/`high`, `3`/`normal`, and `4`/`low`
-- stores the priority as a leading plain-Markdown marker such as `!P1!`
-- renders priority with a compact marker: `●` (P1), `◆` (P2), `•` (P3), and `·` (P4)
-- displays manually written tasks without an explicit priority as low (`·`)
-- legacy `none`, `clear`, and `off` values reset the task to P4 (`low`)
+- `important` stores a leading `!` in Markdown
+- `normal` removes the priority marker
+- renders an uncolored `●` for important tasks and an empty priority column for normal tasks
 - the same command works for future tasks using their global indexes
 
 ## `egdo done`
@@ -212,20 +209,20 @@ egdo delete 1 6 7
 
 ## `egdo tag`
 
-Add one or more tags to one or more numbered active tasks in today’s file.
+Set, replace, or remove the tag on numbered active tasks in today’s file.
 
 ```bash
 egdo tag 3 chores
-egdo tag 3 chores home
-egdo tag 1 6 7 chores home
-egdo tag 3 6 7 --remove work
+egdo tag 1 6 7 chores
+egdo tag 3 6 7 --remove
 ```
 
 - uses today by default
-- reads leading numbers as task indexes and applies the remaining tags to all of them
-- `--remove TAG...` removes one or more tags from every selected task
-- stores tags as leading brace groups such as `{CHORES} {HOME}`
-- ignores duplicate tags and normalizes tag names case-insensitively
+- reads leading values as task indexes and the final value as one tag
+- setting a tag replaces any tag already on every selected task
+- `--remove` clears the tag from every selected task
+- stores the tag as one leading brace group such as `{CHORES}`
+- normalizes tag names case-insensitively
 
 ## `egdo note`
 
@@ -238,49 +235,6 @@ egdo note "Need to test villager trading setup"
 - uses today by default
 - creates the monthly file and day section if they do not exist
 - appends each new note as a new paragraph in that day’s Notes section
-
-## `egdo color`
-
-Set the terminal color for a tag or priority level.
-
-```bash
-egdo color --tag chores
-egdo color --tag chores --style green_yellow
-egdo color --tag chores home --style green_yellow
-egdo color --tag career --copy-from work
-egdo color --priority high --style "bold orange1"
-egdo color --priority high critical --style "bold red"
-```
-
-- requires either `--tag TAG...` or `--priority LEVEL...`
-- applies one `--style` value to every supplied tag or priority level
-- normalizes tag names to lowercase
-- opens an interactive up/down picker by default so you can see the available colors before saving
-- supports `j` and `k` in addition to the arrow keys
-- saves the selected Rich style in `[tag_colors]` in the config file
-- `--style` skips the picker and writes the provided Rich style directly
-- `--copy-from TAG` copies a saved tag style to one or more other tags
-- `--style` and `--copy-from` are mutually exclusive; `--copy-from` applies only to tags
-- priority levels accept the same numeric and named values as `egdo priority`
-- priority styles are saved as `p1` through `p4` in `[priority_styles]`
-- each priority setting controls the color of that level's compact marker
-
-Available Rich colors: https://rich.readthedocs.io/en/stable/appendix/colors.html
-
-If `[priority_styles]` is absent, egdo uses its built-in defaults.
-
-Optional tag ordering is configured directly in the config file; no additional `-t`
-syntax is required:
-
-```toml
-[tag_levels]
-projects = 1
-egdo = 2
-photos = 2
-```
-
-Lower levels appear first. Same-level tags retain their existing order, and unconfigured
-tags use level 100. Levels control order only and do not imply mutual exclusivity.
 
 ## Behavior Notes
 
@@ -307,11 +261,11 @@ Rollover is idempotent, so repeating `list` for the same day does not duplicate 
 
 ### Tags
 
-- leading brace groups are treated as tags for filtering
-- you can create tags either with `egdo add -t chores -t home "Task"` or by typing `{CHORES} {HOME} Task` directly in the markdown
-- `{PERSONAL} {CHORES} {HOME} Do the dishes` has tags `personal`, `chores`, and `home`
+- one leading brace group is treated as the task's tag for filtering
+- you can create a tag either with `egdo add -t chores "Task"` or by typing `{CHORES} Task` directly in Markdown
+- only the first leading brace group is a tag; later brace groups remain ordinary task text
 - braces later in the task text are treated as normal text
-- tag colors are assigned once and stored in config so they stay stable across lists
+- terminal lists show the tag without braces as an uppercase, dim cyan label in a fixed-width column; long labels are shortened only for display
 
 ### Normalization
 
