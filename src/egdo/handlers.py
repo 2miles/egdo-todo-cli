@@ -284,13 +284,19 @@ def _handle_list(args: Any, config: Any, target_date: date, console: Console, de
     if todays_tasks:
         console.print(Text("Today", style="bold"))
         _render_indexed_tasks(
-            console, deps, todays_tasks, tag_styles, priority_styles, wrap_width
+            console,
+            deps,
+            todays_tasks,
+            tag_styles,
+            priority_styles,
+            wrap_width,
+            show_created=False,
         )
         rendered_active_sections = True
     if old_tasks:
         if rendered_active_sections:
             console.print()
-        console.print(Text("Old", style="bold"))
+        console.print(Text("Carried forward", style="bold"))
         _render_indexed_tasks(console, deps, old_tasks, tag_styles, priority_styles, wrap_width)
         rendered_active_sections = True
     if future_tasks:
@@ -316,6 +322,7 @@ def _render_indexed_tasks(
     tag_styles: dict[str, str],
     priority_styles: dict[str, str],
     wrap_width: int,
+    show_created: bool = True,
 ) -> None:
     """Render tasks whose indexes were assigned before grouping or filtering."""
     for index, task in tasks:
@@ -328,6 +335,7 @@ def _render_indexed_tasks(
                 wrap_width=wrap_width,
                 priority_styles=priority_styles,
                 depth=getattr(task, "depth", 0),
+                show_created=show_created,
             )
         )
 
@@ -406,13 +414,14 @@ def _render_future_groups(
                 tag_styles,
                 wrap_width=wrap_width,
                 priority_styles=priority_styles,
+                show_created=False,
             )
         )
 
 
 def _render_future_divider(width: int) -> Text:
     """Build the labeled rule separating active work from future work."""
-    label = " Future "
+    label = " Upcoming "
     line_width = max(len(label) + 2, width)
     left = 2
     right = line_width - left - len(label)

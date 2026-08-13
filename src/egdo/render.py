@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import textwrap
 
-from egdo.dates import format_display_date, ordinal_suffix
 from rich.console import Console, Group
 from rich.text import Text
 
@@ -12,12 +11,12 @@ from egdo.markdown_store import split_task_prefix
 
 HEADER_DATE_STYLE = "bold cyan"
 SEPARATOR_STYLE = "dim"
-PRIORITY_MARKERS = {1: "!!!", 2: ".!!", 3: "..!", 4: "..."}
+PRIORITY_MARKERS = {1: "●", 2: "◆", 3: "•", 4: "·"}
 INDEX_COLUMN_WIDTH = 7
 DEFAULT_PRIORITY_STYLES = {
-    "p1": "bold white on red",
-    "p2": "bold orange1",
-    "p3": "yellow",
+    "p1": "bold red",
+    "p2": "yellow",
+    "p3": "cyan",
     "p4": "grey50",
 }
 
@@ -56,7 +55,7 @@ TAG_STYLES = (
 
 def render_list_header(target_date) -> Text:
     header = Text()
-    header.append(format_display_date(target_date), style=HEADER_DATE_STYLE)
+    header.append(target_date.strftime("%A, %B ") + str(target_date.day), style=HEADER_DATE_STYLE)
     return header
 
 
@@ -72,16 +71,17 @@ def render_task_line(
     wrap_width: int = 88,
     priority_styles: dict[str, str] | None = None,
     depth: int = 0,
+    show_created: bool = True,
 ) -> Group:
     """Wrap one task while reserving fixed columns for index, priority, and date."""
     priority, tags, body = split_task_prefix(task_text)
     display_priority = priority if priority is not None else 4
     prefix_parts = [f"{{{tag.upper()}}}" for tag in tags]
     label = " ".join(prefix_parts + ([body] if body else []))
-    date_text = f" ({_format_task_date(created)})"
+    date_text = f"  {_format_task_date(created)}" if show_created else ""
     total_width = max(20, wrap_width)
     marker = PRIORITY_MARKERS[display_priority]
-    initial_indent = f"{_format_task_index(index)}{marker:<3} {'  ' * depth}"
+    initial_indent = f"{_format_task_index(index)}{marker}  {'  ' * depth}"
     subsequent_indent = " " * len(initial_indent)
     first_line_width = max(8, total_width - len(initial_indent) - len(date_text) - 2)
     subsequent_width = max(8, total_width - len(subsequent_indent))
@@ -106,7 +106,7 @@ def render_task_line(
 
 
 def _format_task_date(value) -> str:
-    return f"{value.strftime('%a, %b')} {value.day:>2}{ordinal_suffix(value.day)}"
+    return f"{value.strftime('%b')} {value.day}"
 
 
 def _format_task_index(index: str | int) -> str:
@@ -135,7 +135,7 @@ def style_wrapped_task_line(
 
     content = line[len(prefix) :]
     date_suffix = ""
-    if content.endswith(date_text):
+    if date_text and content.endswith(date_text):
         date_suffix = date_text
         content = content[: -len(date_suffix)]
     else:
@@ -151,9 +151,7 @@ def style_wrapped_task_line(
         resolved_priority_styles = {**DEFAULT_PRIORITY_STYLES, **(priority_styles or {})}
         marker_start = prefix.find(marker)
         styled.append(prefix[:marker_start], style="white")
-        for character in marker:
-            style = resolved_priority_styles["p4" if character == "." else f"p{priority}"]
-            styled.append(character, style=style)
+        styled.append(marker, style=resolved_priority_styles[f"p{priority}"])
         styled.append(prefix[marker_start + len(marker) :])
     else:
         styled.append(prefix, style="white" if line.startswith(initial_indent) else None)

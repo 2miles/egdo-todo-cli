@@ -115,7 +115,7 @@ shows a confirmation at the top, and redraws the current list. This applies to `
 `done`, `edit`, `move`, `unmove`, `delete`, `tag`, and `priority`. Redirected and piped
 output keeps the compact confirmation-only behavior.
 
-`egdo list` groups tasks as `Today`, `Old`, and `Future` using one continuous set of indexes. Normal commands such as `done`, `delete`, `move`, `tag`, `priority`, and `edit` automatically operate on the selected task regardless of its group.
+`egdo list` groups tasks as `Today`, `Carried forward`, and `Upcoming` using one continuous set of indexes. Normal commands such as `done`, `delete`, `move`, `tag`, `priority`, and `edit` automatically operate on the selected task regardless of its group.
 
 `egdo list --future` provides an optional future-only view while preserving the same global indexes shown by the main list.
 
@@ -125,7 +125,7 @@ Tasks may be nested three levels deep. Child IDs use letters (`1a`, `1b`) and gr
 
 Priorities use `!P1!` through `!P4!` in Markdown. New tasks default to P4 (`low`). Choose another level with `-p` or `--priority`, using `1`/`critical`, `2`/`high`, `3`/`normal`, or `4`/`low`.
 
-In terminal lists, egdo renders priority as a three-slot meter: `!!!` for P1, `.!!` for P2, `..!` for P3, and `...` for P4. Dots are gray placeholders and exclamation marks carry the priority color. Manually written tasks without an explicit priority are also treated as low.
+In terminal lists, egdo renders priority with a compact marker: `●` for P1, `◆` for P2, `•` for P3, and `·` for P4. Manually written tasks without an explicit priority are treated as low.
 
 For a practical walkthrough and cheat sheet, see [The Complete egdo Guide](docs/guide.md).
 For every command and argument, see the [command reference](docs/command-reference.md).
@@ -226,7 +226,7 @@ p3 = "yellow"
 p4 = "grey50"
 ```
 
-P1–P3 style their exclamation marks. P4 styles all gray placeholder dots, including dots shown in higher-priority meters.
+Each setting styles the compact marker shown for that priority level.
 
 If you prefer not to edit that by hand, use:
 

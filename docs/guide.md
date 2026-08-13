@@ -45,8 +45,8 @@ Running `egdo` by itself is the same as running `egdo list`.
 `egdo` shows one numbered list containing three groups:
 
 - **Today** — tasks created today
-- **Old** — unfinished tasks carried forward from an earlier day
-- **Future** — tasks scheduled after today
+- **Carried forward** — unfinished tasks from an earlier day
+- **Upcoming** — tasks scheduled after today
 
 The numbers are global. If a future task is number 12, use `12` with the normal commands:
 
@@ -177,11 +177,11 @@ parent, the suffix grows to the right, and the priority markers occupy their own
 column:
 
 ```text
- 1.    ... Build finance dashboard
- 1a.   ...   Add tests
- 1a.a. ...     Test missing values
-10.    ... Another top-level task
-10a.   ...   Its child
+ 1.    ·  Build finance dashboard
+ 1a.   ·    Add tests
+ 1a.a. ·      Test missing values
+10.    ·  Another top-level task
+10a.   ·    Its child
 ```
 
 This makes the `1` in `1`, `1a`, and `1a.a` line up vertically. Task text receives two
@@ -229,12 +229,12 @@ Markdown files they are stored as leading brace groups such as `{WORK} {MONEY}`.
 
 Priority 1 is the most urgent; priority 4 is the least urgent.
 
-| Level | Name | Terminal meter | Meaning |
+| Level | Name | Terminal marker | Meaning |
 | --- | --- | --- | --- |
-| P1 | `critical` | `!!!` | Needs immediate attention |
-| P2 | `high` | `.!!` | Important |
-| P3 | `normal` | `..!` | Normal priority |
-| P4 | `low` | `...` | Low priority |
+| P1 | `critical` | `●` | Needs immediate attention |
+| P2 | `high` | `◆` | Important |
+| P3 | `normal` | `•` | Normal priority |
+| P4 | `low` | `·` | Low priority |
 
 Set the priority of one or more existing tasks:
 
@@ -260,10 +260,10 @@ egdo priority 3 off
 ```
 
 New tasks default to low and store `!P4!` in Markdown. A manually written task without
-an explicit priority is also treated as low (`...`).
+an explicit priority is also treated as low (`·`).
 
-The dots in `.!!`, `..!`, and `...` are gray placeholders. In Markdown, explicit
-priorities are stored as `!P1!` through `!P4!`.
+The list uses `●`, `◆`, `•`, and `·` as compact markers from highest to lowest priority.
+In Markdown, explicit priorities are stored as `!P1!` through `!P4!`.
 
 ## Scheduling Future Tasks
 
@@ -384,7 +384,7 @@ than giving every tag a dramatically different color.
 
 When you first use egdo on a newer day, unfinished tasks from earlier days move into the
 new day. Their original creation dates are preserved, which is why they appear under
-**Old** and still show an earlier date.
+**Carried forward** and still show an earlier date.
 
 Completed tasks stay on the day where they were completed. Notes also stay on their
 original days. Repeatedly running `egdo` does not duplicate rolled-over tasks.

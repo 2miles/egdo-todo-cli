@@ -70,11 +70,11 @@ egdo list -t chores
 - running bare `egdo` is the same as `egdo list`
 - uses today by default
 - first performs rollover for unfinished tasks from the most recent earlier day
-- shows incomplete active tasks grouped as `Today` and `Old`
+- shows incomplete active tasks grouped as `Today` and `Carried forward`
 - also shows future tasks grouped by scheduled date, with tomorrow labeled explicitly
 - `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
 - `--future` shows only tasks scheduled after today and can be combined with `--tag`
-- numbering continues across `Today`, `Old`, and `Future` without restarting
+- numbering continues across `Today`, `Carried forward`, and `Upcoming` without restarting
 - normal `done`, `edit`, `move`, `delete`, `tag`, and `priority` commands automatically route each index to the correct group
 - `egdo list --future` is an optional filtered view that preserves the same global indexes
 
@@ -128,8 +128,8 @@ egdo priority 3 low
 - accepts one or more numeric indexes shown by `egdo list`
 - accepts `1`/`critical`, `2`/`high`, `3`/`normal`, and `4`/`low`
 - stores the priority as a leading plain-Markdown marker such as `!P1!`
-- renders priority as a three-slot meter: `!!!` (P1), `.!!` (P2), `..!` (P3), and `...` (P4), with gray dots as placeholders
-- displays manually written tasks without an explicit priority as low (`...`)
+- renders priority with a compact marker: `●` (P1), `◆` (P2), `•` (P3), and `·` (P4)
+- displays manually written tasks without an explicit priority as low (`·`)
 - legacy `none`, `clear`, and `off` values reset the task to P4 (`low`)
 - the same command works for future tasks using their global indexes
 
@@ -263,7 +263,7 @@ egdo color --priority high critical --style "bold red"
 - `--style` and `--copy-from` are mutually exclusive; `--copy-from` applies only to tags
 - priority levels accept the same numeric and named values as `egdo priority`
 - priority styles are saved as `p1` through `p4` in `[priority_styles]`
-- P1–P3 control the filled exclamation slots; P4 controls every placeholder dot
+- each priority setting controls the color of that level's compact marker
 
 Available Rich colors: https://rich.readthedocs.io/en/stable/appendix/colors.html
 

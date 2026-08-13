@@ -91,7 +91,7 @@ def add_note(notes_dir: Path, target_date: date, text: str) -> list[str]:
 
 
 def list_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> list[Task]:
-    """Return today's incomplete tasks after rollover, ordered Today then Old."""
+    """Return today's incomplete tasks after rollover, newest work before carried work."""
     rollover(notes_dir, target_date)
     state = ensure_state(file_path(notes_dir, target_date))
     day = state.days.get(target_date)
