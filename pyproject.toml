@@ -7,9 +7,10 @@ name = "egdo"
 version = "0.1.0"
 description = "Markdown-backed CLI todo manager for daily notes."
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
 authors = [
-  { name = "Miles" }
+  { name = "2miles" }
 ]
 dependencies = ["rich>=14,<15", "rich-argparse>=1.7,<2"]
 

@@ -214,4 +214,4 @@ python3 -m compileall src
 
 ## License
 
-Add the license you want to use for the project here.
+Licensed under the [MIT License](LICENSE).
