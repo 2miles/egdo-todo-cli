@@ -64,11 +64,18 @@ def build_parser() -> argparse.ArgumentParser:
     config_parser = subparsers.add_parser(
         "config",
         help="Configure egdo storage",
-        description="Write the egdo config file that points at your storage directory.",
-        epilog="Example:\n  egdo config --root /Users/miles/Notes/egdo",
+        description=(
+            "Set the task-storage directory. Existing config content is preserved and "
+            "backed up; task files are not moved."
+        ),
+        epilog="Example:\n  egdo config --root ~/Notes/egdo",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    config_parser.add_argument("--root", required=True, help="Directory where egdo stores its yearly files")
+    config_parser.add_argument(
+        "--root",
+        required=True,
+        help="Directory containing egdo's yearly task files",
+    )
 
     add_parser = subparsers.add_parser(
         "add",
@@ -102,28 +109,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     list_parser = subparsers.add_parser(
         "list",
-        help="List active and future tasks",
-        description="List tasks, optionally filtering by tag or showing only future tasks.",
+        help="List tasks",
+        description="List active, future, or completed tasks, optionally filtering by tag.",
         epilog=(
             "Examples:\n"
             "  egdo list\n"
             "  egdo list -t chores\n"
             "  egdo list --future\n"
-            "  egdo list --future -t chores"
+            "  egdo list --future -t chores\n"
+            "  egdo list --completed\n"
+            "  egdo list --completed -t chores"
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     list_parser.add_argument("-t", "--tag", help="Show only tasks with this leading tag")
-    list_parser.add_argument("--future", action="store_true", help="Show only future tasks")
-
-    completed_parser = subparsers.add_parser(
-        "completed",
-        help="List completed tasks",
-        description="List today's completed tasks. Use -t or --tag to filter by leading tags.",
-        epilog="Examples:\n  egdo completed\n  egdo completed -t chores",
-        formatter_class=RawDescriptionRichHelpFormatter,
+    list_view = list_parser.add_mutually_exclusive_group()
+    list_view.add_argument("--future", action="store_true", help="Show only future tasks")
+    list_view.add_argument(
+        "--completed", action="store_true", help="Show today's completed tasks"
     )
-    completed_parser.add_argument("-t", "--tag", help="Show only completed tasks with this leading tag")
 
     done_parser = subparsers.add_parser(
         "done",

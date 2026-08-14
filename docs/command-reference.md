@@ -10,7 +10,7 @@ is not cleared and receives only the confirmation line(s).
 
 ## `egdo config`
 
-Creates the config file at:
+Creates or updates the config file at:
 
 ```text
 ~/.config/egdo/config.toml
@@ -19,12 +19,16 @@ Creates the config file at:
 Example:
 
 ```bash
-egdo config --root /path/to/egdo
+egdo config --root ~/Notes/egdo
 ```
 
 Arguments:
 
 - `--root` required absolute or user-relative path where `egdo` stores its yearly files
+- updates only `root` when the config already exists and preserves other settings
+- saves the previous file as `config.toml.bak` before updating it
+- changes where future commands look for tasks; it does not move or delete task files
+- an incorrect root may make the list appear empty until the previous root is restored
 
 ## `egdo add`
 
@@ -73,22 +77,25 @@ egdo list -t chores
 - also shows future tasks grouped by scheduled date, with tomorrow labeled explicitly
 - `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
 - `--future` shows only tasks scheduled after today and can be combined with `--tag`
+- `--completed` shows only tasks completed today and can be combined with `--tag`
+- `--future` and `--completed` are mutually exclusive
 - numbering continues across `Today`, `Carried forward`, and future date sections without restarting
 - normal `done`, `edit`, `move`, `delete`, `tag`, and `priority` commands automatically route each index to the correct group
 - `egdo list --future` is an optional filtered view that preserves the same global indexes
 
-## `egdo completed`
+## `egdo list --completed`
 
 List completed tasks for today.
 
 ```bash
-egdo completed
-egdo completed -t chores
+egdo list --completed
+egdo list --completed -t chores
 ```
 
 - uses today by default
 - shows only completed tasks from today
 - `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
+- cannot be combined with `--future`
 
 ## `egdo list --future`
 

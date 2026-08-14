@@ -548,7 +548,7 @@ class CliTests(unittest.TestCase):
         self.assertIn("4.                   Ship box", rendered)
         self.assertNotIn("Apr 4", rendered)
 
-    def test_main_completed_command_renders_completed_tasks(self) -> None:
+    def test_main_list_completed_renders_completed_tasks(self) -> None:
         config = type(
             "ConfigStub",
             (),
@@ -565,7 +565,7 @@ class CliTests(unittest.TestCase):
             patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
-            exit_code = main(["completed"])
+            exit_code = main(["list", "--completed"])
 
         self.assertEqual(exit_code, 0)
         list_completed_tasks_mock.assert_called_once_with(Path("/tmp/notes/egdo"), mocked_today, tag=None)
@@ -667,15 +667,26 @@ class CliTests(unittest.TestCase):
     def test_streamlined_command_names_replace_legacy_names(self) -> None:
         parser = build_parser()
 
-        self.assertEqual(parser.parse_args(["completed"]).command, "completed")
+        completed_args = parser.parse_args(["list", "--completed"])
+        self.assertEqual(completed_args.command, "list")
+        self.assertTrue(completed_args.completed)
         self.assertEqual(parser.parse_args(["config", "--root", "/tmp/egdo"]).command, "config")
         self.assertEqual(parser.parse_args(["move", "7", "today"]).when, "today")
-        for legacy_command in ("finished", "init", "unmove"):
+        for legacy_command in ("completed", "finished", "init", "unmove"):
             with (
                 patch("sys.stderr", new_callable=StringIO),
                 self.assertRaises(SystemExit),
             ):
                 parser.parse_args([legacy_command])
+
+    def test_list_future_and_completed_are_mutually_exclusive(self) -> None:
+        parser = build_parser()
+
+        with (
+            patch("sys.stderr", new_callable=StringIO),
+            self.assertRaises(SystemExit),
+        ):
+            parser.parse_args(["list", "--future", "--completed"])
 
     def test_main_done_command_completes_multiple_indexes(self) -> None:
         config = type(

@@ -94,9 +94,6 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
     if args.command == "list":
         return _handle_list(args, config, target_date, console, deps)
 
-    if args.command == "completed":
-        return _handle_completed(args, config, target_date, console, deps)
-
     if args.command == "done":
         indexes = args.indexes
         if not indexes:
@@ -214,6 +211,8 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
 
 def _handle_list(args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps) -> int:
     """Render filtered task refs without renumbering their global indexes."""
+    if args.completed:
+        return _handle_completed(args, config, target_date, console, deps)
     indexed_refs = [
         (ref.identifier or str(position), ref)
         for position, ref in enumerate(
@@ -403,7 +402,9 @@ def _finish_task_mutation(
         _print_task_message(console, action, date_label, text, suffix=suffix)
     if not console.is_terminal:
         return 0
-    list_args = type("ListArgs", (), {"future": False, "tag": None})()
+    list_args = type(
+        "ListArgs", (), {"future": False, "completed": False, "tag": None}
+    )()
     return _handle_list(list_args, config, target_date, console, deps)
 
 

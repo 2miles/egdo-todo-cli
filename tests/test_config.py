@@ -61,6 +61,27 @@ class ConfigTests(unittest.TestCase):
             config = load_config(path)
             self.assertEqual(config.root, Path("/tmp/notes/egdo"))
 
+    def test_write_config_preserves_existing_content_and_creates_backup(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            original = (
+                '# Personal settings\nroot = "/old/root"\n\n'
+                '[unrelated]\nvalue = "keep me"\n'
+            )
+            path.write_text(original, encoding="utf-8")
+
+            write_config(root=Path("/new/root"), path=path)
+
+            self.assertEqual(
+                path.read_text(encoding="utf-8"),
+                '# Personal settings\nroot = "/new/root"\n\n'
+                '[unrelated]\nvalue = "keep me"\n',
+            )
+            self.assertEqual(
+                path.with_suffix(".toml.bak").read_text(encoding="utf-8"),
+                original,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

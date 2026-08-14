@@ -80,9 +80,9 @@ feature.
 
 ### 3. Make command language consistent
 
-Status: implemented. The current vocabulary uses `done`, `completed`, and `move`; moving
-a future task back uses `egdo move ID today`. The former `finished` and `unmove` commands
-have been removed, and setup is exposed as `egdo config`.
+Status: implemented. The current vocabulary uses `done`, `list --completed`, and `move`;
+moving a future task back uses `egdo move ID today`. The former `finished`, `completed`,
+and `unmove` top-level commands have been removed, and setup is exposed as `egdo config`.
 
 A few commands describe the same concepts differently:
 

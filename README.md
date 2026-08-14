@@ -1,28 +1,18 @@
 # egdo
 
-`egdo` is a markdown-backed CLI todo manager built for people who want their tasks in normal files.
+`egdo` is a Markdown-backed command-line task manager. It keeps daily tasks and notes in ordinary monthly files that remain readable and editable without the app.
 
-It keeps daily tasks and notes in plain monthly markdown files. You use it from the terminal, but the data stays readable and editable without the app.
+## Why egdo?
 
-## Why
+Many task managers treat their database as the source of truth. With `egdo`, your Markdown files are the source of truth:
 
-Most CLI todo tools either hide data behind a database or assume the app owns the data. `egdo` takes the opposite approach:
+- unfinished tasks roll forward automatically
+- completed tasks remain in a daily archive
+- notes live alongside tasks
+- files can be viewed and edited in any text editor
+- optional tags keep tasks organized without complicating the file format
 
-- tasks live in normal markdown files
-- you can edit them by hand when needed
-- unfinished work rolls forward automatically
-- completed work stays where it happened
-- your todo list doubles as a long-term archive
-
-In practice:
-
-- each month has one markdown file
-- each day is a section inside that file
-- notes live alongside tasks for the same day
-- a tag uses one leading brace group such as `{CHORES}` or `{HOME}`
-- tags appear as subdued uppercase labels in terminal lists
-
-The result is a todo list that stays lightweight without throwing away history.
+Each month is stored in a single Markdown file, with one section per day. The result is a lightweight task list that preserves a useful history of your work.
 
 ## Installation
 
@@ -52,10 +42,17 @@ If project dependencies change later, run the editable install command again.
 Configure `egdo`:
 
 ```bash
-egdo config --root /path/to/egdo
+egdo config --root ~/Notes/egdo
 ```
 
-- `--root` is the directory where `egdo` stores its yearly files
+This writes `~/.config/egdo/config.toml`. The `--root` value tells `egdo` which directory
+contains—or will contain—your task archive. Use the real location where you want your
+monthly Markdown files stored.
+
+Running the command again changes where `egdo` looks for tasks. It does not move or delete
+the task files at the previous root, so an incorrect root can make your list appear empty.
+When updating an existing config, `egdo` preserves its other contents and saves the
+previous version as `~/.config/egdo/config.toml.bak`.
 
 Example:
 
@@ -69,63 +66,55 @@ That stores files under:
 /Users/you/Notes/egdo/2026/2026_04_apr.md
 ```
 
-Common commands:
+## Basic Usage
+
+View your tasks:
 
 ```bash
-egdo add
-egdo add "Buy milk"
-egdo add -t chores "Do the dishes"
-egdo add -p important -t work "Submit application"
-egdo add --parent 1 "Add tests"
-egdo add --parent 1a "Test missing values"
-egdo add --done -t errands "Call the DMV"
 egdo
-egdo list -t chores
-egdo completed
-egdo list --future
-egdo done 1
-egdo done 1 3 12
-egdo edit 2 "Buy oat milk"
-egdo move 1 6 7 tomorrow
-egdo move 1 today
-egdo delete 1 6 7
-egdo tag 1 6 7 chores
-egdo tag 3 6 7 --remove
-egdo priority 1 6 7 important
-egdo priority 3 normal
-egdo note "Need to test villager trading setup"
 ```
 
-Running `egdo` with no command is the same as `egdo list`.
+Add and complete tasks:
 
-Running `egdo add` without task text opens an interactive form for the description,
-an existing or new tag, priority, and schedule. The pickers use arrow or Vim navigation,
-Space to select a tag, and Enter to continue. Supplying task text keeps the immediate
-one-line behavior used by scripts and quick entry.
+```bash
+egdo add "Buy milk"
+egdo done 1
+```
 
-Running `egdo done` without IDs opens a completion form showing the current global task
-IDs. Use arrow keys or j/k to move, Space to select, and Enter to complete; direct
-`egdo done ID...` usage remains available.
+Schedule a task for another day:
 
-After a successful task mutation in an interactive terminal, egdo clears the screen,
-shows a confirmation at the top, and redraws the current list. This applies to `add`,
-`done`, `edit`, `move`, `delete`, `tag`, and `priority`. Redirected and piped
-output keeps the compact confirmation-only behavior.
+```bash
+egdo move 2 tomorrow
+egdo move 5 today
+```
 
-`egdo list` groups tasks as `Today`, `Carried forward`, and scheduled future dates using one continuous set of indexes. Carried-forward tasks are ordered by creation date, newest first, while tasks from the same date retain their existing order. Normal commands such as `done`, `delete`, `move`, `tag`, `priority`, and `edit` automatically operate on the selected task regardless of its group.
+Organize tasks with tags and priority:
 
-`egdo list --future` provides an optional future-only view while preserving the same global indexes shown by the main list.
+```bash
+egdo add -t chores "Do the dishes"
+egdo add -p important -t work "Submit application"
+```
 
-Each task may have zero or one tag. Create it with `-t`/`--tag` or type one leading brace tag directly in Markdown, such as `{CHORES} Do the dishes`. Only the first leading brace group is treated as a tag; later brace groups are ordinary task text. Running `egdo tag IDS TAG` replaces the selected tasks' existing tag; `egdo tag IDS --remove` clears it.
+Running `egdo` without a command displays today’s tasks, carried-forward work, and
+scheduled tasks in one numbered list. Use those numbers with commands such as `done`,
+`edit`, `move`, `delete`, `tag`, and `priority`.
 
-Tasks may be nested three levels deep. Child IDs use letters (`1a`, `1b`) and grandchildren use dotted letters (`1a.a`). Actions on a parent cascade to its descendants, except `edit`, which changes only the selected task's text.
+For interactive task creation, run `egdo add` without text. To choose tasks from an
+interactive completion list, run `egdo done` without IDs.
 
-Priority is binary: a leading `!` in Markdown marks a task as important, while no marker means normal. Use `-p important` when adding a task or `egdo priority ID important`; use `normal` to remove the marker.
+Additional views:
 
-Terminal lists show an uncolored `●` for important tasks and leave the priority column empty for normal tasks.
+```bash
+egdo list --future
+egdo list --completed
+egdo list -t chores
+```
 
-For a practical walkthrough and cheat sheet, see [The Complete egdo Guide](docs/guide.md).
-For every command and argument, see the [command reference](docs/command-reference.md).
+Tasks are stored in ordinary Markdown files. They may have one optional tag, one binary
+priority, and up to two levels of subtasks.
+
+See the [complete guide](docs/guide.md) for workflows and the
+[command reference](docs/command-reference.md) for every option.
 
 ## Storage Format
 
@@ -188,8 +177,22 @@ The config file lives at:
 Minimal example:
 
 ```toml
-root = "/path/to/egdo"
+root = "/Users/you/Notes/egdo"
 ```
+
+Set or change this value with:
+
+```bash
+egdo config --root ~/Notes/egdo
+```
+
+The command creates the config when it does not exist. When it already exists, the command
+changes only its top-level `root` setting, preserves all other content, and copies the
+previous version to `config.toml.bak`.
+
+Changing the root does not relocate, modify, or delete existing task files. It only changes
+where subsequent commands look for them. To return to the previous location, run
+`egdo config --root PREVIOUS_LOCATION` or restore `config.toml.bak`.
 
 Terminal lists render the tag as an uppercase, dim cyan label without the Markdown braces.
 The tag column has a fixed width; long labels are shortened with an ellipsis for display

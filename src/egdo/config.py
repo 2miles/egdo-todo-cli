@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
+import shutil
 
 
 CONFIG_PATH = Path.home() / ".config" / "egdo" / "config.toml"
@@ -18,7 +20,7 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
     """Load the storage root from disk."""
     if not path.exists():
         raise FileNotFoundError(
-            f"Config not found at {path}. Run `egdo config --root /path/to/egdo`."
+            f"Config not found at {path}. Run `egdo config --root ~/Notes/egdo`."
         )
 
     raw = _parse_toml(path.read_text(encoding="utf-8"))
@@ -35,9 +37,28 @@ def write_config(
     root: Path,
     path: Path = CONFIG_PATH,
 ) -> Path:
-    """Rewrite configuration deterministically."""
+    """Set the root while preserving existing config content and making a backup."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    content = f'root = "{root.expanduser()}"\n'
+    root_line = f'root = "{root.expanduser()}"'
+    if path.exists():
+        original = path.read_text(encoding="utf-8")
+        shutil.copy2(path, path.with_suffix(f"{path.suffix}.bak"))
+        lines = original.splitlines()
+        section_seen = False
+        replaced = False
+        for index, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                section_seen = True
+            if not section_seen and re.match(r"^\s*root\s*=", line):
+                lines[index] = root_line
+                replaced = True
+                break
+        if not replaced:
+            lines.insert(0, root_line)
+        content = "\n".join(lines) + "\n"
+    else:
+        content = f"{root_line}\n"
     path.write_text(content, encoding="utf-8")
     return path
 

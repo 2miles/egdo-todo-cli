@@ -34,7 +34,7 @@ egdo tag 3 chores
 egdo tag 3 6 7 --remove
 
 # See completed or scheduled work
-egdo completed
+egdo list --completed
 egdo list --future
 ```
 
@@ -133,8 +133,8 @@ cancel. Selecting a parent visibly selects its descendants through cascading beh
 Completed tasks remain in the Markdown archive. They can be viewed with:
 
 ```bash
-egdo completed
-egdo completed -t work
+egdo list --completed
+egdo list --completed -t work
 ```
 
 Edit one task's full text:
@@ -217,7 +217,7 @@ Filter a view by tag:
 
 ```bash
 egdo list -t work
-egdo completed -t work
+egdo list --completed -t work
 ```
 
 Tags are case-insensitive. `work`, `WORK`, and `{WORK}` all refer to the same tag. In the
@@ -384,6 +384,10 @@ A typical config looks like:
 root = "/Users/you/Notes/egdo"
 ```
 
+Create or update it with `egdo config --root ~/Notes/egdo`. This changes only the
+top-level `root` setting and saves the previous config as `config.toml.bak`. It does not
+move or delete task files; changing the root only changes where `egdo` looks for them.
+
 Your Markdown vault contains the important task and note history. The config contains the
 root location. Back up or sync both if you
 want identical behavior after setting up egdo on another computer.
@@ -403,7 +407,7 @@ want identical behavior after setting up egdo on another computer.
 | remove a tag from several tasks | `egdo tag 1 6 7 --remove` |
 | mark several tasks important | `egdo priority 1 6 7 important` |
 | return a task to normal | `egdo priority 3 normal` |
-| see completed tasks | `egdo completed` |
+| see completed tasks | `egdo list --completed` |
 | see only future tasks | `egdo list --future` |
 | bring a future task back | `egdo move 12 today` |
 | add a note | `egdo note "Note text"` |
