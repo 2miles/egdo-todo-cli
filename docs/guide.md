@@ -34,7 +34,7 @@ egdo tag 3 chores
 egdo tag 3 6 7 --remove
 
 # See completed or scheduled work
-egdo finished
+egdo completed
 egdo list --future
 ```
 
@@ -133,8 +133,8 @@ cancel. Selecting a parent visibly selects its descendants through cascading beh
 Completed tasks remain in the Markdown archive. They can be viewed with:
 
 ```bash
-egdo finished
-egdo finished -t work
+egdo completed
+egdo completed -t work
 ```
 
 Edit one task's full text:
@@ -176,18 +176,18 @@ parent, the suffix grows to the right, and the priority markers occupy their own
 column:
 
 ```text
- 1.       Build finance dashboard
- 1a.        Add tests
- 1a.a.        Test missing values
-10.       Another top-level task
-10a.        Its child
+ 1.                   Build finance dashboard
+ 1a.                  · Add tests
+ 1a.a.                ·   Test missing values
+10.                   Another top-level task
+10a.                  · Its child
 ```
 
 This makes the `1` in `1`, `1a`, and `1a.a` line up vertically. Task text receives two
 additional spaces of indentation at each nesting level.
 
 Nesting is limited to three total levels and 26 direct children per parent. Completing,
-deleting, moving, tagging, prioritizing, or unmoving a task applies to its entire subtree.
+deleting, moving, tagging, or prioritizing a task applies to its entire subtree.
 Editing changes only the selected task's wording. Acting directly on a child affects that
 child and its descendants, not its parent or siblings.
 
@@ -217,7 +217,7 @@ Filter a view by tag:
 
 ```bash
 egdo list -t work
-egdo finished -t work
+egdo completed -t work
 ```
 
 Tags are case-insensitive. `work`, `WORK`, and `{WORK}` all refer to the same tag. In the
@@ -240,9 +240,9 @@ egdo priority 4 normal
 
 Important tasks store a leading `!` in Markdown. Normal tasks store no priority marker.
 
-## Scheduling Future Tasks
+## Moving Tasks Between Dates
 
-Move one or more tasks out of today's active list:
+Move one or more tasks to a future date:
 
 ```bash
 egdo move 2 tomorrow
@@ -254,11 +254,12 @@ egdo move 2 2026-08-15
 Accepted date forms are:
 
 - `tomorrow`
+- `today`, when bringing a future task back
 - `+N`, such as `+3` for three days from today
 - a weekday name or abbreviation, such as `friday` or `fri`
 - an ISO date in `YYYY-MM-DD` form
 
-A weekday always means its next occurrence, not today. Destinations must be in the future.
+A weekday always means its next occurrence, not today. Destinations cannot be in the past.
 
 See only scheduled tasks:
 
@@ -266,11 +267,11 @@ See only scheduled tasks:
 egdo list --future
 ```
 
-Bring future tasks back to today:
+Bring future tasks back to today with the same command:
 
 ```bash
-egdo unmove 12
-egdo unmove 10 12 15
+egdo move 12 today
+egdo move 10 12 15 today
 ```
 
 The ordinary `done`, `edit`, `delete`, `move`, `tag`, and `priority` commands work on
@@ -304,7 +305,7 @@ Completed tasks stay on the day where they were completed. Notes also stay on th
 original days. Repeatedly running `egdo` does not duplicate rolled-over tasks.
 
 Future tasks are different: they remain attached to their scheduled dates until that date
-arrives, you move them again, or you unmove them.
+arrives or you move them again, including back to today.
 
 ## The Markdown Files
 
@@ -340,7 +341,7 @@ scheduled date.
 
 ## Using egdo with Obsidian
 
-Point `egdo init --root` at an `egdo` directory inside your Obsidian vault. The monthly
+Point `egdo config --root` at an `egdo` directory inside your Obsidian vault. The monthly
 files then remain normal Obsidian notes and sync to the mobile app using whichever sync
 method you use for the rest of the vault.
 
@@ -402,9 +403,9 @@ want identical behavior after setting up egdo on another computer.
 | remove a tag from several tasks | `egdo tag 1 6 7 --remove` |
 | mark several tasks important | `egdo priority 1 6 7 important` |
 | return a task to normal | `egdo priority 3 normal` |
-| see completed tasks | `egdo finished` |
+| see completed tasks | `egdo completed` |
 | see only future tasks | `egdo list --future` |
-| bring a future task back | `egdo unmove 12` |
+| bring a future task back | `egdo move 12 today` |
 | add a note | `egdo note "Note text"` |
 | see help for one command | `egdo COMMAND --help` |
 

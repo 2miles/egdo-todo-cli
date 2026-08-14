@@ -1,3 +1,7 @@
+> Historical design review. This document preserves the problems and proposals that drove
+> the cleanup, so examples of the old interface are intentional. For current behavior,
+> use `README.md`, `docs/guide.md`, and `docs/command-reference.md`.
+
 The biggest gains now will come from subtraction and consistency, not more task-management features.
 
 My strongest recommendation: make egdo feel like a calm, opinionated daily task journal—not a miniature Taskwarrior.
@@ -75,6 +79,10 @@ Similarly, tag_levels is useful for your particular taxonomy, but it should feel
 feature.
 
 ### 3. Make command language consistent
+
+Status: implemented. The current vocabulary uses `done`, `completed`, and `move`; moving
+a future task back uses `egdo move ID today`. The former `finished` and `unmove` commands
+have been removed, and setup is exposed as `egdo config`.
 
 A few commands describe the same concepts differently:
 

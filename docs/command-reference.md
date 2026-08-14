@@ -8,7 +8,7 @@ Successful task-changing commands clear and redraw the current list when run in 
 interactive terminal, with the confirmation shown above it. Piped or redirected output
 is not cleared and receives only the confirmation line(s).
 
-## `egdo init`
+## `egdo config`
 
 Creates the config file at:
 
@@ -19,7 +19,7 @@ Creates the config file at:
 Example:
 
 ```bash
-egdo init --root /path/to/egdo
+egdo config --root /path/to/egdo
 ```
 
 Arguments:
@@ -77,13 +77,13 @@ egdo list -t chores
 - normal `done`, `edit`, `move`, `delete`, `tag`, and `priority` commands automatically route each index to the correct group
 - `egdo list --future` is an optional filtered view that preserves the same global indexes
 
-## `egdo finished`
+## `egdo completed`
 
 List completed tasks for today.
 
 ```bash
-egdo finished
-egdo finished -t chores
+egdo completed
+egdo completed -t chores
 ```
 
 - uses today by default
@@ -105,15 +105,6 @@ egdo list --future -t chores
 - shows each task with its original created date
 - this command is view-only; use the normal top-level commands with the displayed indexes
 
-Example output:
-
-```text
-Thu, Apr 3rd
-────────────────────────────────────────
-1. {CHORES} Buy milk (Thu, Apr 3rd)
-2. Call dentist (Thu, Apr 3rd)
-```
-
 ## `egdo priority`
 
 Mark active tasks as important or return them to normal. New tasks default to normal.
@@ -132,7 +123,7 @@ egdo priority 3 normal
 
 ## `egdo done`
 
-Mark one or more numbered active tasks complete in today’s file.
+Mark one or more tasks complete using their global IDs.
 
 ```bash
 egdo done
@@ -140,76 +131,61 @@ egdo done 1
 egdo done 1 3 12
 ```
 
-- uses today by default
 - without IDs, opens a multi-select picker using arrows or j/k, Space, and Enter
-- completes by the numeric index shown in `egdo list`
+- completes IDs shown in `egdo list`, including future tasks
 - resolves all indexes before marking anything complete, so later indexes do not shift when completing multiple tasks
 - keeps the completed task in that day’s file as part of the archive
 
 ## `egdo edit`
 
-Edit a numbered active task in today’s file.
+Edit a task using its global ID.
 
 ```bash
 egdo edit 2 "Buy oat milk"
 egdo edit 1 "{CHORES} Pick up detergent"
 ```
 
-- uses today by default
-- edits by the numeric index shown in `egdo list`
+- edits an ID shown in `egdo list`, including a future task
 - updates only the task text
 - preserves the original created date suffix such as `(04-05)`
 - can be used to rewrite tags inline if you want to replace the task text completely
 
 ## `egdo move`
 
-Move one or more numbered active tasks to a future date.
+Move one or more tasks to today or a future date.
 
 ```bash
 egdo move 2 tomorrow
+egdo move 7 today
 egdo move 1 6 7 tomorrow
 egdo move 2 +3
 egdo move 2 sunday
 egdo move 2 2026-04-10
 ```
 
-- uses today as the source day
-- accepts one or more numeric indexes shown in `egdo list`
+- accepts one or more global IDs shown in `egdo list`
 - physically relocates the task into the destination day section
 - preserves the original created date suffix such as `(04-05)`
-- accepts `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
+- accepts `today`, `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
 - weekday names mean the next occurrence of that weekday, never today
-- rejects non-future destinations
-
-## `egdo unmove`
-
-Bring one or more future tasks back to today's active list.
-
-```bash
-egdo unmove 12
-egdo unmove 10 12 15
-```
-
-- accepts the global task indexes shown by `egdo` or `egdo list --future`
-- accepts only tasks that are currently scheduled after today
-- preserves each task's original creation date
+- `today` brings a future task back to today's active list
+- rejects past destinations and moving an already-active task to today
 
 ## `egdo delete`
 
-Delete one or more numbered active tasks from today’s file.
+Delete one or more tasks using their global IDs.
 
 ```bash
 egdo delete 2
 egdo delete 1 6 7
 ```
 
-- uses today by default
-- accepts one or more numeric indexes shown in `egdo list`
+- accepts one or more IDs shown in `egdo list`, including future tasks
 - removes the task entirely instead of marking it complete
 
 ## `egdo tag`
 
-Set, replace, or remove the tag on numbered active tasks in today’s file.
+Set, replace, or remove the tag on tasks using their global IDs.
 
 ```bash
 egdo tag 3 chores
@@ -217,8 +193,8 @@ egdo tag 1 6 7 chores
 egdo tag 3 6 7 --remove
 ```
 
-- uses today by default
 - reads leading values as task indexes and the final value as one tag
+- works on active and future tasks
 - setting a tag replaces any tag already on every selected task
 - `--remove` clears the tag from every selected task
 - stores the tag as one leading brace group such as `{CHORES}`
@@ -242,7 +218,7 @@ egdo note "Need to test villager trading setup"
 
 - Markdown uses two spaces of indentation per nesting level
 - top-level tasks use numeric IDs, children use IDs such as `6a`, and grandchildren use `6a.a`
-- `done`, `delete`, `move`, `unmove`, `tag`, and `priority` cascade to descendants
+- `done`, `delete`, `move`, `tag`, and `priority` cascade to descendants
 - `edit` changes only the selected task while preserving its descendants
 - moving a child without its parent promotes that child to the top level at its destination
 - a parent may have at most 26 direct children

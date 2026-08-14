@@ -100,7 +100,7 @@ def list_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> li
     return _filter_tasks_by_tag(tasks, tag)
 
 
-def list_finished_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> list[Task]:
+def list_completed_tasks(notes_dir: Path, target_date: date, tag: str | None = None) -> list[Task]:
     """Return completed tasks stored on the target day."""
     rollover(notes_dir, target_date)
     state = ensure_state(file_path(notes_dir, target_date))
@@ -195,26 +195,17 @@ def move_task(notes_dir: Path, target_date: date, index: str | int, destination_
 def move_tasks(
     notes_dir: Path, target_date: date, indexes: list[str | int], destination_date: date
 ) -> list[Task]:
-    """Relocate selected global indexes to one future scheduled date."""
-    if destination_date <= target_date:
-        raise ValueError("Move destination must be a future date")
+    """Relocate selected global indexes to today or a future scheduled date."""
+    if destination_date < target_date:
+        raise ValueError("Move destination cannot be in the past")
     refs = _select_task_refs(notes_dir, target_date, indexes)
+    if destination_date == target_date and any(
+        ref.scheduled <= target_date for ref in refs
+    ):
+        raise ValueError("Only future tasks can be moved to today")
     if any(ref.scheduled == destination_date for ref in refs):
         raise ValueError("Move destination must be different from the current scheduled date")
     _move_refs(notes_dir, refs, destination_date)
-    return [ref.task for ref in refs]
-
-
-def unmove_task(notes_dir: Path, target_date: date, index: str | int) -> Task:
-    return unmove_tasks(notes_dir, target_date, [index])[0]
-
-
-def unmove_tasks(notes_dir: Path, target_date: date, indexes: list[str | int]) -> list[Task]:
-    """Bring selected future tasks back to the target day's active list."""
-    refs = _select_task_refs(notes_dir, target_date, indexes)
-    if any(ref.scheduled <= target_date for ref in refs):
-        raise ValueError("Only future tasks can be unmoved")
-    _move_refs(notes_dir, refs, target_date)
     return [ref.task for ref in refs]
 
 

@@ -26,7 +26,7 @@ class HandlerDeps:
     create_task: Any
     delete_tasks: Any
     edit_task: Any
-    list_finished_tasks: Any
+    list_completed_tasks: Any
     list_task_refs: Any
     move_tasks: Any
     parse_future_date: Any
@@ -40,7 +40,6 @@ class HandlerDeps:
     tag_tasks: Any
     task_wrap_width: Any
     untag_tasks: Any
-    unmove_tasks: Any
 
 
 def dispatch_command(args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps) -> int:
@@ -95,21 +94,8 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
     if args.command == "list":
         return _handle_list(args, config, target_date, console, deps)
 
-    if args.command == "finished":
-        return _handle_finished(args, config, target_date, console, deps)
-
-    if args.command == "unmove":
-        tasks = deps.unmove_tasks(config.root, target_date, _normalize_task_ids(args.indexes))
-        return _finish_task_mutation(
-            config,
-            target_date,
-            console,
-            deps,
-            [
-                ("Unmoved", task.created.isoformat(), task.text, f" -> {target_date.isoformat()}")
-                for task in tasks
-            ],
-        )
+    if args.command == "completed":
+        return _handle_completed(args, config, target_date, console, deps)
 
     if args.command == "done":
         indexes = args.indexes
@@ -149,7 +135,11 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         )
 
     if args.command == "move":
-        destination_date = deps.parse_future_date(args.when, target_date)
+        destination_date = (
+            target_date
+            if args.when.strip().lower() == "today"
+            else deps.parse_future_date(args.when, target_date)
+        )
         tasks = deps.move_tasks(
             config.root, target_date, _normalize_task_ids(args.indexes), destination_date
         )
@@ -309,18 +299,18 @@ def _render_indexed_tasks(
         )
 
 
-def _handle_finished(
+def _handle_completed(
     args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps
 ) -> int:
     """Load completed tasks and render them through the shared collection path."""
-    tasks = deps.list_finished_tasks(config.root, target_date, tag=args.tag)
+    tasks = deps.list_completed_tasks(config.root, target_date, tag=args.tag)
     return _render_task_collection(
         console,
         deps,
         config,
         target_date,
         tasks,
-        empty_message="No finished tasks.",
+        empty_message="No completed tasks.",
     )
 
 

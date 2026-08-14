@@ -21,7 +21,7 @@ from egdo.store import (
     edit_task,
     ensure_state,
     file_path,
-    list_finished_tasks,
+    list_completed_tasks,
     list_future_tasks,
     list_tasks,
     list_task_refs,
@@ -31,7 +31,6 @@ from egdo.store import (
     prioritize_tasks,
     tag_task,
     tag_tasks,
-    unmove_task,
     untag_tasks,
 )
 
@@ -438,7 +437,7 @@ class StoreTests(unittest.TestCase):
             self.assertIn("- [ ] Today second (04-06)", content)
             self.assertIn("- [ ] Carried second (04-05)", content)
 
-    def test_list_finished_tasks_returns_done_tasks_for_today(self) -> None:
+    def test_list_completed_tasks_returns_done_tasks_for_today(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
             target_date = date(2026, 4, 5)
@@ -446,11 +445,11 @@ class StoreTests(unittest.TestCase):
             add_task(notes_dir, target_date, "Ship box")
             complete_task(notes_dir, target_date, 1)
 
-            tasks = list_finished_tasks(notes_dir, target_date)
+            tasks = list_completed_tasks(notes_dir, target_date)
 
             self.assertEqual([task.text for task in tasks], ["{CHORES} Buy milk"])
 
-    def test_list_finished_tasks_filters_by_tag(self) -> None:
+    def test_list_completed_tasks_filters_by_tag(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
             target_date = date(2026, 4, 5)
@@ -459,7 +458,7 @@ class StoreTests(unittest.TestCase):
             complete_task(notes_dir, target_date, 1)
             complete_task(notes_dir, target_date, 1)
 
-            tasks = list_finished_tasks(notes_dir, target_date, tag="chores")
+            tasks = list_completed_tasks(notes_dir, target_date, tag="chores")
 
             self.assertEqual([task.text for task in tasks], ["{CHORES} Buy milk"])
 
@@ -755,14 +754,14 @@ class StoreTests(unittest.TestCase):
                 [(date(2026, 4, 8), "{CHORES} Future one")],
             )
 
-    def test_unmove_moves_future_task_back_to_today_by_future_index(self) -> None:
+    def test_move_moves_future_task_back_to_today_by_future_index(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
             today = date(2026, 4, 6)
             add_task(notes_dir, today, "Current task")
             move_task(notes_dir, today, 1, date(2026, 4, 10))
 
-            task = unmove_task(notes_dir, today, 1)
+            task = move_task(notes_dir, today, 1, today)
 
             self.assertEqual(task.text, "Current task")
             self.assertEqual(task.created, today)
@@ -770,14 +769,14 @@ class StoreTests(unittest.TestCase):
             self.assertEqual([current.text for current in today_tasks], ["Current task"])
             self.assertEqual(list_future_tasks(notes_dir, today), [])
 
-    def test_unmove_can_pull_task_back_from_later_month(self) -> None:
+    def test_move_today_can_pull_task_back_from_later_month(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
             today = date(2026, 4, 30)
             add_task(notes_dir, today, "Ship box")
             move_task(notes_dir, today, 1, date(2026, 5, 2))
 
-            task = unmove_task(notes_dir, today, 1)
+            task = move_task(notes_dir, today, 1, today)
 
             self.assertEqual(task.text, "Ship box")
             self.assertTrue(file_path(notes_dir, today).exists())

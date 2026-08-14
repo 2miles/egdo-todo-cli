@@ -38,7 +38,7 @@ Make `egdo` solid enough that someone outside this repo can:
 
 ### Markdown safeguards
 
-- improve error messages when the managed section is malformed
+- improve error messages when a daily task section is malformed
 - make parser failures point to the likely problem instead of raising generic exceptions
 - decide how tolerant `egdo` should be of partially malformed task blocks
 - keep the parser permissive enough for manual editing without making behavior ambiguous
@@ -53,14 +53,14 @@ Make `egdo` solid enough that someone outside this repo can:
 ### Edge cases
 
 - review rollover behavior around sparse files and unusual manual edits
-- verify behavior when files contain unexpected content inside the managed section
+- verify behavior when files contain unexpected content inside daily sections
 - verify behavior when tasks are manually checked or unchecked after creation
 
 ## Test Expansion
 
-- add tests for malformed or partially malformed markdown in the managed section
+- add tests for malformed or partially malformed Markdown in daily sections
 - add tests for unusual manual edits and recovery behavior
-- add tests for files with extra notes before and after the managed section
+- add tests for files with preserved preamble content and unusual Notes sections
 - add tests for month and year boundaries if they are not already covered well enough
 - add tests focused on user-facing error messages where failures are intentional
 

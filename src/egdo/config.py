@@ -18,7 +18,7 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
     """Load the storage root from disk."""
     if not path.exists():
         raise FileNotFoundError(
-            f"Config not found at {path}. Run `egdo init --root /path/to/egdo`."
+            f"Config not found at {path}. Run `egdo config --root /path/to/egdo`."
         )
 
     raw = _parse_toml(path.read_text(encoding="utf-8"))

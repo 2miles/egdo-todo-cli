@@ -18,13 +18,12 @@ from egdo.store import (
     create_task,
     delete_tasks,
     edit_task,
-    list_finished_tasks,
+    list_completed_tasks,
     list_task_refs,
     move_tasks,
     prioritize_tasks,
     tag_tasks,
     untag_tasks,
-    unmove_tasks,
 )
 from egdo.render import render_list_header as _render_list_header
 from egdo.render import render_separator as _render_separator
@@ -62,14 +61,14 @@ def build_parser() -> argparse.ArgumentParser:
         parser_class=argparse.ArgumentParser,
     )
 
-    init_parser = subparsers.add_parser(
-        "init",
-        help="Create egdo config",
-        description="Create the egdo config file that points at your egdo storage directory.",
-        epilog="Example:\n  egdo init --root /Users/miles/Notes/egdo",
+    config_parser = subparsers.add_parser(
+        "config",
+        help="Configure egdo storage",
+        description="Write the egdo config file that points at your storage directory.",
+        epilog="Example:\n  egdo config --root /Users/miles/Notes/egdo",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    init_parser.add_argument("--root", required=True, help="Directory where egdo stores its yearly files")
+    config_parser.add_argument("--root", required=True, help="Directory where egdo stores its yearly files")
 
     add_parser = subparsers.add_parser(
         "add",
@@ -117,14 +116,14 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser.add_argument("-t", "--tag", help="Show only tasks with this leading tag")
     list_parser.add_argument("--future", action="store_true", help="Show only future tasks")
 
-    finished_parser = subparsers.add_parser(
-        "finished",
-        help="List finished tasks",
+    completed_parser = subparsers.add_parser(
+        "completed",
+        help="List completed tasks",
         description="List today's completed tasks. Use -t or --tag to filter by leading tags.",
-        epilog="Examples:\n  egdo finished\n  egdo finished -t chores",
+        epilog="Examples:\n  egdo completed\n  egdo completed -t chores",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    finished_parser.add_argument("-t", "--tag", help="Show only finished tasks with this leading tag")
+    completed_parser.add_argument("-t", "--tag", help="Show only completed tasks with this leading tag")
 
     done_parser = subparsers.add_parser(
         "done",
@@ -149,11 +148,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     move_parser = subparsers.add_parser(
         "move",
-        help="Move a task to a future date",
-        description="Move a task to a future date using the index shown by `egdo list`.",
+        help="Move a task to another date",
+        description="Move tasks to today or a future date using IDs shown by `egdo list`.",
         epilog=(
             "Examples:\n"
             "  egdo move 2 tomorrow\n"
+            "  egdo move 7 today\n"
             "  egdo move 1 6 7 tomorrow\n"
             "  egdo move 2 +3\n"
             "  egdo move 2 sunday\n"
@@ -164,17 +164,8 @@ def build_parser() -> argparse.ArgumentParser:
     move_parser.add_argument("indexes", nargs="+", help="Task ID(s) from `egdo list`")
     move_parser.add_argument(
         "when",
-        help="Future date: tomorrow, +N, weekday name, or YYYY-MM-DD",
+        help="Date: today, tomorrow, +N, weekday name, or YYYY-MM-DD",
     )
-
-    unmove_parser = subparsers.add_parser(
-        "unmove",
-        help="Bring future tasks back to today",
-        description="Move one or more future tasks back to today's active list.",
-        epilog="Examples:\n  egdo unmove 12\n  egdo unmove 10 12 15",
-        formatter_class=RawDescriptionRichHelpFormatter,
-    )
-    unmove_parser.add_argument("indexes", nargs="+", help="Future task ID(s) from `egdo list`")
 
     delete_parser = subparsers.add_parser(
         "delete",
@@ -235,8 +226,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        if args.command == "init":
-            return _run_init(Path(args.root).expanduser())
+        if args.command == "config":
+            return _run_config(Path(args.root).expanduser())
 
         config = load_config()
         target_date = date.today()
@@ -246,7 +237,7 @@ def main(argv: list[str] | None = None) -> int:
             create_task=create_task,
             delete_tasks=delete_tasks,
             edit_task=edit_task,
-            list_finished_tasks=list_finished_tasks,
+            list_completed_tasks=list_completed_tasks,
             list_task_refs=list_task_refs,
             move_tasks=move_tasks,
             parse_future_date=_parse_future_date,
@@ -260,7 +251,6 @@ def main(argv: list[str] | None = None) -> int:
             tag_tasks=tag_tasks,
             task_wrap_width=_task_wrap_width,
             untag_tasks=untag_tasks,
-            unmove_tasks=unmove_tasks,
         )
         return dispatch_command(args, config, target_date, console, deps)
     except Exception as exc:  # noqa: BLE001
@@ -271,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
     return 2
 
 
-def _run_init(root: Path) -> int:
+def _run_config(root: Path) -> int:
     config_path = write_config(root=root, path=CONFIG_PATH)
     print(f"Wrote config to {config_path}")
     return 0

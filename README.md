@@ -49,10 +49,10 @@ If project dependencies change later, run the editable install command again.
 
 ## Quick Start
 
-Initialize `egdo`:
+Configure `egdo`:
 
 ```bash
-egdo init --root /path/to/egdo
+egdo config --root /path/to/egdo
 ```
 
 - `--root` is the directory where `egdo` stores its yearly files
@@ -81,13 +81,13 @@ egdo add --parent 1a "Test missing values"
 egdo add --done -t errands "Call the DMV"
 egdo
 egdo list -t chores
-egdo finished
+egdo completed
 egdo list --future
 egdo done 1
 egdo done 1 3 12
 egdo edit 2 "Buy oat milk"
 egdo move 1 6 7 tomorrow
-egdo unmove 1
+egdo move 1 today
 egdo delete 1 6 7
 egdo tag 1 6 7 chores
 egdo tag 3 6 7 --remove
@@ -109,7 +109,7 @@ IDs. Use arrow keys or j/k to move, Space to select, and Enter to complete; dire
 
 After a successful task mutation in an interactive terminal, egdo clears the screen,
 shows a confirmation at the top, and redraws the current list. This applies to `add`,
-`done`, `edit`, `move`, `unmove`, `delete`, `tag`, and `priority`. Redirected and piped
+`done`, `edit`, `move`, `delete`, `tag`, and `priority`. Redirected and piped
 output keeps the compact confirmation-only behavior.
 
 `egdo list` groups tasks as `Today`, `Carried forward`, and scheduled future dates using one continuous set of indexes. Carried-forward tasks are ordered by creation date, newest first, while tasks from the same date retain their existing order. Normal commands such as `done`, `delete`, `move`, `tag`, `priority`, and `edit` automatically operate on the selected task regardless of its group.
