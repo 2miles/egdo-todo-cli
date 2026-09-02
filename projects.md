@@ -4,8 +4,9 @@
 
 The initial scope described below is implemented on the `projects` branch. Project setup
 and root changes use the unified `project add` and `project set` interface; the former
-single-root `config --root` command has been removed. Linked projects, combined views,
-directory detection, and cross-project operations remain deferred.
+single-root `config --root` command has been removed. Git-style local initialization and
+directory detection are the intended next project feature. Linked projects, combined views,
+and cross-project operations remain deferred.
 
 ## Direction
 
@@ -157,6 +158,96 @@ The first version should remain deliberately small:
 
 This feature is about selecting an independent egdo archive. It does not introduce milestones, dependencies, teams, workflows, or other conventional project-management concepts.
 
+## Near Term: Git-Style Project Initialization
+
+Add a Git-like initialization workflow soon so users can start an egdo project from the
+directory where its related notes or work already live:
+
+```bash
+cd ~/Notes/topics/gaming/minecraft
+egdo init Minecraft
+```
+
+This should create or adopt a local `egdo/` archive, register it globally, and write a small
+local marker that allows egdo to recognize the project later:
+
+```text
+minecraft/
+├── .egdo.toml
+└── egdo/
+    └── 2026/
+        └── 2026_09_sep.md
+```
+
+The first monthly file should appear only after the first task or note is added. Initialization
+must not create fake history or empty day sections.
+
+After initialization, running egdo anywhere inside that directory tree should automatically
+select the nearest initialized project:
+
+```bash
+cd ~/Notes/topics/gaming/minecraft/server
+egdo
+egdo add "Update server plugins"
+```
+
+Project resolution should use this precedence:
+
+1. An explicit `-P/--project` selection.
+2. The nearest `.egdo.toml` found by walking upward from the current directory.
+3. The globally configured default project.
+
+Expected initialization behavior:
+
+- `egdo init NAME` uses `<current-directory>/egdo` as the project root.
+- It registers the display name and expanded root in the global config.
+- It writes local identity only; tasks and history remain in ordinary Markdown below `egdo/`.
+- It refuses to overwrite a conflicting marker or reuse a case-insensitive name for another
+  root.
+- If the local `egdo/` archive already exists, initialization may adopt it without rewriting
+  its files.
+- Re-running initialization for the same name and root should be safe and idempotent.
+- Explicit project selection must always override directory detection.
+- Existing `project add` remains useful for registering a root from somewhere else, while
+  `init` becomes the preferred first-run and local-project experience.
+
+### First project and nested projects
+
+When no global config exists, the first initialization should also establish the default
+project:
+
+```bash
+cd ~/Notes
+egdo init Main
+```
+
+This should:
+
+1. Create `~/Notes/.egdo.toml`.
+2. Register `Main` with `~/Notes/egdo` as its archive root.
+3. Make `Main` the global default project.
+4. Defer creating year and month files until the first task or note is added.
+
+Later `egdo init NAME` calls register additional projects without changing the existing
+default. A marker applies to its directory and descendants until a nearer marker overrides
+it. For example:
+
+```text
+~/Notes/                              → Main
+~/Notes/personal/                     → Main
+~/Notes/topics/gaming/minecraft/      → Minecraft
+~/Notes/topics/gaming/minecraft/wiki/ → Minecraft
+```
+
+Initializing `Main` at a broad location such as `~/Notes` therefore provides a useful
+fallback throughout an Obsidian vault, while nested topic projects can establish more
+specific contexts. Outside every initialized directory tree, egdo falls back to the global
+default project.
+
+This provides a simpler product explanation:
+
+> Run `egdo init NAME` in any directory to start a rolling Markdown work journal there.
+
 ## Future: Read-Only All-Projects View
 
 A combined view should make it possible to review work across every active project without
@@ -271,12 +362,8 @@ Do not include these in the initial implementation:
 - nested project hierarchies
 - synchronized or shared tasks between projects
 - moving tasks between projects
-- automatic project detection based on the current directory
-- local `.egdo.toml` project declarations
 
-These may be evaluated after using the basic feature. Directory-based detection, where
-running `egdo` inside a Minecraft directory automatically selects `Minecraft`, requires
-clear precedence and safety rules before implementation.
+These may be evaluated after using the basic feature.
 
 ## Design Principle
 
