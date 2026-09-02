@@ -4,31 +4,43 @@
 
 Running `egdo` with no command is a shortcut for `egdo list`.
 
+Use the global `-P/--project` option before a command to select a named project for that
+invocation without changing the default:
+
+```bash
+egdo -P Minecraft list
+egdo --project Minecraft add "Update server plugins"
+```
+
 Successful task-changing commands clear and redraw the current list when run in an
 interactive terminal, with the confirmation shown above it. Piped or redirected output
 is not cleared and receives only the confirmation line(s).
 
-## `egdo config`
+## `egdo project`
 
-Creates or updates the config file at:
-
-```text
-~/.config/egdo/config.toml
-```
-
-Example:
+Manage independent named task roots:
 
 ```bash
-egdo config --root ~/Notes/egdo
+egdo project add Main ~/Notes/egdo
+egdo project add Minecraft ~/Notes/topics/gaming/minecraft/egdo
+egdo project list
+egdo project set Minecraft ~/Notes/topics/gaming/minecraft/egdo
+egdo project use Minecraft
 ```
 
-Arguments:
+- `add NAME ROOT` creates the config when adding the first project
+- additional `add` commands record another root without changing the default project
+- `list` prints every configured name and root; `*` marks the default
+- `set NAME ROOT` changes a configured location without moving files
+- `use NAME` makes a project the persistent default
+- names are matched case-insensitively while preserving display capitalization
+- project changes save the previous config as `config.toml.bak`
+- projects keep independent tasks, notes, monthly files, numbering, and history
+- selecting a project never moves, merges, or deletes files in another root
 
-- `--root` required absolute or user-relative path where `egdo` stores its yearly files
-- updates only `root` when the config already exists and preserves other settings
-- saves the previous file as `config.toml.bak` before updating it
-- changes where future commands look for tasks; it does not move or delete task files
-- an incorrect root may make the list appear empty until the previous root is restored
+The config file lives at `~/.config/egdo/config.toml`. A legacy config containing only a
+top-level `root` is treated as `Main` and migrated when a project setting is saved. The old
+`egdo config --root` interface has been replaced by `project add` and `project set`.
 
 ## `egdo add`
 
@@ -71,6 +83,7 @@ egdo list -t chores
 ```
 
 - running bare `egdo` is the same as `egdo list`
+- displays the active project above the date
 - uses today by default
 - first performs rollover for unfinished tasks from the most recent earlier day
 - shows incomplete active tasks grouped as `Today` and `Carried forward`; carried tasks are ordered by creation date, newest first

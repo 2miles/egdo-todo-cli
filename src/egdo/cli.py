@@ -7,7 +7,15 @@ from datetime import date
 from pathlib import Path
 import sys
 
-from egdo.config import CONFIG_PATH, load_config, write_config
+from egdo.config import (
+    CONFIG_PATH,
+    add_project,
+    create_config,
+    load_config,
+    save_config,
+    set_project_root,
+    use_project,
+)
 from egdo.dates import parse_future_date as _parse_future_date
 from egdo.handlers import HandlerDeps
 from egdo.handlers import dispatch_command
@@ -53,6 +61,12 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
+    parser.add_argument(
+        "-P",
+        "--project",
+        dest="selected_project",
+        help="Use a named project for this command without changing the default",
+    )
     subparsers = parser.add_subparsers(
         title="commands",
         dest="command",
@@ -61,21 +75,31 @@ def build_parser() -> argparse.ArgumentParser:
         parser_class=argparse.ArgumentParser,
     )
 
-    config_parser = subparsers.add_parser(
-        "config",
-        help="Configure egdo storage",
-        description=(
-            "Set the task-storage directory. Existing config content is preserved and "
-            "backed up; task files are not moved."
-        ),
-        epilog="Example:\n  egdo config --root ~/Notes/egdo",
-        formatter_class=RawDescriptionRichHelpFormatter,
+    project_parser = subparsers.add_parser(
+        "project",
+        help="Manage named task roots",
+        description="Add, list, relocate, or select independent egdo project roots.",
     )
-    config_parser.add_argument(
-        "--root",
+    project_subparsers = project_parser.add_subparsers(
+        dest="project_command",
+        metavar="ACTION",
         required=True,
-        help="Directory containing egdo's yearly task files",
     )
+    project_add_parser = project_subparsers.add_parser(
+        "add", help="Add a named project root"
+    )
+    project_add_parser.add_argument("name", help="Display name, such as Minecraft")
+    project_add_parser.add_argument("root", help="Directory containing the project's files")
+    project_subparsers.add_parser("list", help="List configured projects")
+    project_set_parser = project_subparsers.add_parser(
+        "set", help="Change a project's root"
+    )
+    project_set_parser.add_argument("name", help="Configured project name")
+    project_set_parser.add_argument("root", help="New directory for the project")
+    project_use_parser = project_subparsers.add_parser(
+        "use", help="Make a project the default"
+    )
+    project_use_parser.add_argument("name", help="Configured project name")
 
     add_parser = subparsers.add_parser(
         "add",
@@ -230,10 +254,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        if args.command == "config":
-            return _run_config(Path(args.root).expanduser())
-
+        if args.command == "project":
+            try:
+                config = load_config()
+            except FileNotFoundError:
+                config = None
+            return _run_project(args, config)
         config = load_config()
+        if args.selected_project is not None:
+            config = config.select(args.selected_project)
         target_date = date.today()
         deps = HandlerDeps(
             add_note=add_note,
@@ -265,10 +294,39 @@ def main(argv: list[str] | None = None) -> int:
     return 2
 
 
-def _run_config(root: Path) -> int:
-    config_path = write_config(root=root, path=CONFIG_PATH)
-    print(f"Wrote config to {config_path}")
-    return 0
+def _run_project(args: argparse.Namespace, config: object | None) -> int:
+    """Execute project-management commands without touching task archives."""
+    if config is None:
+        if args.project_command != "add":
+            raise FileNotFoundError(
+                "No projects configured. Run `egdo project add Main ~/Notes/egdo`."
+            )
+        created = create_config(args.name, Path(args.root).expanduser())
+        save_config(created, CONFIG_PATH)
+        print(f'Added project "{created.project_name}" at {created.root}')
+        return 0
+    if args.project_command == "list":
+        for name, root in config.projects.items():
+            marker = "*" if name == config.default_project else " "
+            print(f"{marker} {name}: {root}")
+        return 0
+    if args.project_command == "add":
+        updated = add_project(config, args.name, Path(args.root).expanduser())
+        save_config(updated, CONFIG_PATH)
+        print(f'Added project "{args.name.strip()}" at {Path(args.root).expanduser()}')
+        return 0
+    if args.project_command == "set":
+        updated = set_project_root(config, args.name, Path(args.root).expanduser())
+        save_config(updated, CONFIG_PATH)
+        project_name = updated.select(args.name).project_name
+        print(f'Updated project "{project_name}" to {updated.projects[project_name]}')
+        return 0
+    if args.project_command == "use":
+        updated = use_project(config, args.name)
+        save_config(updated, CONFIG_PATH)
+        print(f'Using project "{updated.project_name}"')
+        return 0
+    raise ValueError(f"Unknown project action: {args.project_command}")
 
 
 if __name__ == "__main__":

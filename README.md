@@ -39,25 +39,28 @@ If project dependencies change later, run the editable install command again.
 
 ## Quick Start
 
-Configure `egdo`:
+Create the default `Main` project:
 
 ```bash
-egdo config --root ~/Notes/egdo
+egdo project add Main ~/Notes/egdo
 ```
 
-This writes `~/.config/egdo/config.toml`. The `--root` value tells `egdo` which directory
-contains—or will contain—your task archive. Use the real location where you want your
-monthly Markdown files stored.
+This writes `~/.config/egdo/config.toml`. The `ROOT` argument tells `egdo` which directory
+contains—or will contain—the `Main` task archive. Use the real location where you want
+your monthly Markdown files stored.
 
-Running the command again changes where `egdo` looks for tasks. It does not move or delete
-the task files at the previous root, so an incorrect root can make your list appear empty.
+Use `egdo project set Main NEW_ROOT` to change its location later. This does not move or
+delete task files at the previous root, so an incorrect root can make `Main` appear empty.
 When updating an existing config, `egdo` preserves its other contents and saves the
 previous version as `~/.config/egdo/config.toml.bak`.
 
-Example:
+Example configuration:
 
-```text
-root: /Users/you/Notes/egdo
+```toml
+default_project = "Main"
+
+[projects]
+"Main" = "/Users/you/Notes/egdo"
 ```
 
 That stores files under:
@@ -108,6 +111,21 @@ Additional views:
 egdo list --future
 egdo list --completed
 egdo list -t chores
+```
+
+Keep an independent task history for another area with a named project:
+
+```bash
+egdo project add Minecraft ~/Notes/topics/gaming/minecraft/egdo
+egdo project use Minecraft
+egdo --project Main list
+```
+
+Every list displays its active project. `project use` changes the default, while the
+global `-P/--project` option selects a project for one command without changing it:
+
+```bash
+egdo -P Minecraft add "Update server plugins"
 ```
 
 Tasks are stored in ordinary Markdown files. They may have one optional tag, one binary
@@ -174,25 +192,36 @@ The config file lives at:
 ~/.config/egdo/config.toml
 ```
 
-Minimal example:
+Example:
 
 ```toml
-root = "/Users/you/Notes/egdo"
+default_project = "Main"
+
+[projects]
+"Main" = "/Users/you/Notes/egdo"
+"Minecraft" = "/Users/you/Notes/topics/gaming/minecraft/egdo"
 ```
 
-Set or change this value with:
+Create the first project with:
 
 ```bash
-egdo config --root ~/Notes/egdo
+egdo project add Main ~/Notes/egdo
 ```
 
-The command creates the config when it does not exist. When it already exists, the command
-changes only its top-level `root` setting, preserves all other content, and copies the
-previous version to `config.toml.bak`.
+Add more projects or change a configured root with:
 
-Changing the root does not relocate, modify, or delete existing task files. It only changes
-where subsequent commands look for them. To return to the previous location, run
-`egdo config --root PREVIOUS_LOCATION` or restore `config.toml.bak`.
+```bash
+egdo project add Minecraft ~/Notes/topics/gaming/minecraft/egdo
+egdo project set Minecraft ~/Notes/topics/games/minecraft/egdo
+```
+
+Project changes preserve unrelated config content and copy the previous version to
+`config.toml.bak`. A legacy config containing only `root = "..."` is read once as the
+`Main` project and migrated to the project format when any project setting is saved.
+
+Changing or selecting a project does not relocate, modify, combine, or delete task files.
+Each root keeps its own tasks, notes, monthly files, numbering, and completed-task history.
+To restore previous configuration, use `config.toml.bak`.
 
 Terminal lists render the tag as an uppercase, dim cyan label without the Markdown braces.
 The tag column has a fixed width; long labels are shortened with an ellipsis for display

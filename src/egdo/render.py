@@ -15,8 +15,11 @@ TAG_COLUMN_WIDTH = 12
 TAG_STYLE = "dim cyan"
 
 
-def render_list_header(target_date) -> Text:
+def render_list_header(target_date, project_name: str = "Main") -> Text:
     header = Text()
+    header.append("Project: ", style="dim")
+    header.append(project_name, style="bold cyan")
+    header.append("\n")
     header.append(target_date.strftime("%A, %B ") + str(target_date.day), style=HEADER_DATE_STYLE)
     return header
 

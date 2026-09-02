@@ -341,7 +341,7 @@ scheduled date.
 
 ## Using egdo with Obsidian
 
-Point `egdo config --root` at an `egdo` directory inside your Obsidian vault. The monthly
+Add a project whose root is an `egdo` directory inside your Obsidian vault. The monthly
 files then remain normal Obsidian notes and sync to the mobile app using whichever sync
 method you use for the rest of the vault.
 
@@ -381,15 +381,29 @@ The config file is:
 A typical config looks like:
 
 ```toml
-root = "/Users/you/Notes/egdo"
+default_project = "Main"
+
+[projects]
+"Main" = "/Users/you/Notes/egdo"
+"Minecraft" = "/Users/you/Notes/topics/gaming/minecraft/egdo"
 ```
 
-Create or update it with `egdo config --root ~/Notes/egdo`. This changes only the
-top-level `root` setting and saves the previous config as `config.toml.bak`. It does not
-move or delete task files; changing the root only changes where `egdo` looks for them.
+Create the first root with `egdo project add Main ~/Notes/egdo`. Add, relocate, list, and
+select independent archives with `egdo project add NAME ROOT`, `egdo project set NAME ROOT`,
+`egdo project list`, and `egdo project use NAME`. Use `egdo -P NAME COMMAND` for a
+one-command override.
 
-Your Markdown vault contains the important task and note history. The config contains the
-root location. Back up or sync both if you
+Every task list names the active project above its date. Project names are matched without
+regard to case but retain their configured capitalization for display.
+
+Configuration changes save the previous config as `config.toml.bak`. They do not move,
+combine, or delete task files. Each project keeps its own tasks, notes, monthly files,
+numbering, and completed history. A legacy top-level `root` is treated as `Main` until the
+configuration is next saved in the named-project format. The former `egdo config --root`
+command is no longer needed; `project add` handles setup and `project set` changes a root.
+
+Your Markdown roots contain the important task and note histories. The config contains the
+project names and root locations. Back up or sync both if you
 want identical behavior after setting up egdo on another computer.
 
 ## “How Do I…?” Index
@@ -397,6 +411,11 @@ want identical behavior after setting up egdo on another computer.
 | I want to… | Command |
 | --- | --- |
 | see my tasks | `egdo` |
+| list configured projects | `egdo project list` |
+| add an independent project | `egdo project add Minecraft ~/Notes/topics/gaming/minecraft/egdo` |
+| change a project's location | `egdo project set Minecraft NEW_ROOT` |
+| change the default project | `egdo project use Minecraft` |
+| use another project once | `egdo -P Minecraft list` |
 | add a task | `egdo add "Task"` |
 | add a tagged task | `egdo add -t work "Task"` |
 | add priority and a tag together | `egdo add -p important -t work "Task"` |

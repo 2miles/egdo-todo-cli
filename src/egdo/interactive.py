@@ -23,7 +23,12 @@ class AddFormResult:
     scheduled: date
 
 
-def prompt_done_form(refs: list[Any], today: date, console: Console) -> list[str]:
+def prompt_done_form(
+    refs: list[Any],
+    today: date,
+    console: Console,
+    project_name: str = "Main",
+) -> list[str]:
     """Select globally indexed tasks with a keyboard-driven multi-select picker."""
     if not sys.stdin.isatty():
         raise ValueError("Interactive done requires a TTY. Use `egdo done ID...`.")
@@ -36,6 +41,7 @@ def prompt_done_form(refs: list[Any], today: date, console: Console) -> list[str
     with console.screen(hide_cursor=True) as screen:
         while True:
             rows = [
+                Text(f"Project: {project_name}", style="bold cyan"),
                 Text("Complete tasks", style="bold"),
                 Text("Up/down or j/k, Space to toggle, Enter to complete, q to cancel.", style="dim"),
                 Text(""),
@@ -121,7 +127,9 @@ def prompt_add_form(
     if not sys.stdin.isatty():
         raise ValueError('Interactive add requires a TTY. Use `egdo add "TASK"`.')
 
-    console.print(Text("\nAdd a task", style="bold"))
+    project_name = getattr(config, "project_name", "Main")
+    console.print(Text(f"\nProject: {project_name}", style="bold cyan"))
+    console.print(Text("Add a task", style="bold"))
     console.print(Text("─" * 32, style="dim"))
     text = _prompt_required(console, "Task")
     tag = _choose_tag(console, known_tags or [], initial_tag)

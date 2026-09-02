@@ -103,6 +103,7 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
                 ),
                 target_date,
                 console,
+                project_name=_project_name(config),
             )
             if not indexes:
                 console.print("Canceled task completion.")
@@ -226,7 +227,7 @@ def _handle_list(args: Any, config: Any, target_date: date, console: Console, de
     ]
     wrap_width = deps.task_wrap_width(console)
     console.print()
-    console.print(deps.render_list_header(target_date))
+    console.print(deps.render_list_header(target_date, _project_name(config)))
     if not indexed_refs:
         empty_message = "No future tasks." if args.future else "No active tasks."
         console.print(Text(empty_message, style="dim"))
@@ -324,7 +325,7 @@ def _render_task_collection(
     """Render a simple dated task collection."""
     wrap_width = deps.task_wrap_width(console)
     console.print()
-    console.print(deps.render_list_header(target_date))
+    console.print(deps.render_list_header(target_date, _project_name(config)))
     console.print(deps.render_separator(wrap_width))
     if not tasks:
         console.print(Text(empty_message, style="dim"))
@@ -406,6 +407,11 @@ def _finish_task_mutation(
         "ListArgs", (), {"future": False, "completed": False, "tag": None}
     )()
     return _handle_list(list_args, config, target_date, console, deps)
+
+
+def _project_name(config: Any) -> str:
+    """Support project-aware configs while keeping simple test doubles useful."""
+    return getattr(config, "project_name", "Main")
 
 
 TASK_ID_RE = re.compile(r"^\d+(?:[a-z]|[a-z]\.[a-z])?$")
