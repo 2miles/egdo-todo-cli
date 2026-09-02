@@ -321,7 +321,8 @@ For example:
 egdo/2026/2026_07_jul.md
 ```
 
-Each file contains daily sections:
+Each file contains sections for days with tasks or notes. Dates without content are
+omitted rather than represented by empty day headers:
 
 ```markdown
 ## Jul-24 Fri

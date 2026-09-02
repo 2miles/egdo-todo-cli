@@ -109,7 +109,7 @@ def parse_file(content: str, default_year: int | None = None) -> FileState:
 
 
 def render_file(state: FileState) -> str:
-    """Render populated bounds deterministically, including empty days between them."""
+    """Render only populated days, preserving gaps between activity dates."""
     sections: list[str] = []
     prefix = state.prefix.strip()
     if prefix:
@@ -118,10 +118,8 @@ def render_file(state: FileState) -> str:
     populated_days = [
         day_date for day_date, day in state.days.items() if day.tasks or notes_have_content(day.notes)
     ]
-    if populated_days:
-        for day_date in day_range(min(populated_days), max(populated_days)):
-            day = state.days.get(day_date, DayState())
-            sections.append(render_day(day_date, day))
+    for day_date in sorted(populated_days):
+        sections.append(render_day(day_date, state.days[day_date]))
 
     if not sections:
         return ""
@@ -220,15 +218,6 @@ def parse_compact_date(value: str, section_date: date) -> date:
 
 def notes_have_content(lines: list[str]) -> bool:
     return any(line.strip() for line in lines)
-
-
-def day_range(start: date, end: date) -> list[date]:
-    dates: list[date] = []
-    current = start
-    while current <= end:
-        dates.append(current)
-        current = current.fromordinal(current.toordinal() + 1)
-    return dates
 
 
 def parse_leading_tag(text: str) -> str | None:

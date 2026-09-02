@@ -65,6 +65,7 @@ egdo add --done "Call dad"
 - the form accepts `today`, `tomorrow`, `+N`, weekdays, and `YYYY-MM-DD` schedules
 - creates the monthly file and day section if they do not exist
 - first performs rollover for unfinished tasks from the most recent earlier day
+- writes day headers only for dates containing tasks or notes; empty dates are omitted
 - `-t` or `--tag` prepends one tag without requiring Markdown tag syntax
 - `-p` or `--priority` accepts `important` or `normal`
 - preserves one leading tag in the task body and normalizes it to `{UPPERCASE}`

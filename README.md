@@ -12,7 +12,9 @@ Many task managers treat their database as the source of truth. With `egdo`, you
 - files can be viewed and edited in any text editor
 - optional tags keep tasks organized without complicating the file format
 
-Each month is stored in a single Markdown file, with one section per day. The result is a lightweight task list that preserves a useful history of your work.
+Each month is stored in a single Markdown file, with sections only for days containing
+tasks or notes. Empty dates are omitted. The result is a lightweight task list that
+preserves a useful history of your work.
 
 ## Installation
 

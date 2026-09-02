@@ -267,7 +267,7 @@ class StoreTests(unittest.TestCase):
             self.assertIn("- [ ] Recent task (04-13)", content)
             self.assertIn("- [ ] Older task (04-12)", content)
 
-    def test_render_includes_blank_day_headers_between_populated_days(self) -> None:
+    def test_render_omits_day_headers_between_populated_days(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
             add_task(notes_dir, date(2026, 4, 4), "Buy milk")
@@ -277,19 +277,42 @@ class StoreTests(unittest.TestCase):
             content = file_path(notes_dir, date(2026, 4, 6)).read_text(encoding="utf-8")
 
             self.assertIn("## Apr-04 Sat", content)
-            self.assertIn("## Apr-05 Sun", content)
+            self.assertNotIn("## Apr-05 Sun", content)
             self.assertIn("## Apr-06 Mon", content)
 
-    def test_blank_day_header_has_no_tasks_section(self) -> None:
+    def test_rewrite_removes_existing_empty_day_header(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
-            add_task(notes_dir, date(2026, 4, 4), "Buy milk")
-            complete_task(notes_dir, date(2026, 4, 4), 1)
-            add_task(notes_dir, date(2026, 4, 6), "Ship box")
+            path = file_path(notes_dir, date(2026, 4, 6))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "\n".join(
+                    [
+                        "## Apr-04 Sat",
+                        "",
+                        "### Tasks",
+                        "",
+                        "- [x] Buy milk (04-04)",
+                        "",
+                        "## Apr-05 Sun",
+                        "",
+                        "## Apr-06 Mon",
+                        "",
+                        "### Tasks",
+                        "",
+                        "- [ ] Ship box (04-06)",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
 
-            content = file_path(notes_dir, date(2026, 4, 6)).read_text(encoding="utf-8")
+            add_note(notes_dir, date(2026, 4, 6), "Packed and ready.")
+            content = path.read_text(encoding="utf-8")
 
-            self.assertIn("## Apr-05 Sun\n\n## Apr-06 Mon", content)
+            self.assertIn("## Apr-04 Sat", content)
+            self.assertNotIn("## Apr-05 Sun", content)
+            self.assertIn("## Apr-06 Mon", content)
 
     def test_list_filters_by_leading_tag(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -662,7 +685,9 @@ class StoreTests(unittest.TestCase):
             moved_tasks = list_tasks(notes_dir, destination_date)
             self.assertEqual([moved.text for moved in moved_tasks], ["Buy milk"])
             content = file_path(notes_dir, destination_date).read_text(encoding="utf-8")
-            self.assertIn("## Apr-07 Tue", content)
+            self.assertNotIn("## Apr-07 Tue", content)
+            self.assertNotIn("## Apr-08 Wed", content)
+            self.assertNotIn("## Apr-09 Thu", content)
             self.assertIn("## Apr-10 Fri", content)
             self.assertIn("- [ ] Buy milk (04-06)", content)
 

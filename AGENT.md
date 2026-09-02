@@ -16,6 +16,7 @@
 - Monthly files live at `<notes-root>/YYYY/YYYY_MM_mon.md`.
 - Daily sections use `## Mon-DD Day`, with `### Tasks` and optional `### Notes` sections.
 - Content before the first managed daily section must be preserved.
+- Month files contain only populated daily sections; do not generate headers for empty dates.
 - Unfinished tasks roll forward on first access to a new day.
 - Completed tasks stay in the file where they were completed.
 - Manual checklist items in task sections are valid input and should normalize cleanly.

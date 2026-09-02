@@ -157,6 +157,112 @@ The first version should remain deliberately small:
 
 This feature is about selecting an independent egdo archive. It does not introduce milestones, dependencies, teams, workflows, or other conventional project-management concepts.
 
+## Future: Read-Only All-Projects View
+
+A combined view should make it possible to review work across every active project without
+merging their archives or creating a global task namespace.
+
+Proposed command:
+
+```bash
+egdo list --all-projects
+```
+
+The output should group tasks by project and retain each project's local IDs:
+
+```text
+Project: Main
+
+1. Send invoice
+2. Buy groceries
+
+Project: Minecraft
+
+1. Update server plugins
+2. Finish the spawn area
+```
+
+Expected behavior:
+
+- Include every active configured project and exclude archived projects by default.
+- Keep projects visually separated and clearly named.
+- Preserve the task IDs from each project's normal list rather than assigning global IDs.
+- Apply supported list filters independently within every project, such as `--future`,
+  `--completed`, and `--tag`.
+- Show an empty project only if doing so provides useful context; otherwise omit it and print
+  one combined empty-state message when no project has matching tasks.
+- Use a deterministic project order, preferably the order stored in the config.
+- Report an unreadable or malformed project with its project name and root rather than
+  silently omitting it.
+
+The combined view must be strictly read-only. It should not rewrite month files, perform
+persistent rollover, change the default project, or expose its project-local numbers to
+mutation commands. To modify a listed task, the user must select its project explicitly:
+
+```bash
+egdo -P Minecraft done 2
+```
+
+If normal list preparation currently requires persistent rollover, the all-projects view
+should compute the equivalent carried-forward presentation without saving it. This avoids a
+single overview command unexpectedly modifying every configured archive.
+
+After project archiving exists, a separate explicit option such as
+`egdo list --all-projects --include-archived` could be considered. Archived projects should
+not be included by the default all-projects view because archiving is intended to remove
+them from everyday use.
+
+## Future: Project Archiving
+
+Projects may eventually need a reversible inactive state. Archiving should hide a project
+from everyday use without moving, rewriting, or deleting any of its Markdown files.
+
+Proposed commands:
+
+```bash
+egdo project archive Minecraft
+egdo project restore Minecraft
+egdo project list --archived
+egdo project list --all
+```
+
+Expected behavior:
+
+- `project list` shows active projects only.
+- `project list --archived` shows archived projects and their remembered roots.
+- `project list --all` shows both groups with a clear status distinction.
+- `project archive NAME` moves only the project registration into an archived state.
+- An archived project cannot be selected with `project use` or `-P/--project`.
+- `project restore NAME` makes the same project active again at its existing root.
+- Archive and restore operations never modify the project's task, note, or history files.
+- Project names remain reserved while archived, preventing another active project from using
+  the same case-insensitive name.
+
+The global config could represent this without placing lifecycle metadata in project roots:
+
+```toml
+default_project = "Main"
+
+[projects]
+Main = "/Users/miles/Notes/egdo"
+
+[archived_projects]
+Minecraft = "/Users/miles/Notes/topics/gaming/minecraft/egdo"
+```
+
+Egdo should refuse to archive the default project. The user must first select another
+default:
+
+```text
+Cannot archive the default project “Minecraft”.
+Select another default with `egdo project use NAME` first.
+```
+
+Use `restore` rather than “reinstantiate” in the CLI because the project and its files are
+never destroyed or recreated. Permanent removal, if it is ever added, should remain a
+separate and explicitly destructive operation. Archive and restore should be implemented
+before considering project removal.
+
 ## Ideas to Defer
 
 Do not include these in the initial implementation:
@@ -164,18 +270,13 @@ Do not include these in the initial implementation:
 - linked parent and child projects
 - nested project hierarchies
 - synchronized or shared tasks between projects
-- automatic aggregation of all project task lists
 - moving tasks between projects
 - automatic project detection based on the current directory
 - local `.egdo.toml` project declarations
 
-These may be evaluated after using the basic feature. Possible later additions include:
-
-```bash
-egdo list --all-projects
-```
-
-and directory-based detection, where running `egdo` inside a Minecraft directory automatically selects `Minecraft`. Both ideas require clear precedence and safety rules before implementation.
+These may be evaluated after using the basic feature. Directory-based detection, where
+running `egdo` inside a Minecraft directory automatically selects `Minecraft`, requires
+clear precedence and safety rules before implementation.
 
 ## Design Principle
 
