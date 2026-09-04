@@ -9,11 +9,13 @@ import sys
 
 from egdo.config import (
     CONFIG_PATH,
-    add_project,
-    create_config,
+    LOCAL_CONFIG_NAME,
+    initialize_local_marker,
     load_config,
+    read_local_project,
+    register_initialized_project,
     save_config,
-    set_project_root,
+    select_project_for_directory,
     use_project,
 )
 from egdo.dates import parse_future_date as _parse_future_date
@@ -48,9 +50,12 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the complete CLI grammar and its command-specific help text."""
     parser = argparse.ArgumentParser(
         prog="egdo",
-        description="A rolling, Markdown-backed todo list. Run without a command to show your tasks.",
+        description=(
+            "A rolling Markdown work journal. Run without a command to show your tasks."
+        ),
         epilog=(
             "Examples:\n"
+            "  egdo init Main\n"
             "  egdo\n"
             '  egdo add -p important -t work "Submit application"\n'
             '  egdo add --parent 6 "Add tests"\n'
@@ -75,27 +80,29 @@ def build_parser() -> argparse.ArgumentParser:
         parser_class=argparse.ArgumentParser,
     )
 
+    init_parser = subparsers.add_parser(
+        "init",
+        help="Initialize an egdo project here",
+        description=(
+            "Initialize a named egdo project in the current directory. "
+            "Creates .egdo.toml and uses ./egdo for its Markdown archive."
+        ),
+        epilog="Example:\n  cd ~/Notes\n  egdo init Main",
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
+    init_parser.add_argument("name", help="Project display name, such as Main or Minecraft")
+
     project_parser = subparsers.add_parser(
         "project",
         help="Manage named task roots",
-        description="Add, list, relocate, or select independent egdo project roots.",
+        description="List named projects or select the global fallback.",
     )
     project_subparsers = project_parser.add_subparsers(
         dest="project_command",
         metavar="ACTION",
         required=True,
     )
-    project_add_parser = project_subparsers.add_parser(
-        "add", help="Add a named project root"
-    )
-    project_add_parser.add_argument("name", help="Display name, such as Minecraft")
-    project_add_parser.add_argument("root", help="Directory containing the project's files")
     project_subparsers.add_parser("list", help="List configured projects")
-    project_set_parser = project_subparsers.add_parser(
-        "set", help="Change a project's root"
-    )
-    project_set_parser.add_argument("name", help="Configured project name")
-    project_set_parser.add_argument("root", help="New directory for the project")
     project_use_parser = project_subparsers.add_parser(
         "use", help="Make a project the default"
     )
@@ -254,6 +261,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
+        if args.command == "init":
+            try:
+                config = load_config()
+            except FileNotFoundError:
+                config = None
+            return _run_init(args.name, config, _current_directory())
         if args.command == "project":
             try:
                 config = load_config()
@@ -261,8 +274,11 @@ def main(argv: list[str] | None = None) -> int:
                 config = None
             return _run_project(args, config)
         config = load_config()
-        if args.selected_project is not None:
-            config = config.select(args.selected_project)
+        config, registry_changed = select_project_for_directory(
+            config, args.selected_project, _current_directory()
+        )
+        if registry_changed:
+            save_config(config, CONFIG_PATH)
         target_date = date.today()
         deps = HandlerDeps(
             add_note=add_note,
@@ -297,29 +313,13 @@ def main(argv: list[str] | None = None) -> int:
 def _run_project(args: argparse.Namespace, config: object | None) -> int:
     """Execute project-management commands without touching task archives."""
     if config is None:
-        if args.project_command != "add":
-            raise FileNotFoundError(
-                "No projects configured. Run `egdo project add Main ~/Notes/egdo`."
-            )
-        created = create_config(args.name, Path(args.root).expanduser())
-        save_config(created, CONFIG_PATH)
-        print(f'Added project "{created.project_name}" at {created.root}')
-        return 0
+        raise FileNotFoundError(
+            "No projects configured. Run `egdo init Main` in your notes directory."
+        )
     if args.project_command == "list":
         for name, root in config.projects.items():
             marker = "*" if name == config.default_project else " "
             print(f"{marker} {name}: {root}")
-        return 0
-    if args.project_command == "add":
-        updated = add_project(config, args.name, Path(args.root).expanduser())
-        save_config(updated, CONFIG_PATH)
-        print(f'Added project "{args.name.strip()}" at {Path(args.root).expanduser()}')
-        return 0
-    if args.project_command == "set":
-        updated = set_project_root(config, args.name, Path(args.root).expanduser())
-        save_config(updated, CONFIG_PATH)
-        project_name = updated.select(args.name).project_name
-        print(f'Updated project "{project_name}" to {updated.projects[project_name]}')
         return 0
     if args.project_command == "use":
         updated = use_project(config, args.name)
@@ -327,6 +327,36 @@ def _run_project(args: argparse.Namespace, config: object | None) -> int:
         print(f'Using project "{updated.project_name}"')
         return 0
     raise ValueError(f"Unknown project action: {args.project_command}")
+
+
+def _run_init(name: str, config: object | None, directory: Path) -> int:
+    """Initialize or adopt a project in the current directory."""
+    marker_path = directory.resolve() / LOCAL_CONFIG_NAME
+    if marker_path.exists():
+        existing = read_local_project(marker_path)
+        if existing.name.casefold() != name.strip().casefold():
+            raise ValueError(
+                f'{marker_path} already identifies project "{existing.name}"'
+            )
+        name = existing.name
+
+    root = directory.resolve() / "egdo"
+    updated, config_changed = register_initialized_project(config, name, root)
+    initialized_root, marker_created = initialize_local_marker(directory, name)
+    if config_changed:
+        save_config(updated, CONFIG_PATH)
+
+    project_name = updated.select(name).project_name
+    if not config_changed and not marker_created:
+        print(f'Project "{project_name}" is already initialized at {initialized_root}')
+    else:
+        print(f'Initialized egdo project "{project_name}" in {initialized_root}')
+    return 0
+
+
+def _current_directory() -> Path:
+    """Return the process working directory through an easy-to-test boundary."""
+    return Path.cwd()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 # egdo
 
-`egdo` is a Markdown-backed command-line task manager. It keeps daily tasks and notes in ordinary monthly files that remain readable and editable without the app.
+`egdo` is a terminal workflow that carries unfinished tasks forward while preserving
+completed work as a plain-Markdown journal.
 
 ## Why egdo?
 
@@ -41,35 +42,30 @@ If project dependencies change later, run the editable install command again.
 
 ## Quick Start
 
-Create the default `Main` project:
+Install egdo, open the directory where your notes live, and initialize your first journal:
 
 ```bash
-egdo project add Main ~/Notes/egdo
+cd ~/Notes
+egdo init Main
+egdo add "My first task"
+egdo
 ```
 
-This writes `~/.config/egdo/config.toml`. The `ROOT` argument tells `egdo` which directory
-contains—or will contain—the `Main` task archive. Use the real location where you want
-your monthly Markdown files stored.
-
-Use `egdo project set Main NEW_ROOT` to change its location later. This does not move or
-delete task files at the previous root, so an incorrect root can make `Main` appear empty.
-When updating an existing config, `egdo` preserves its other contents and saves the
-previous version as `~/.config/egdo/config.toml.bak`.
-
-Example configuration:
-
-```toml
-default_project = "Main"
-
-[projects]
-"Main" = "/Users/you/Notes/egdo"
-```
-
-That stores files under:
+Initialization creates a small `.egdo.toml` marker and an `egdo/` archive directory. Year
+and month files appear only when you add a task or note:
 
 ```text
-/Users/you/Notes/egdo/2026/2026_04_apr.md
+~/Notes/
+├── .egdo.toml
+└── egdo/
+    └── 2026/
+        └── 2026_09_sep.md
 ```
+
+Run egdo anywhere below `~/Notes` and it recognizes `Main` automatically.
+The marker stores only the project identity. Its archive is always the sibling `egdo/`
+directory, so moving the initialized directory keeps local use working and refreshes its
+global registry location automatically.
 
 ## Basic Usage
 
@@ -115,16 +111,17 @@ egdo list --completed
 egdo list -t chores
 ```
 
-Keep an independent task history for another area with a named project:
+Initialize another journal from the directory containing its related notes:
 
 ```bash
-egdo project add Minecraft ~/Notes/topics/gaming/minecraft/egdo
-egdo project use Minecraft
-egdo --project Main list
+cd ~/Notes/topics/gaming/minecraft
+egdo init Minecraft
+egdo add "Update server plugins"
 ```
 
-Every list displays its active project. `project use` changes the default, while the
-global `-P/--project` option selects a project for one command without changing it:
+Inside that directory tree, egdo selects `Minecraft`; elsewhere beneath `~/Notes`, it
+selects `Main`. Every list displays its active project. The global `-P/--project` option
+always provides an explicit one-command override:
 
 ```bash
 egdo -P Minecraft add "Update server plugins"
@@ -186,7 +183,7 @@ You should avoid:
 
 If a manual task is missing its trailing `(MM-DD)` date, `egdo` fills it in from the day section date the next time it normalizes the file.
 
-## Configuration
+## Projects and Configuration
 
 The config file lives at:
 
@@ -204,26 +201,28 @@ default_project = "Main"
 "Minecraft" = "/Users/you/Notes/topics/gaming/minecraft/egdo"
 ```
 
-Create the first project with:
+The preferred setup is local initialization:
 
 ```bash
-egdo project add Main ~/Notes/egdo
+cd ~/Notes
+egdo init Main
 ```
 
-Add more projects or change a configured root with:
+Egdo selects projects in this order: explicit `-P/--project`, the nearest `.egdo.toml`
+found by walking upward, then the global default. Project commands show the registry or
+change its global fallback:
 
 ```bash
-egdo project add Minecraft ~/Notes/topics/gaming/minecraft/egdo
-egdo project set Minecraft ~/Notes/topics/games/minecraft/egdo
+egdo project list
+egdo project use Main
 ```
 
 Project changes preserve unrelated config content and copy the previous version to
-`config.toml.bak`. A legacy config containing only `root = "..."` is read once as the
-`Main` project and migrated to the project format when any project setting is saved.
+`config.toml.bak`.
 
-Changing or selecting a project does not relocate, modify, combine, or delete task files.
-Each root keeps its own tasks, notes, monthly files, numbering, and completed-task history.
-To restore previous configuration, use `config.toml.bak`.
+Initializing or selecting a project does not relocate, modify, combine, or delete another
+project's task files. Each root keeps its own tasks, notes, monthly files, numbering, and
+completed-task history. To restore previous configuration, use `config.toml.bak`.
 
 Terminal lists render the tag as an uppercase, dim cyan label without the Markdown braces.
 The tag column has a fixed width; long labels are shortened with an ellipsis for display

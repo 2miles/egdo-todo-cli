@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date
 from io import StringIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
 import sys
 import unittest
 from unittest.mock import patch
@@ -348,6 +349,116 @@ class CliTests(unittest.TestCase):
         list_task_refs_mock.assert_called_once_with(Path("/tmp/minecraft"), mocked_today)
         self.assertIn("Project: Minecraft", output.getvalue())
 
+    def test_local_marker_selects_project_for_normal_command(self) -> None:
+        with TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            marker = directory / ".egdo.toml"
+            marker.write_text(
+                'project = "Minecraft"\n', encoding="utf-8"
+            )
+            config = Config(
+                projects={
+                    "Main": Path("/tmp/main/egdo"),
+                    "Minecraft": directory / "egdo",
+                }
+            )
+            output = StringIO()
+            mocked_today = date(2026, 4, 6)
+
+            with (
+                patch("egdo.cli.load_config", return_value=config),
+                patch("egdo.cli._current_directory", return_value=directory),
+                patch("egdo.cli.date") as date_mock,
+                patch("egdo.cli.list_task_refs", return_value=[]) as refs_mock,
+                patch(
+                    "egdo.cli.console",
+                    Console(file=output, force_terminal=False, color_system=None),
+                ),
+            ):
+                date_mock.today.return_value = mocked_today
+                exit_code = main(["list"])
+
+            self.assertEqual(exit_code, 0)
+            called_root = refs_mock.call_args.args[0]
+            self.assertEqual(called_root.resolve(), (directory / "egdo").resolve())
+            self.assertEqual(refs_mock.call_args.args[1], mocked_today)
+            self.assertIn("Project: Minecraft", output.getvalue())
+
+    def test_local_marker_refreshes_registry_after_project_directory_moves(self) -> None:
+        with TemporaryDirectory() as tmp:
+            directory = Path(tmp) / "moved" / "minecraft"
+            directory.mkdir(parents=True)
+            (directory / ".egdo.toml").write_text(
+                'project = "Minecraft"\n', encoding="utf-8"
+            )
+            config = Config(
+                projects={"Minecraft": Path(tmp) / "old" / "minecraft" / "egdo"},
+                default_project="Minecraft",
+            )
+            mocked_today = date(2026, 4, 6)
+
+            with (
+                patch("egdo.cli.load_config", return_value=config),
+                patch("egdo.cli._current_directory", return_value=directory),
+                patch("egdo.cli.save_config") as save_mock,
+                patch("egdo.cli.date") as date_mock,
+                patch("egdo.cli.list_task_refs", return_value=[]) as refs_mock,
+                patch(
+                    "egdo.cli.console",
+                    Console(file=StringIO(), force_terminal=False, color_system=None),
+                ),
+            ):
+                date_mock.today.return_value = mocked_today
+                exit_code = main(["list"])
+
+            self.assertEqual(exit_code, 0)
+            refreshed = save_mock.call_args.args[0]
+            self.assertEqual(refreshed.root, (directory / "egdo").resolve())
+            self.assertEqual(refs_mock.call_args.args[0], refreshed.root)
+
+    def test_init_creates_first_project_marker_and_registration(self) -> None:
+        with TemporaryDirectory() as tmp:
+            directory = Path(tmp) / "Notes"
+            output = StringIO()
+
+            with (
+                patch("egdo.cli.load_config", side_effect=FileNotFoundError),
+                patch("egdo.cli._current_directory", return_value=directory),
+                patch("egdo.cli.save_config") as save_mock,
+                patch("sys.stdout", output),
+            ):
+                exit_code = main(["init", "Main"])
+
+            self.assertEqual(exit_code, 0)
+            saved = save_mock.call_args.args[0]
+            self.assertEqual(saved.default_project, "Main")
+            self.assertEqual(saved.root, (directory / "egdo").resolve())
+            self.assertEqual(
+                (directory / ".egdo.toml").read_text(encoding="utf-8"),
+                'project = "Main"\n',
+            )
+            self.assertTrue((directory / "egdo").is_dir())
+            self.assertEqual(list((directory / "egdo").iterdir()), [])
+            self.assertIn('Initialized egdo project "Main"', output.getvalue())
+
+    def test_init_adds_project_without_changing_existing_default(self) -> None:
+        with TemporaryDirectory() as tmp:
+            directory = Path(tmp) / "minecraft"
+            config = Config(projects={"Main": Path(tmp) / "main" / "egdo"})
+
+            with (
+                patch("egdo.cli.load_config", return_value=config),
+                patch("egdo.cli._current_directory", return_value=directory),
+                patch("egdo.cli.save_config") as save_mock,
+                patch("sys.stdout", new_callable=StringIO),
+            ):
+                exit_code = main(["init", "Minecraft"])
+
+            self.assertEqual(exit_code, 0)
+            saved = save_mock.call_args.args[0]
+            self.assertEqual(saved.default_project, "Main")
+            self.assertEqual(saved.projects["Minecraft"], (directory / "egdo").resolve())
+
     def test_project_and_priority_have_distinct_short_options(self) -> None:
         parser = build_parser()
 
@@ -377,60 +488,6 @@ class CliTests(unittest.TestCase):
             "  Main: /tmp/main\n* Minecraft: /tmp/minecraft\n",
         )
 
-    def test_project_add_saves_new_root_without_changing_default(self) -> None:
-        config = Config(projects={"Main": Path("/tmp/main")})
-        output = StringIO()
-
-        with (
-            patch("egdo.cli.load_config", return_value=config),
-            patch("egdo.cli.save_config") as save_config_mock,
-            patch("sys.stdout", output),
-        ):
-            exit_code = main(["project", "add", "Minecraft", "/tmp/minecraft"])
-
-        self.assertEqual(exit_code, 0)
-        saved = save_config_mock.call_args.args[0]
-        self.assertEqual(saved.projects["Minecraft"], Path("/tmp/minecraft"))
-        self.assertEqual(saved.default_project, "Main")
-        self.assertIn('Added project "Minecraft"', output.getvalue())
-
-    def test_project_add_creates_the_first_configuration(self) -> None:
-        output = StringIO()
-
-        with (
-            patch("egdo.cli.load_config", side_effect=FileNotFoundError),
-            patch("egdo.cli.save_config") as save_config_mock,
-            patch("sys.stdout", output),
-        ):
-            exit_code = main(["project", "add", "Main", "/tmp/main"])
-
-        self.assertEqual(exit_code, 0)
-        saved = save_config_mock.call_args.args[0]
-        self.assertEqual(saved.projects, {"Main": Path("/tmp/main")})
-        self.assertEqual(saved.default_project, "Main")
-        self.assertEqual(output.getvalue(), 'Added project "Main" at /tmp/main\n')
-
-    def test_project_set_updates_a_named_root(self) -> None:
-        config = Config(
-            projects={"Main": Path("/tmp/main"), "Minecraft": Path("/tmp/minecraft")}
-        )
-        output = StringIO()
-
-        with (
-            patch("egdo.cli.load_config", return_value=config),
-            patch("egdo.cli.save_config") as save_config_mock,
-            patch("sys.stdout", output),
-        ):
-            exit_code = main(["project", "set", "minecraft", "/tmp/new-minecraft"])
-
-        self.assertEqual(exit_code, 0)
-        saved = save_config_mock.call_args.args[0]
-        self.assertEqual(saved.projects["Minecraft"], Path("/tmp/new-minecraft"))
-        self.assertEqual(
-            output.getvalue(),
-            'Updated project "Minecraft" to /tmp/new-minecraft\n',
-        )
-
     def test_project_use_saves_case_preserved_default(self) -> None:
         config = Config(
             projects={"Main": Path("/tmp/main"), "Minecraft": Path("/tmp/minecraft")},
@@ -449,6 +506,16 @@ class CliTests(unittest.TestCase):
         self.assertEqual(saved.default_project, "Minecraft")
         self.assertEqual(saved.root, Path("/tmp/minecraft"))
         self.assertEqual(output.getvalue(), 'Using project "Minecraft"\n')
+
+    def test_project_add_and_set_are_not_commands(self) -> None:
+        parser = build_parser()
+
+        for action in ("add", "set"):
+            with (
+                patch("sys.stderr", new_callable=StringIO),
+                self.assertRaises(SystemExit),
+            ):
+                parser.parse_args(["project", action])
 
     def test_main_add_without_text_uses_interactive_form(self) -> None:
         config = type(
@@ -797,7 +864,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(completed_args.command, "list")
         self.assertTrue(completed_args.completed)
         self.assertEqual(parser.parse_args(["move", "7", "today"]).when, "today")
-        for legacy_command in ("completed", "finished", "init", "unmove", "config"):
+        for legacy_command in ("completed", "finished", "unmove", "config"):
             with (
                 patch("sys.stderr", new_callable=StringIO),
                 self.assertRaises(SystemExit),

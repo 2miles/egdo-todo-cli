@@ -4,6 +4,9 @@
 
 Running `egdo` with no command is a shortcut for `egdo list`.
 
+For normal commands, egdo selects a project in this order: an explicit `-P/--project`, the
+nearest `.egdo.toml` found from the current directory upward, then the global default.
+
 Use the global `-P/--project` option before a command to select a named project for that
 invocation without changing the default:
 
@@ -16,31 +19,47 @@ Successful task-changing commands clear and redraw the current list when run in 
 interactive terminal, with the confirmation shown above it. Piped or redirected output
 is not cleared and receives only the confirmation line(s).
 
+## `egdo init`
+
+Initialize an egdo journal in the current directory:
+
+```bash
+cd ~/Notes
+egdo init Main
+```
+
+- creates `.egdo.toml` in the current directory
+- stores only the project identity in the marker; the archive is always the sibling `egdo/`
+- creates or adopts an empty `egdo/` archive directory
+- registers `<current-directory>/egdo` as the named project's root
+- makes the first initialized project the global default
+- leaves the existing default unchanged when initializing later projects
+- creates no year, month, task, note, or empty history files
+- is safe to repeat for the same case-insensitive name and root
+- refuses conflicting local markers, project names, or registered roots
+- allows commands in descendant directories to discover the project automatically
+- refreshes the global registry when a moved project is discovered and its old marker is gone
+- refuses to guess when two live markers claim the same case-insensitive project name
+
 ## `egdo project`
 
 Manage independent named task roots:
 
 ```bash
-egdo project add Main ~/Notes/egdo
-egdo project add Minecraft ~/Notes/topics/gaming/minecraft/egdo
 egdo project list
-egdo project set Minecraft ~/Notes/topics/gaming/minecraft/egdo
 egdo project use Minecraft
 ```
 
-- `add NAME ROOT` creates the config when adding the first project
-- additional `add` commands record another root without changing the default project
 - `list` prints every configured name and root; `*` marks the default
-- `set NAME ROOT` changes a configured location without moving files
 - `use NAME` makes a project the persistent default
 - names are matched case-insensitively while preserving display capitalization
-- project changes save the previous config as `config.toml.bak`
+- `project use` saves the previous config as `config.toml.bak`
 - projects keep independent tasks, notes, monthly files, numbering, and history
 - selecting a project never moves, merges, or deletes files in another root
 
-The config file lives at `~/.config/egdo/config.toml`. A legacy config containing only a
-top-level `root` is treated as `Main` and migrated when a project setting is saved. The old
-`egdo config --root` interface has been replaced by `project add` and `project set`.
+The config file lives at `~/.config/egdo/config.toml` and stores the named project registry.
+New projects are created with `egdo init NAME`; there is no separate command for manually
+adding or repointing a project root.
 
 ## `egdo add`
 

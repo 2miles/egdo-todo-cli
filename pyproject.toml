@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "egdo"
 version = "0.1.0"
-description = "Markdown-backed CLI todo manager for daily notes."
+description = "A rolling Markdown work journal for the terminal."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"

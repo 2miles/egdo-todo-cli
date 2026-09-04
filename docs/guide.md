@@ -373,6 +373,38 @@ day section the next time it normalizes that file.
 
 ## Configuration and Backup
 
+Initialize your first project from the directory containing its related notes:
+
+```bash
+cd ~/Notes
+egdo init Main
+```
+
+This creates `~/Notes/.egdo.toml`, registers `~/Notes/egdo`, and makes `Main` the
+default. The archive remains empty until the first task or note is added. A nested project
+uses the same workflow:
+
+```bash
+cd ~/Notes/topics/gaming/minecraft
+egdo init Minecraft
+```
+
+Egdo uses an explicit `-P/--project` first, then the nearest local marker found by walking
+upward, then the global default. A nearer nested marker therefore overrides a broader marker
+such as the one at `~/Notes`.
+
+The local marker stores only the project identity:
+
+```toml
+project = "Minecraft"
+```
+
+The archive is always the marker's sibling `egdo/` directory. If the initialized directory
+is moved, the archive moves with it. The next command run inside the moved tree uses the
+local archive immediately and updates the global registry.
+If the previous location still has a valid marker for the same project, egdo refuses the
+duplicate rather than guessing which copy is authoritative.
+
 The config file is:
 
 ```text
@@ -389,19 +421,17 @@ default_project = "Main"
 "Minecraft" = "/Users/you/Notes/topics/gaming/minecraft/egdo"
 ```
 
-Create the first root with `egdo project add Main ~/Notes/egdo`. Add, relocate, list, and
-select independent archives with `egdo project add NAME ROOT`, `egdo project set NAME ROOT`,
-`egdo project list`, and `egdo project use NAME`. Use `egdo -P NAME COMMAND` for a
-one-command override.
+Use `egdo project list` to see registered journals and `egdo project use NAME` to change
+the global fallback. New projects are always created from their local directory with
+`egdo init NAME`; there is no separate command for adding or repointing a raw root.
 
 Every task list names the active project above its date. Project names are matched without
 regard to case but retain their configured capitalization for display.
 
 Configuration changes save the previous config as `config.toml.bak`. They do not move,
 combine, or delete task files. Each project keeps its own tasks, notes, monthly files,
-numbering, and completed history. A legacy top-level `root` is treated as `Main` until the
-configuration is next saved in the named-project format. The former `egdo config --root`
-command is no longer needed; `project add` handles setup and `project set` changes a root.
+numbering, and completed history. The former `egdo config --root` command is no longer
+needed; `egdo init` handles setup.
 
 Your Markdown roots contain the important task and note histories. The config contains the
 project names and root locations. Back up or sync both if you
@@ -412,9 +442,9 @@ want identical behavior after setting up egdo on another computer.
 | I want to… | Command |
 | --- | --- |
 | see my tasks | `egdo` |
+| initialize a journal here | `egdo init Main` |
 | list configured projects | `egdo project list` |
-| add an independent project | `egdo project add Minecraft ~/Notes/topics/gaming/minecraft/egdo` |
-| change a project's location | `egdo project set Minecraft NEW_ROOT` |
+| initialize another project | `cd PROJECT_DIRECTORY && egdo init Minecraft` |
 | change the default project | `egdo project use Minecraft` |
 | use another project once | `egdo -P Minecraft list` |
 | add a task | `egdo add "Task"` |

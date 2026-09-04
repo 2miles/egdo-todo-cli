@@ -2,11 +2,11 @@
 
 ## Implementation Status
 
-The initial scope described below is implemented on the `projects` branch. Project setup
-and root changes use the unified `project add` and `project set` interface; the former
-single-root `config --root` command has been removed. Git-style local initialization and
-directory detection are the intended next project feature. Linked projects, combined views,
-and cross-project operations remain deferred.
+The initial project scope and Git-style initialization are implemented. The former raw-root
+commands (`config --root`, `project add`, and `project set`) have been removed. The command
+`egdo init NAME` is the single project-creation path, with directory detection and
+global-default fallback. Linked projects, combined views, and cross-project operations
+remain deferred.
 
 ## Direction
 
@@ -97,15 +97,18 @@ Mutation confirmations can also name the project when useful:
 Added to Minecraft: Update server plugins
 ```
 
-## Proposed CLI
+## Project CLI
 
-Manage named projects with explicit subcommands:
+Initialize projects where their related work lives, then list them or change the fallback:
 
 ```bash
-egdo project add Main ~/Notes/egdo
-egdo project add Minecraft ~/Notes/topics/gaming/minecraft/egdo
+cd ~/Notes
+egdo init Main
+
+cd ~/Notes/topics/gaming/minecraft
+egdo init Minecraft
+
 egdo project list
-egdo project set Minecraft ~/Notes/topics/gaming/minecraft/egdo
 egdo project use Minecraft
 ```
 
@@ -126,7 +129,7 @@ egdo -P Main list
 
 Switching projects must never move, combine, modify, or delete files in another project.
 
-## Proposed Global Configuration
+## Global Configuration
 
 The global configuration maps display names to storage roots and records the default project:
 
@@ -138,11 +141,8 @@ Main = "/Users/miles/Notes/egdo"
 Minecraft = "/Users/miles/Notes/topics/gaming/minecraft/egdo"
 ```
 
-Existing installations with a single top-level `root` should have a clear, safe migration path to a `Main` project. Migration must not relocate or rewrite the existing archive.
-
-The compatibility reader treats a legacy top-level `root` as `Main`. The next `project add`,
-`project set`, or `project use` saves the canonical project format and a backup. New setup
-uses `project add`; there is no separate single-root configuration command.
+The registry has one canonical named-project format. New setup uses `egdo init`; there is
+no separate raw-root configuration command or pre-release single-root compatibility format.
 
 ## Initial Scope
 
@@ -154,13 +154,12 @@ The first version should remain deliberately small:
 4. Add `-P/--project` for a one-command override; lowercase `-p` remains task priority.
 5. Show the active project at the top of every task display.
 6. Keep every project's files and history completely separate.
-7. Preserve a narrow read-and-migrate path for existing single-root configs and archives.
 
 This feature is about selecting an independent egdo archive. It does not introduce milestones, dependencies, teams, workflows, or other conventional project-management concepts.
 
-## Near Term: Git-Style Project Initialization
+## Git-Style Project Initialization
 
-Add a Git-like initialization workflow soon so users can start an egdo project from the
+The Git-like initialization workflow lets users start an egdo project from the
 directory where its related notes or work already live:
 
 ```bash
@@ -168,7 +167,7 @@ cd ~/Notes/topics/gaming/minecraft
 egdo init Minecraft
 ```
 
-This should create or adopt a local `egdo/` archive, register it globally, and write a small
+This creates or adopts a local `egdo/` archive, registers it globally, and writes a small
 local marker that allows egdo to recognize the project later:
 
 ```text
@@ -179,10 +178,18 @@ minecraft/
         └── 2026_09_sep.md
 ```
 
-The first monthly file should appear only after the first task or note is added. Initialization
-must not create fake history or empty day sections.
+The marker stores only the project identity:
 
-After initialization, running egdo anywhere inside that directory tree should automatically
+```toml
+project = "Minecraft"
+```
+
+The archive is always the sibling `egdo/` directory.
+
+The first monthly file appears only after the first task or note is added. Initialization
+does not create fake history or empty day sections.
+
+After initialization, running egdo anywhere inside that directory tree automatically
 select the nearest initialized project:
 
 ```bash
@@ -191,29 +198,34 @@ egdo
 egdo add "Update server plugins"
 ```
 
-Project resolution should use this precedence:
+Project resolution uses this precedence:
 
 1. An explicit `-P/--project` selection.
 2. The nearest `.egdo.toml` found by walking upward from the current directory.
 3. The globally configured default project.
 
-Expected initialization behavior:
+Initialization behavior:
 
 - `egdo init NAME` uses `<current-directory>/egdo` as the project root.
 - It registers the display name and expanded root in the global config.
-- It writes local identity only; tasks and history remain in ordinary Markdown below `egdo/`.
+- It resolves the local root relative to the marker; tasks and history remain in ordinary
+  Markdown below `egdo/`.
 - It refuses to overwrite a conflicting marker or reuse a case-insensitive name for another
   root.
-- If the local `egdo/` archive already exists, initialization may adopt it without rewriting
+- If the local `egdo/` archive already exists, initialization adopts it without rewriting
   its files.
-- Re-running initialization for the same name and root should be safe and idempotent.
+- Re-running initialization for the same name and root is safe and idempotent.
 - Explicit project selection must always override directory detection.
-- Existing `project add` remains useful for registering a root from somewhere else, while
-  `init` becomes the preferred first-run and local-project experience.
+- `init` is the only project-creation path, keeping raw root bookkeeping out of the normal
+  interface.
+- Moving the entire initialized directory keeps local use working because the archive is
+  always beside `.egdo.toml`; discovery refreshes the global registry automatically.
+- If the old location still has a live marker with the same project name, egdo rejects the
+  duplicate instead of silently treating a copy as a move.
 
 ### First project and nested projects
 
-When no global config exists, the first initialization should also establish the default
+When no global config exists, the first initialization also establishes the default
 project:
 
 ```bash
@@ -221,7 +233,7 @@ cd ~/Notes
 egdo init Main
 ```
 
-This should:
+This:
 
 1. Create `~/Notes/.egdo.toml`.
 2. Register `Main` with `~/Notes/egdo` as its archive root.
