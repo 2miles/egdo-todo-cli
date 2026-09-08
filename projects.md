@@ -2,10 +2,11 @@
 
 ## Implementation Status
 
-The initial project scope and Git-style initialization are implemented. The former raw-root
+The initial project scope, Git-style initialization, and read-only combined view are
+implemented. The former raw-root
 commands (`config --root`, `project add`, and `project set`) have been removed. The command
 `egdo init NAME` is the single project-creation path, with directory detection and
-global-default fallback. Linked projects, combined views, and cross-project operations
+global-default fallback. Linked projects, project archiving, and cross-project mutations
 remain deferred.
 
 ## Direction
@@ -260,12 +261,12 @@ This provides a simpler product explanation:
 
 > Run `egdo init NAME` in any directory to start a rolling Markdown work journal there.
 
-## Future: Read-Only All-Projects View
+## Read-Only All-Projects View
 
-A combined view should make it possible to review work across every active project without
+A combined view makes it possible to review work across every active project without
 merging their archives or creating a global task namespace.
 
-Proposed command:
+Command:
 
 ```bash
 egdo list --all-projects
@@ -285,13 +286,13 @@ Project: Minecraft
 2. Finish the spawn area
 ```
 
-Expected behavior:
+Behavior:
 
 - Include every active configured project and exclude archived projects by default.
 - Keep projects visually separated and clearly named.
 - Preserve the task IDs from each project's normal list rather than assigning global IDs.
-- Apply supported list filters independently within every project, such as `--future`,
-  `--completed`, and `--tag`.
+- Keep the overview focused: reject combinations with `--future`, `--completed`, and
+  `--tag`. These can be reconsidered if real usage demonstrates a need.
 - Show an empty project only if doing so provides useful context; otherwise omit it and print
   one combined empty-state message when no project has matching tasks.
 - Use a deterministic project order, preferably the order stored in the config.
@@ -306,14 +307,45 @@ mutation commands. To modify a listed task, the user must select its project exp
 egdo -P Minecraft done 2
 ```
 
-If normal list preparation currently requires persistent rollover, the all-projects view
-should compute the equivalent carried-forward presentation without saving it. This avoids a
-single overview command unexpectedly modifying every configured archive.
+Normal list preparation performs persistent rollover. The all-projects view instead
+computes the equivalent carried-forward presentation in memory without saving it. This
+avoids a single overview command unexpectedly modifying every configured archive or the
+global project registry.
 
 After project archiving exists, a separate explicit option such as
 `egdo list --all-projects --include-archived` could be considered. Archived projects should
 not be included by the default all-projects view because archiving is intended to remove
 them from everyday use.
+
+## Future: Completed Work Across Projects
+
+A separate retrospective command could show everything completed on a particular date
+across all projects without expanding the focused `list --all-projects` interface:
+
+```bash
+egdo completed today
+egdo completed yesterday
+egdo completed 2026-09-04
+```
+
+The output should group completed tasks by project beneath one date heading:
+
+```text
+Friday, September 4
+
+Project: Main
+1. Send invoice
+2. Schedule appointment
+
+Project: Minecraft
+1. Update server plugins
+```
+
+This command answers a distinct journal question: “What did I accomplish on this date?”
+It should remain strictly read-only, accept the same friendly date forms used elsewhere
+where appropriate, preserve project-local history, and omit projects with no completions
+on the requested date. Its exact command name and date grammar should be reconsidered before
+implementation rather than treated as part of the current CLI contract.
 
 ## Future: Project Archiving
 

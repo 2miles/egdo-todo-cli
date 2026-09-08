@@ -28,10 +28,17 @@ class HandlerDeps:
     edit_task: Any
     list_completed_tasks: Any
     list_task_refs: Any
+    list_task_refs_readonly: Any
     move_tasks: Any
     parse_future_date: Any
     prompt_add_form: Any
+    prompt_delete_form: Any
     prompt_done_form: Any
+    prompt_edit_form: Any
+    prompt_move_form: Any
+    prompt_note_form: Any
+    prompt_priority_form: Any
+    prompt_tag_form: Any
     prioritize_tasks: Any
     render_list_header: Any
     render_separator: Any
@@ -118,6 +125,18 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         )
 
     if args.command == "edit":
+        if args.index is None or args.text is None:
+            form = deps.prompt_edit_form(
+                deps.list_task_refs(config.root, target_date),
+                target_date,
+                console,
+                _project_name(config),
+                initial_identifier=str(args.index) if args.index is not None else None,
+            )
+            if form is None:
+                console.print("Canceled task editing.")
+                return 0
+            args.index, args.text = form.identifier, form.text
         task = deps.edit_task(
             config.root,
             target_date,
@@ -133,6 +152,27 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         )
 
     if args.command == "move":
+        if not args.indexes or args.when is None:
+            initial_scheduled = None
+            if args.when is not None:
+                initial_scheduled = (
+                    target_date
+                    if args.when.strip().lower() == "today"
+                    else deps.parse_future_date(args.when, target_date)
+                )
+            form = deps.prompt_move_form(
+                deps.list_task_refs(config.root, target_date),
+                target_date,
+                console,
+                _project_name(config),
+                deps.parse_future_date,
+                initial_identifiers=[str(value) for value in args.indexes] or None,
+                initial_scheduled=initial_scheduled,
+            )
+            if form is None:
+                console.print("Canceled task move.")
+                return 0
+            args.indexes, args.when = form.identifiers, form.scheduled.isoformat()
         destination_date = (
             target_date
             if args.when.strip().lower() == "today"
@@ -153,6 +193,16 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         )
 
     if args.command == "delete":
+        if not args.indexes:
+            args.indexes = deps.prompt_delete_form(
+                deps.list_task_refs(config.root, target_date),
+                target_date,
+                console,
+                _project_name(config),
+            )
+            if not args.indexes:
+                console.print("Canceled task deletion.")
+                return 0
         tasks = deps.delete_tasks(config.root, target_date, _normalize_task_ids(args.indexes))
         return _finish_task_mutation(
             config,
@@ -163,6 +213,31 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         )
 
     if args.command == "tag":
+        interactive_tag = not args.values or (
+            not args.remove
+            and all(TASK_ID_RE.fullmatch(value.lower()) for value in args.values)
+        )
+        if interactive_tag:
+            refs = deps.list_task_refs(config.root, target_date)
+            known_tags = sorted(
+                {ref.task.tag for ref in refs if ref.task.tag is not None}
+            )
+            form = deps.prompt_tag_form(
+                refs,
+                target_date,
+                console,
+                _project_name(config),
+                known_tags,
+                remove_only=args.remove,
+                initial_identifiers=args.values or None,
+            )
+            if form is None:
+                console.print("Canceled task tagging.")
+                return 0
+            args.values = form.identifiers
+            args.remove = form.tag is None
+            if form.tag is not None:
+                args.values = [*args.values, form.tag]
         if args.remove:
             indexes = _parse_indexes(args.values, "tag removal")
             tasks = deps.untag_tasks(
@@ -191,6 +266,18 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         )
 
     if args.command == "priority":
+        if not args.indexes or args.level is None:
+            form = deps.prompt_priority_form(
+                deps.list_task_refs(config.root, target_date),
+                target_date,
+                console,
+                _project_name(config),
+                initial_identifiers=[str(value) for value in args.indexes] or None,
+            )
+            if form is None:
+                console.print("Canceled task prioritization.")
+                return 0
+            args.indexes, args.level = form.identifiers, form.priority
         tasks = deps.prioritize_tasks(
             config.root, target_date, _normalize_task_ids(args.indexes), args.level
         )
@@ -203,6 +290,11 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         )
 
     if args.command == "note":
+        if args.text is None:
+            args.text = deps.prompt_note_form(console)
+            if args.text is None:
+                console.print("Canceled note creation.")
+                return 0
         deps.add_note(config.root, target_date, args.text)
         _print_task_message(console, "Noted", target_date.isoformat(), args.text)
         return 0
@@ -212,19 +304,39 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
 
 def _handle_list(args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps) -> int:
     """Render filtered task refs without renumbering their global indexes."""
+    if args.all_projects:
+        return _handle_all_projects(args, config, target_date, console, deps)
     if args.completed:
         return _handle_completed(args, config, target_date, console, deps)
-    indexed_refs = [
+    indexed_refs = _filter_indexed_refs(
+        deps.list_task_refs(config.root, target_date), args, target_date
+    )
+    return _render_active_list(
+        indexed_refs, args, config, target_date, console, deps
+    )
+
+
+def _filter_indexed_refs(
+    refs: list[Any], args: Any, target_date: date
+) -> list[tuple[str, Any]]:
+    """Filter refs while retaining identifiers from the unfiltered project list."""
+    return [
         (ref.identifier or str(position), ref)
-        for position, ref in enumerate(
-            deps.list_task_refs(
-                config.root, target_date
-            ),
-            start=1,
-        )
+        for position, ref in enumerate(refs, start=1)
         if (not args.future or ref.scheduled > target_date)
         and (args.tag is None or args.tag.strip().lower() == ref.task.tag)
     ]
+
+
+def _render_active_list(
+    indexed_refs: list[tuple[str, Any]],
+    args: Any,
+    config: Any,
+    target_date: date,
+    console: Console,
+    deps: HandlerDeps,
+) -> int:
+    """Render one project's already-loaded active task refs."""
     wrap_width = deps.task_wrap_width(console)
     console.print()
     console.print(deps.render_list_header(target_date, _project_name(config)))
@@ -275,6 +387,44 @@ def _handle_list(args: Any, config: Any, target_date: date, console: Console, de
             future_tasks,
             wrap_width,
         )
+    return 0
+
+
+def _handle_all_projects(
+    args: Any, config: Any, target_date: date, console: Console, deps: HandlerDeps
+) -> int:
+    """Render independent project snapshots without modifying any archive."""
+    if getattr(args, "selected_project", None) is not None:
+        raise ValueError("--project cannot be combined with --all-projects")
+    if args.future or args.completed or args.tag is not None:
+        raise ValueError(
+            "--all-projects cannot be combined with --future, --completed, or --tag"
+        )
+
+    rendered = False
+    for name, root in config.projects.items():
+        project_config = config.select(name)
+        try:
+            indexed_refs = _filter_indexed_refs(
+                deps.list_task_refs_readonly(root, target_date), args, target_date
+            )
+            if not indexed_refs:
+                continue
+            _render_active_list(
+                indexed_refs,
+                args,
+                project_config,
+                target_date,
+                console,
+                deps,
+            )
+        except (OSError, ValueError) as exc:
+            raise ValueError(f'Project "{name}" at {root}: {exc}') from exc
+        rendered = True
+
+    if not rendered:
+        console.print()
+        console.print(Text("No tasks across projects.", style="dim"))
     return 0
 
 
@@ -404,7 +554,9 @@ def _finish_task_mutation(
     if not console.is_terminal:
         return 0
     list_args = type(
-        "ListArgs", (), {"future": False, "completed": False, "tag": None}
+        "ListArgs",
+        (),
+        {"future": False, "completed": False, "tag": None, "all_projects": False},
     )()
     return _handle_list(list_args, config, target_date, console, deps)
 

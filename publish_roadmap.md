@@ -83,7 +83,8 @@ Avoid abbreviating every command; discoverability matters more than shaving two 
 
 ### Interactive consistency
 
-The interactive forms should behave as one coherent system. Historically, different pickers used variations of `[x]`, `(x)`, `>`, Space in some screens, Enter in others, and `n` only in the tag picker.
+The implemented interactive forms use one visual and control grammar. Keep future pickers
+consistent with it:
 
 Standardize the visual grammar along these lines:
 
@@ -109,12 +110,47 @@ Schedule
 ○ Friday, Aug 14
 ```
 
-Additional refinements:
+Current conventions:
 
-- Always display an explicit cancel hint.
-- Use the same selected and focused symbols everywhere.
+- Use `›` for focus, `●`/`○` for single choice, and `■`/`□` for multi-select.
+- Use Up/Down or `j`/`k` to move and Enter for the screen's primary action.
+- Render shortcut keys in regular bright white and their action labels in dim text.
+- Always display `q/Esc cancel` in pickers and `/cancel to cancel` in line prompts.
+- Use bright cyan for a focused tag and dim cyan for an unfocused tag.
 - Show a final compact preview before saving only when the operation is complex.
 - Preserve supplied CLI values when opening the form.
+
+### Future interactive command coverage
+
+Use interactive menus selectively when the user must choose from existing information they
+may not remember. Keep the direct argument form for scripting and for users who already know
+the desired value:
+
+> If required arguments are supplied, execute directly. If they are omitted, open a focused
+> interactive workflow.
+
+Already implemented:
+
+- `egdo add` guides task text, tag, priority, and scheduling when text is omitted.
+- `egdo done` opens a task multi-select picker when IDs are omitted.
+- `egdo project` chooses the global default while retaining `project use NAME`.
+- `egdo edit` chooses a task and prompts for replacement text.
+- `egdo move` chooses tasks and a destination date.
+- `egdo delete` chooses tasks and explicitly confirms deletion.
+- `egdo tag` chooses tasks and then chooses, creates, or removes a tag.
+- `egdo priority` chooses tasks and then chooses important or normal.
+- `egdo note` prompts for note text when it is omitted.
+
+Commands that should remain immediate rather than opening menus:
+
+- `egdo list` and `egdo list --all-projects`
+- `egdo project list`
+- `egdo init NAME`
+- a future read-only `egdo completed DATE` command
+
+Do not implement every picker at once. Add them only as focused extensions of the existing
+interactive grammar, and keep egdo a direct CLI rather than evolving it into a full-screen
+TUI.
 
 ### Destructive-operation safety
 

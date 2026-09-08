@@ -146,6 +146,39 @@ def list_task_refs(notes_dir: Path, target_date: date) -> list[TaskRef]:
     return refs
 
 
+def list_task_refs_readonly(notes_dir: Path, target_date: date) -> list[TaskRef]:
+    """Compute the active-and-future list without rolling files forward."""
+    current_tasks: list[Task] = []
+    prior_tasks: list[Task] = []
+    seen_keys: set[tuple[str, date, int]] = set()
+
+    if notes_dir.exists():
+        dated_days: list[tuple[date, DayState]] = []
+        for path in sorted(notes_dir.rglob("*.md")):
+            if not is_month_file(path):
+                continue
+            state = ensure_state(path)
+            dated_days.extend(
+                (day_date, day)
+                for day_date, day in state.days.items()
+                if day_date <= target_date
+            )
+        for day_date, day in sorted(dated_days, key=lambda item: item[0], reverse=True):
+            destination = current_tasks if day_date == target_date else prior_tasks
+            for task in day.tasks:
+                if task.done or task.key() in seen_keys:
+                    continue
+                destination.append(_copy_task(task))
+                seen_keys.add(task.key())
+
+    active = _active_tasks_for_list(
+        DayState(tasks=current_tasks + prior_tasks), target_date
+    )
+    pairs = [(target_date, task) for task in active]
+    pairs.extend(list_future_tasks(notes_dir, target_date))
+    return _identify_task_refs(pairs)
+
+
 def complete_task(notes_dir: Path, target_date: date, index: str | int) -> Task:
     return complete_tasks(notes_dir, target_date, [index])[0]
 
@@ -416,6 +449,11 @@ def _active_tasks_for_list(day: DayState, target_date: date) -> list[Task]:
     old = [tree for tree in subtrees if tree and tree[0].created != target_date]
     old.sort(key=lambda tree: tree[0].created, reverse=True)
     return [task for tree in today + old for task in tree]
+
+
+def _copy_task(task: Task) -> Task:
+    """Copy parsed task state before applying presentation-only normalization."""
+    return Task(task.text, task.created, task.done, task.depth)
 
 
 def _filter_tasks_by_tag(tasks: list[Task], tag: str | None) -> list[Task]:

@@ -17,10 +17,17 @@ from rich.console import Console
 from egdo.cli import build_parser, main
 from egdo.config import Config
 from egdo.dates import format_display_date, parse_future_date
-from egdo.interactive import AddFormResult
+from egdo.interactive import (
+    AddFormResult,
+    EditFormResult,
+    MoveFormResult,
+    PriorityFormResult,
+    TagFormResult,
+)
 from egdo.store import TaskRef
 from egdo.render import (
     render_list_header,
+    render_project_line,
     render_section_header,
     render_separator,
     render_task_line,
@@ -52,6 +59,13 @@ class CliTests(unittest.TestCase):
         console.print(render_separator(12))
 
         self.assertEqual(output.getvalue(), "────────────\n")
+
+    def test_render_project_line_styles_name_and_default_marker(self) -> None:
+        line = render_project_line("Minecraft", "/tmp/minecraft", is_default=True)
+
+        self.assertEqual(line.plain, "* Minecraft: /tmp/minecraft")
+        self.assertEqual(line.spans[0].style, "bold bright_white")
+        self.assertEqual(line.spans[1].style, "bold cyan")
 
     def test_render_section_header_uses_requested_width(self) -> None:
         output = StringIO()
@@ -478,14 +492,17 @@ class CliTests(unittest.TestCase):
 
         with (
             patch("egdo.cli.load_config", return_value=config),
-            patch("sys.stdout", output),
+            patch(
+                "egdo.cli.console",
+                Console(file=output, force_terminal=False, color_system=None),
+            ),
         ):
             exit_code = main(["project", "list"])
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(
             output.getvalue(),
-            "  Main: /tmp/main\n* Minecraft: /tmp/minecraft\n",
+            "\n  Main: /tmp/main\n* Minecraft: /tmp/minecraft\n",
         )
 
     def test_project_use_saves_case_preserved_default(self) -> None:
@@ -506,6 +523,153 @@ class CliTests(unittest.TestCase):
         self.assertEqual(saved.default_project, "Minecraft")
         self.assertEqual(saved.root, Path("/tmp/minecraft"))
         self.assertEqual(output.getvalue(), 'Using project "Minecraft"\n')
+
+    def test_bare_project_opens_default_project_picker(self) -> None:
+        config = Config(
+            projects={"Main": Path("/tmp/main"), "Minecraft": Path("/tmp/minecraft")}
+        )
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.prompt_project_form", return_value="Minecraft"),
+            patch("egdo.cli.save_config") as save_mock,
+        ):
+            exit_code = main(["project"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(save_mock.call_args.args[0].default_project, "Minecraft")
+
+    def test_bare_edit_uses_interactive_form(self) -> None:
+        config = Config(projects={"Main": Path("/tmp/main")})
+        today = date(2026, 9, 8)
+        edited = type("TaskStub", (), {"created": today, "text": "New text"})()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.list_task_refs", return_value=[]),
+            patch(
+                "egdo.cli.prompt_edit_form",
+                return_value=EditFormResult("2", "New text"),
+            ),
+            patch("egdo.cli.edit_task", return_value=edited) as edit_mock,
+        ):
+            date_mock.today.return_value = today
+            exit_code = main(["edit"])
+
+        self.assertEqual(exit_code, 0)
+        edit_mock.assert_called_once_with(Path("/tmp/main"), today, 2, "New text")
+
+    def test_bare_move_uses_interactive_form(self) -> None:
+        config = Config(projects={"Main": Path("/tmp/main")})
+        today = date(2026, 9, 8)
+        destination = date(2026, 9, 9)
+        moved = type("TaskStub", (), {"created": today, "text": "Move me"})()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.list_task_refs", return_value=[]),
+            patch(
+                "egdo.cli.prompt_move_form",
+                return_value=MoveFormResult(["3"], destination),
+            ),
+            patch("egdo.cli.move_tasks", return_value=[moved]) as move_mock,
+        ):
+            date_mock.today.return_value = today
+            exit_code = main(["move"])
+
+        self.assertEqual(exit_code, 0)
+        move_mock.assert_called_once_with(Path("/tmp/main"), today, [3], destination)
+
+    def test_bare_delete_uses_confirmed_interactive_selection(self) -> None:
+        config = Config(projects={"Main": Path("/tmp/main")})
+        today = date(2026, 9, 8)
+        deleted = type("TaskStub", (), {"text": "Delete me"})()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.list_task_refs", return_value=[]),
+            patch("egdo.cli.prompt_delete_form", return_value=["4"]),
+            patch("egdo.cli.delete_tasks", return_value=[deleted]) as delete_mock,
+        ):
+            date_mock.today.return_value = today
+            exit_code = main(["delete"])
+
+        self.assertEqual(exit_code, 0)
+        delete_mock.assert_called_once_with(Path("/tmp/main"), today, [4])
+
+    def test_bare_tag_uses_interactive_selection_and_tag(self) -> None:
+        config = Config(projects={"Main": Path("/tmp/main")})
+        today = date(2026, 9, 8)
+        tagged = type("TaskStub", (), {"text": "{WORK} Tag me"})()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.list_task_refs", return_value=[]),
+            patch(
+                "egdo.cli.prompt_tag_form",
+                return_value=TagFormResult(["5"], "work"),
+            ),
+            patch("egdo.cli.tag_tasks", return_value=[tagged]) as tag_mock,
+        ):
+            date_mock.today.return_value = today
+            exit_code = main(["tag"])
+
+        self.assertEqual(exit_code, 0)
+        tag_mock.assert_called_once_with(Path("/tmp/main"), today, [5], "work")
+
+    def test_bare_priority_uses_interactive_form(self) -> None:
+        config = Config(projects={"Main": Path("/tmp/main")})
+        today = date(2026, 9, 8)
+        task = type("TaskStub", (), {"text": "! Important"})()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.list_task_refs", return_value=[]),
+            patch(
+                "egdo.cli.prompt_priority_form",
+                return_value=PriorityFormResult(["6"], "important"),
+            ),
+            patch("egdo.cli.prioritize_tasks", return_value=[task]) as priority_mock,
+        ):
+            date_mock.today.return_value = today
+            exit_code = main(["priority"])
+
+        self.assertEqual(exit_code, 0)
+        priority_mock.assert_called_once_with(
+            Path("/tmp/main"), today, [6], "important"
+        )
+
+    def test_bare_note_uses_interactive_prompt(self) -> None:
+        config = Config(projects={"Main": Path("/tmp/main")})
+        today = date(2026, 9, 8)
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.prompt_note_form", return_value="Remember this"),
+            patch("egdo.cli.add_note") as note_mock,
+        ):
+            date_mock.today.return_value = today
+            exit_code = main(["note"])
+
+        self.assertEqual(exit_code, 0)
+        note_mock.assert_called_once_with(Path("/tmp/main"), today, "Remember this")
+
+    def test_priority_parser_preserves_direct_and_partial_forms(self) -> None:
+        parser = build_parser()
+
+        direct = parser.parse_args(["priority", "3", "6", "important"])
+        partial = parser.parse_args(["priority", "3", "6"])
+
+        self.assertEqual(direct.indexes, ["3", "6"])
+        self.assertEqual(direct.level, "important")
+        self.assertEqual(partial.indexes, ["3", "6"])
+        self.assertIsNone(partial.level)
 
     def test_project_add_and_set_are_not_commands(self) -> None:
         parser = build_parser()
@@ -740,6 +904,83 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("Apr 5", rendered)
         self.assertIn("4.                   Ship box", rendered)
         self.assertNotIn("Apr 4", rendered)
+
+    def test_list_all_projects_groups_readonly_snapshots_with_local_ids(self) -> None:
+        config = Config(
+            projects={
+                "Main": Path("/tmp/main/egdo"),
+                "Minecraft": Path("/tmp/minecraft/egdo"),
+            }
+        )
+        output = StringIO()
+        mocked_today = date(2026, 4, 6)
+        main_task = type(
+            "TaskStub", (), {"created": mocked_today, "text": "Send invoice"}
+        )()
+        minecraft_task = type(
+            "TaskStub",
+            (),
+            {"created": date(2026, 4, 5), "text": "{SERVER} Update plugins"},
+        )()
+
+        def snapshots(root: Path, _target_date: date) -> list[TaskRef]:
+            task = main_task if root == Path("/tmp/main/egdo") else minecraft_task
+            return [TaskRef(mocked_today, task, "1")]
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.list_task_refs") as mutating_list_mock,
+            patch("egdo.cli.save_config") as save_config_mock,
+            patch(
+                "egdo.cli.list_task_refs_readonly", side_effect=snapshots
+            ) as readonly_list_mock,
+            patch(
+                "egdo.cli.console",
+                Console(file=output, force_terminal=False, color_system=None),
+            ),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["list", "--all-projects"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(readonly_list_mock.call_count, 2)
+        mutating_list_mock.assert_not_called()
+        save_config_mock.assert_not_called()
+        rendered = output.getvalue()
+        self.assertIn("Project: Main", rendered)
+        self.assertIn("1.                   Send invoice", rendered)
+        self.assertIn("Project: Minecraft", rendered)
+        self.assertIn("1.       SERVER", rendered)
+        self.assertIn("Update plugins", rendered)
+
+    def test_list_all_projects_rejects_other_list_filters(self) -> None:
+        config = Config(projects={"Main": Path("/tmp/main/egdo")})
+
+        for extra_args in (["--future"], ["--completed"], ["--tag", "work"]):
+            with self.subTest(extra_args=extra_args):
+                error = StringIO()
+                with (
+                    patch("egdo.cli.load_config", return_value=config),
+                    patch("sys.stderr", error),
+                ):
+                    exit_code = main(["list", "--all-projects", *extra_args])
+
+                self.assertEqual(exit_code, 1)
+                self.assertIn("cannot be combined", error.getvalue())
+
+    def test_list_all_projects_rejects_explicit_project_override(self) -> None:
+        config = Config(projects={"Main": Path("/tmp/main/egdo")})
+        error = StringIO()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("sys.stderr", error),
+        ):
+            exit_code = main(["-P", "Main", "list", "--all-projects"])
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("cannot be combined", error.getvalue())
 
     def test_main_list_completed_renders_completed_tasks(self) -> None:
         config = type(

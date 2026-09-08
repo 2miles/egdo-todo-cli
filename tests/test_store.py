@@ -25,6 +25,7 @@ from egdo.store import (
     list_future_tasks,
     list_tasks,
     list_task_refs,
+    list_task_refs_readonly,
     move_task,
     move_tasks,
     prioritize_task,
@@ -36,6 +37,38 @@ from egdo.store import (
 
 
 class StoreTests(unittest.TestCase):
+    def test_readonly_project_lists_compute_rollover_without_writing(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            yesterday = date(2026, 9, 4)
+            today = date(2026, 9, 5)
+            add_task(notes_dir, yesterday, "Carry me")
+            create_task(
+                notes_dir,
+                yesterday,
+                "Later",
+                done=False,
+                scheduled_date=date(2026, 9, 7),
+            )
+            complete_task(notes_dir, yesterday, 1)
+            add_task(notes_dir, yesterday, "Still active")
+            before = {
+                path: path.read_bytes() for path in notes_dir.rglob("*.md")
+            }
+
+            refs = list_task_refs_readonly(notes_dir, today)
+            self.assertEqual(
+                [(ref.identifier, ref.scheduled, ref.task.text) for ref in refs],
+                [
+                    ("1", today, "Still active"),
+                    ("2", date(2026, 9, 7), "Later"),
+                ],
+            )
+            self.assertEqual(
+                {path: path.read_bytes() for path in notes_dir.rglob("*.md")},
+                before,
+            )
+
     def test_nested_tasks_get_hierarchical_ids_and_round_trip_markdown(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)

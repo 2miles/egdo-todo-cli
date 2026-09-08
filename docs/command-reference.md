@@ -48,10 +48,12 @@ Manage independent named task roots:
 ```bash
 egdo project list
 egdo project use Minecraft
+egdo project
 ```
 
 - `list` prints every configured name and root; `*` marks the default
 - `use NAME` makes a project the persistent default
+- with no action, opens a single-choice picker for the persistent default
 - names are matched case-insensitively while preserving display capitalization
 - `project use` saves the previous config as `config.toml.bak`
 - projects keep independent tasks, notes, monthly files, numbering, and history
@@ -60,6 +62,21 @@ egdo project use Minecraft
 The config file lives at `~/.config/egdo/config.toml` and stores the named project registry.
 New projects are created with `egdo init NAME`; there is no separate command for manually
 adding or repointing a project root.
+
+## `egdo list --all-projects`
+
+Show matching tasks from every configured project:
+
+```bash
+egdo list --all-projects
+```
+
+- groups output by project and omits projects with no tasks
+- preserves each project's local task IDs and configured project order
+- computes carried-forward tasks in memory without changing any Markdown file
+- cannot be combined with `-P/--project`, `--future`, `--completed`, or `--tag`
+- is strictly read-only; use a project selection such as `egdo -P Minecraft done 2` to mutate
+  a displayed task
 
 ## `egdo add`
 
@@ -80,6 +97,7 @@ egdo add --done "Call dad"
 - uses today by default
 - when task text is omitted, opens an interactive form for text, one optional tag, priority, and schedule
 - the form uses arrow or Vim navigation; Space selects a tag and Enter confirms a screen
+- every picker shows `q/Esc cancel`, and every line prompt shows `/cancel to cancel`
 - No tag is explicit and mutually exclusive with a selected tag; pressing n creates a tag
 - the form accepts `today`, `tomorrow`, `+N`, weekdays, and `YYYY-MM-DD` schedules
 - creates the monthly file and day section if they do not exist
@@ -150,12 +168,14 @@ egdo list --future -t chores
 Mark active tasks as important or return them to normal. New tasks default to normal.
 
 ```bash
+egdo priority
 egdo priority 3 important
 egdo priority 1 6 7 important
 egdo priority 3 normal
 ```
 
 - accepts one or more numeric indexes shown by `egdo list`
+- with no level or IDs, interactively collects only the missing choices
 - `important` stores a leading `!` in Markdown
 - `normal` removes the priority marker
 - renders an uncolored `●` for important tasks and an empty priority column for normal tasks
@@ -171,7 +191,8 @@ egdo done 1
 egdo done 1 3 12
 ```
 
-- without IDs, opens a multi-select picker using arrows or j/k, Space, and Enter
+- without IDs, opens a multi-select picker using arrows or j/k, Space, and Enter; its visible
+  `q/Esc cancel` hint matches the add workflow
 - completes IDs shown in `egdo list`, including future tasks
 - resolves all indexes before marking anything complete, so later indexes do not shift when completing multiple tasks
 - keeps the completed task in that day’s file as part of the archive
@@ -181,11 +202,14 @@ egdo done 1 3 12
 Edit a task using its global ID.
 
 ```bash
+egdo edit
+egdo edit 2
 egdo edit 2 "Buy oat milk"
 egdo edit 1 "{CHORES} Pick up detergent"
 ```
 
 - edits an ID shown in `egdo list`, including a future task
+- with no ID, opens a single-task picker; with no text, prompts for replacement text
 - updates only the task text
 - preserves the original created date suffix such as `(04-05)`
 - can be used to rewrite tags inline if you want to replace the task text completely
@@ -195,6 +219,8 @@ egdo edit 1 "{CHORES} Pick up detergent"
 Move one or more tasks to today or a future date.
 
 ```bash
+egdo move
+egdo move tomorrow
 egdo move 2 tomorrow
 egdo move 7 today
 egdo move 1 6 7 tomorrow
@@ -204,6 +230,7 @@ egdo move 2 2026-04-10
 ```
 
 - accepts one or more global IDs shown in `egdo list`
+- with missing IDs or date, interactively collects only the missing choices
 - physically relocates the task into the destination day section
 - preserves the original created date suffix such as `(04-05)`
 - accepts `today`, `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
@@ -216,11 +243,13 @@ egdo move 2 2026-04-10
 Delete one or more tasks using their global IDs.
 
 ```bash
+egdo delete
 egdo delete 2
 egdo delete 1 6 7
 ```
 
 - accepts one or more IDs shown in `egdo list`, including future tasks
+- with no IDs, opens a multi-select picker and requires an explicit confirmation
 - removes the task entirely instead of marking it complete
 
 ## `egdo tag`
@@ -228,12 +257,15 @@ egdo delete 1 6 7
 Set, replace, or remove the tag on tasks using their global IDs.
 
 ```bash
+egdo tag
+egdo tag 3
 egdo tag 3 chores
 egdo tag 1 6 7 chores
 egdo tag 3 6 7 --remove
 ```
 
 - reads leading values as task indexes and the final value as one tag
+- with missing IDs or tag, interactively collects only the missing choices
 - works on active and future tasks
 - setting a tag replaces any tag already on every selected task
 - `--remove` clears the tag from every selected task
@@ -245,10 +277,12 @@ egdo tag 3 6 7 --remove
 Append a note to today’s `### Notes` section.
 
 ```bash
+egdo note
 egdo note "Need to test villager trading setup"
 ```
 
 - uses today by default
+- with no text, opens a line prompt with the shared `/cancel` exit
 - creates the monthly file and day section if they do not exist
 - appends each new note as a new paragraph in that day’s Notes section
 

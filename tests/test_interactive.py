@@ -14,12 +14,40 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from rich.console import Console
 
 from egdo.dates import parse_future_date
-from egdo.interactive import prompt_add_form, prompt_done_form
+from egdo.interactive import (
+    _picker_hint,
+    prompt_add_form,
+    prompt_done_form,
+    prompt_note_form,
+)
 from egdo.markdown_store import Task
 from egdo.store import TaskRef
 
 
 class InteractiveTests(unittest.TestCase):
+    def test_note_prompt_uses_shared_cancel_path(self) -> None:
+        console = Console(file=StringIO(), force_terminal=False, color_system=None)
+
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch.object(console, "input", return_value="/cancel"),
+        ):
+            result = prompt_note_form(console)
+
+        self.assertIsNone(result)
+
+    def test_picker_hint_styles_keys_separately_from_actions(self) -> None:
+        hint = _picker_hint(("Space", "Select"), ("q/Esc", "Cancel"))
+
+        self.assertEqual(hint.plain, "Space Select  •  q/Esc Cancel")
+        styled_parts = [
+            (hint.plain[span.start : span.end], str(span.style))
+            for span in hint.spans
+        ]
+        self.assertIn(("Space", "bright_white"), styled_parts)
+        self.assertIn((" Select", "dim"), styled_parts)
+        self.assertIn(("q/Esc", "bright_white"), styled_parts)
+        self.assertIn((" Cancel", "dim"), styled_parts)
     def test_done_form_accepts_nested_and_multiple_ids(self) -> None:
         today = date(2026, 7, 27)
         refs = [
@@ -127,6 +155,84 @@ class InteractiveTests(unittest.TestCase):
         self.assertIsNone(result.tag)
         self.assertEqual(result.priority, "normal")
         self.assertEqual(result.scheduled, date(2026, 7, 27))
+
+    def test_add_form_can_cancel_from_task_text_prompt(self) -> None:
+        config = type("ConfigStub", (), {})()
+        console = Console(file=StringIO(), force_terminal=False, color_system=None)
+
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch.object(console, "input", return_value="/cancel"),
+            patch("egdo.interactive.read_picker_key") as key_mock,
+        ):
+            result = prompt_add_form(
+                config, date(2026, 7, 27), console, parse_future_date
+            )
+
+        self.assertIsNone(result)
+        key_mock.assert_not_called()
+
+    def test_focused_tag_uses_bright_cyan(self) -> None:
+        config = type("ConfigStub", (), {})()
+        output = StringIO()
+        console = Console(
+            file=output,
+            force_terminal=True,
+            color_system="standard",
+            no_color=False,
+        )
+
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch.object(console, "input", return_value="Task"),
+            patch(
+                "egdo.interactive.read_picker_key",
+                side_effect=["down", "escape"],
+            ),
+        ):
+            result = prompt_add_form(
+                config,
+                date(2026, 7, 27),
+                console,
+                parse_future_date,
+                known_tags=["work"],
+            )
+
+        self.assertIsNone(result)
+        self.assertIn("\x1b[1;96mWORK", output.getvalue())
+
+    def test_add_form_can_cancel_from_new_tag_prompt(self) -> None:
+        config = type("ConfigStub", (), {})()
+        console = Console(file=StringIO(), force_terminal=False, color_system=None)
+
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch.object(console, "input", side_effect=["Task", "/cancel"]),
+            patch("egdo.interactive.read_picker_key", return_value="new"),
+        ):
+            result = prompt_add_form(
+                config, date(2026, 7, 27), console, parse_future_date
+            )
+
+        self.assertIsNone(result)
+
+    def test_add_form_can_cancel_from_custom_schedule_prompt(self) -> None:
+        config = type("ConfigStub", (), {})()
+        console = Console(file=StringIO(), force_terminal=False, color_system=None)
+
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch.object(console, "input", side_effect=["Task", "/cancel"]),
+            patch(
+                "egdo.interactive.read_picker_key",
+                side_effect=["enter", "enter", *("down" for _ in range(9)), "enter"],
+            ),
+        ):
+            result = prompt_add_form(
+                config, date(2026, 7, 27), console, parse_future_date
+            )
+
+        self.assertIsNone(result)
 
     def test_no_tags_choice_clears_selected_tags(self) -> None:
         config = type("ConfigStub", (), {})()

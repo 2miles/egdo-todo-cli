@@ -16,6 +16,7 @@
 - Monthly files live at `<notes-root>/YYYY/YYYY_MM_mon.md`.
 - `egdo init NAME` creates `.egdo.toml` containing only the project identity; its archive is always the sibling `egdo/` directory.
 - Project selection precedence is explicit `-P`, nearest local marker, then global default.
+- `egdo list --all-projects` computes project snapshots without writing rollover state.
 - Daily sections use `## Mon-DD Day`, with `### Tasks` and optional `### Notes` sections.
 - Content before the first managed daily section must be preserved.
 - Month files contain only populated daily sections; do not generate headers for empty dates.

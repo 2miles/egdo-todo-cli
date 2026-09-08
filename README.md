@@ -109,7 +109,13 @@ Additional views:
 egdo list --future
 egdo list --completed
 egdo list -t chores
+egdo list --all-projects
 ```
+
+The all-projects view groups tasks beneath their project names without changing
+any archive. Task IDs remain local to each project; select that project before modifying a
+listed task, for example `egdo -P Minecraft done 2`. It is a deliberately focused overview;
+`--future`, `--completed`, and `--tag` cannot be combined with `--all-projects`.
 
 Initialize another journal from the directory containing its related notes:
 

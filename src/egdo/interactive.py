@@ -13,6 +13,24 @@ from rich.console import Console, Group
 from rich.text import Text
 
 
+FOCUS_MARKER = "› "
+MULTI_SELECTED = "■ "
+MULTI_UNSELECTED = "□ "
+SINGLE_SELECTED = "● "
+SINGLE_UNSELECTED = "○ "
+
+
+def _picker_hint(*bindings: tuple[str, str]) -> Text:
+    """Render reusable key/action help with visually distinct keys."""
+    hint = Text()
+    for position, (keys, action) in enumerate(bindings):
+        if position:
+            hint.append("  •  ", style="dim")
+        hint.append(keys, style="bright_white")
+        hint.append(f" {action}", style="dim")
+    return hint
+
+
 @dataclass(frozen=True, slots=True)
 class AddFormResult:
     """Values collected by the interactive add form."""
@@ -23,6 +41,30 @@ class AddFormResult:
     scheduled: date
 
 
+@dataclass(frozen=True, slots=True)
+class EditFormResult:
+    identifier: str
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class MoveFormResult:
+    identifiers: list[str]
+    scheduled: date
+
+
+@dataclass(frozen=True, slots=True)
+class TagFormResult:
+    identifiers: list[str]
+    tag: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class PriorityFormResult:
+    identifiers: list[str]
+    priority: str
+
+
 def prompt_done_form(
     refs: list[Any],
     today: date,
@@ -30,10 +72,26 @@ def prompt_done_form(
     project_name: str = "Main",
 ) -> list[str]:
     """Select globally indexed tasks with a keyboard-driven multi-select picker."""
+    return _prompt_task_multiselect(
+        refs, today, console, project_name, "Complete tasks", "Complete"
+    )
+
+
+def _prompt_task_multiselect(
+    refs: list[Any],
+    today: date,
+    console: Console,
+    project_name: str,
+    title: str,
+    action: str,
+) -> list[str]:
+    """Select one or more project-local task identifiers."""
     if not sys.stdin.isatty():
-        raise ValueError("Interactive done requires a TTY. Use `egdo done ID...`.")
+        raise ValueError(
+            f"Interactive {title.lower()} requires a TTY. Supply task IDs directly."
+        )
     if not refs:
-        raise ValueError("No active tasks to complete.")
+        raise ValueError("No active tasks available.")
 
     selected: set[str] = set()
     cursor = 0
@@ -42,16 +100,27 @@ def prompt_done_form(
         while True:
             rows = [
                 Text(f"Project: {project_name}", style="bold cyan"),
-                Text("Complete tasks", style="bold"),
-                Text("Up/down or j/k, Space to toggle, Enter to complete, q to cancel.", style="dim"),
+                Text(title, style="bold"),
+                _picker_hint(
+                    ("↑/↓ j/k", "Move"),
+                    ("Space", "Toggle"),
+                    ("Enter", action),
+                    ("q/Esc", "Cancel"),
+                ),
                 Text(""),
             ]
             for index, ref in enumerate(refs):
                 identifier = ref.identifier.lower()
                 inherited = _selected_ancestor(identifier, selected)
                 checked = identifier in selected or inherited is not None
-                row = Text("> " if index == cursor else "  ", style="bold" if index == cursor else "dim")
-                row.append("[x] " if checked else "[ ] ", style="green" if checked else "dim")
+                row = Text(
+                    FOCUS_MARKER if index == cursor else "  ",
+                    style="bold bright_white" if index == cursor else "dim",
+                )
+                row.append(
+                    MULTI_SELECTED if checked else MULTI_UNSELECTED,
+                    style="green" if checked else "dim",
+                )
                 row.append(f"{ref.identifier:>5}. ")
                 row.append("  " * getattr(ref.task, "depth", 0))
                 row.append(ref.task.text, style="dim" if inherited else None)
@@ -90,6 +159,144 @@ def prompt_done_form(
                 warning = True
             elif key in {"escape", "quit"}:
                 return []
+
+
+def _prompt_task_single(
+    refs: list[Any],
+    today: date,
+    console: Console,
+    project_name: str,
+    title: str,
+) -> str | None:
+    """Choose exactly one task using the shared picker grammar."""
+    if not sys.stdin.isatty():
+        raise ValueError(f"Interactive {title.lower()} requires a TTY.")
+    if not refs:
+        raise ValueError("No active tasks available.")
+    labels = []
+    for ref in refs:
+        schedule = "today" if ref.scheduled == today else ref.scheduled.isoformat()
+        indent = "  " * getattr(ref.task, "depth", 0)
+        labels.append(f"{ref.identifier:>5}. {indent}{ref.task.text} ({schedule})")
+    choice = _run_single_picker(
+        console, title, labels, 0, context=f"Project: {project_name}"
+    )
+    return None if choice is None else refs[choice].identifier
+
+
+def prompt_project_form(config: Any, console: Console) -> str | None:
+    """Choose the persistent default project."""
+    if not sys.stdin.isatty():
+        raise ValueError("Interactive project selection requires a TTY.")
+    names = list(config.projects)
+    selected = names.index(config.default_project)
+    choice = _run_single_picker(console, "Choose default project", names, selected)
+    return None if choice is None else names[choice]
+
+
+def prompt_note_form(console: Console) -> str | None:
+    """Collect note text with the shared line-prompt cancellation convention."""
+    if not sys.stdin.isatty():
+        raise ValueError('Interactive note requires a TTY. Use `egdo note "TEXT"`.')
+    return _prompt_required(console, "Note")
+
+
+def prompt_edit_form(
+    refs: list[Any],
+    today: date,
+    console: Console,
+    project_name: str,
+    initial_identifier: str | None = None,
+) -> EditFormResult | None:
+    """Choose a task and collect its replacement text."""
+    identifier = initial_identifier or _prompt_task_single(
+        refs, today, console, project_name, "Edit task"
+    )
+    if identifier is None:
+        return None
+    text = _prompt_required(console, "New text")
+    return None if text is None else EditFormResult(identifier, text)
+
+
+def prompt_move_form(
+    refs: list[Any],
+    today: date,
+    console: Console,
+    project_name: str,
+    parse_future_date: Callable[[str, date], date],
+    initial_identifiers: list[str] | None = None,
+    initial_scheduled: date | None = None,
+) -> MoveFormResult | None:
+    """Choose tasks and a destination date."""
+    identifiers = initial_identifiers or _prompt_task_multiselect(
+        refs, today, console, project_name, "Move tasks", "Continue"
+    )
+    if not identifiers:
+        return None
+    scheduled = initial_scheduled or _choose_schedule(
+        console, today, parse_future_date
+    )
+    return None if scheduled is None else MoveFormResult(identifiers, scheduled)
+
+
+def prompt_delete_form(
+    refs: list[Any], today: date, console: Console, project_name: str
+) -> list[str]:
+    """Choose tasks and explicitly confirm their deletion."""
+    identifiers = _prompt_task_multiselect(
+        refs, today, console, project_name, "Delete tasks", "Continue"
+    )
+    if not identifiers:
+        return []
+    choice = _run_single_picker(
+        console,
+        "Confirm deletion",
+        ["Keep tasks", f"Delete {len(identifiers)} selected task(s)"],
+        0,
+    )
+    return identifiers if choice == 1 else []
+
+
+def prompt_tag_form(
+    refs: list[Any],
+    today: date,
+    console: Console,
+    project_name: str,
+    known_tags: list[str],
+    remove_only: bool = False,
+    initial_identifiers: list[str] | None = None,
+) -> TagFormResult | None:
+    """Choose tasks and then choose, create, or remove their tag."""
+    identifiers = initial_identifiers or _prompt_task_multiselect(
+        refs, today, console, project_name, "Tag tasks", "Continue"
+    )
+    if not identifiers:
+        return None
+    if remove_only:
+        return TagFormResult(identifiers, None)
+    tag = _choose_tag(console, known_tags, None)
+    return None if tag is _CANCELED else TagFormResult(identifiers, tag)
+
+
+def prompt_priority_form(
+    refs: list[Any],
+    today: date,
+    console: Console,
+    project_name: str,
+    initial_identifiers: list[str] | None = None,
+) -> PriorityFormResult | None:
+    """Choose tasks and a priority level."""
+    identifiers = initial_identifiers or _prompt_task_multiselect(
+        refs, today, console, project_name, "Prioritize tasks", "Continue"
+    )
+    if not identifiers:
+        return None
+    priority = _choose_priority(console, None)
+    return (
+        None
+        if priority is _CANCELED
+        else PriorityFormResult(identifiers, str(priority))
+    )
 
 
 def _parent_identifier(identifier: str) -> str | None:
@@ -132,6 +339,8 @@ def prompt_add_form(
     console.print(Text("Add a task", style="bold"))
     console.print(Text("─" * 32, style="dim"))
     text = _prompt_required(console, "Task")
+    if text is None:
+        return None
     tag = _choose_tag(console, known_tags or [], initial_tag)
     if tag is _CANCELED:
         return None
@@ -144,12 +353,16 @@ def prompt_add_form(
     return AddFormResult(text, tag, priority, scheduled)
 
 
-def _prompt_required(console: Console, label: str) -> str:
+def _prompt_required(console: Console, label: str) -> str | None:
     while True:
-        value = console.input(f"[bold]{label}[/]: ").strip()
+        value = console.input(
+            f"[bold]{label}[/] [dim](/cancel to cancel)[/]: "
+        ).strip()
+        if value.casefold() == "/cancel":
+            return None
         if value:
             return value
-        console.print("A task description is required.", style="yellow")
+        console.print(f"{label} is required.", style="yellow")
 
 
 _CANCELED = object()
@@ -168,7 +381,12 @@ def _choose_tag(
         if result[0] == "done":
             return selected
         if result[0] == "new":
-            new_tag = console.input("New tag: ").strip().strip("{}").strip().lower()
+            new_tag = console.input(
+                "New tag [dim](/cancel to cancel)[/]: "
+            ).strip()
+            if new_tag.casefold() == "/cancel":
+                return _CANCELED
+            new_tag = new_tag.strip("{}").strip().lower()
             if new_tag:
                 if new_tag not in tags:
                     tags.append(new_tag)
@@ -190,23 +408,41 @@ def _run_tag_picker(
         while True:
             rows = [
                 Text("Choose a tag", style="bold"),
-                Text("Up/down or j/k, Space to select, n for new, Enter to continue.", style="dim"),
+                _picker_hint(
+                    ("↑/↓ j/k", "Move"),
+                    ("Space", "Select"),
+                    ("Enter", "Continue"),
+                    ("n", "New"),
+                    ("q/Esc", "Cancel"),
+                ),
                 Text(""),
             ]
             labels = ["No tag", *tags, "Create a new tag…"]
             for index, label in enumerate(labels):
-                row = Text("> " if index == cursor else "  ", style="bold" if index == cursor else "dim")
+                focused = index == cursor
+                row = Text(
+                    FOCUS_MARKER if focused else "  ",
+                    style="bold bright_white" if focused else "dim",
+                )
                 if index == 0:
                     checked = selected is None
                 elif index == len(labels) - 1:
-                    row.append("[+] ", style="cyan")
-                    row.append(label)
+                    row.append("+ ", style="bright_cyan" if focused else "cyan")
+                    row.append(label, style="bold bright_cyan" if focused else None)
                     rows.append(row)
                     continue
                 else:
                     checked = label == selected
-                row.append("[x] " if checked else "[ ] ", style="green" if checked else "dim")
-                row.append(label.upper() if index else label, style="dim cyan" if index else None)
+                row.append(
+                    SINGLE_SELECTED if checked else SINGLE_UNSELECTED,
+                    style="green" if checked else "dim",
+                )
+                label_style = None
+                if index:
+                    label_style = "bold bright_cyan" if focused else "dim cyan"
+                elif focused:
+                    label_style = "bold bright_white"
+                row.append(label.upper() if index else label, style=label_style)
                 rows.append(row)
             screen.update(Group(*rows))
             key = read_picker_key()
@@ -254,7 +490,11 @@ def _choose_schedule(
     if choice < len(dates):
         return dates[choice]
     while True:
-        value = console.input("Schedule (tomorrow, +N, weekday, or YYYY-MM-DD): ").strip()
+        value = console.input(
+            "Schedule (tomorrow, +N, weekday, or YYYY-MM-DD; /cancel to cancel): "
+        ).strip()
+        if value.casefold() == "/cancel":
+            return None
         try:
             return parse_future_date(value, today)
         except ValueError as exc:
@@ -262,18 +502,34 @@ def _choose_schedule(
 
 
 def _run_single_picker(
-    console: Console, title: str, labels: list[str], selected: int
+    console: Console,
+    title: str,
+    labels: list[str],
+    selected: int,
+    context: str | None = None,
 ) -> int | None:
     with console.screen(hide_cursor=True) as screen:
         while True:
             rows = [
+                *([Text(context, style="bold cyan")] if context else []),
                 Text(title, style="bold"),
-                Text("Up/down or j/k, Enter to choose, q or Esc to cancel.", style="dim"),
+                _picker_hint(
+                    ("↑/↓ j/k", "Move"),
+                    ("Enter", "Select"),
+                    ("q/Esc", "Cancel"),
+                ),
                 Text(""),
             ]
             for index, label in enumerate(labels):
-                row = Text("> " if index == selected else "  ", style="bold" if index == selected else "dim")
-                row.append("(x) " if index == selected else "( ) ", style="green" if index == selected else "dim")
+                focused = index == selected
+                row = Text(
+                    FOCUS_MARKER if focused else "  ",
+                    style="bold bright_white" if focused else "dim",
+                )
+                row.append(
+                    SINGLE_SELECTED if focused else SINGLE_UNSELECTED,
+                    style="green" if focused else "dim",
+                )
                 row.append(label)
                 rows.append(row)
             screen.update(Group(*rows))

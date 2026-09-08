@@ -71,10 +71,11 @@ egdo add
 ```
 
 After the task-text prompt, full-screen pickers handle the tag, priority, and scheduling.
-Use Up/Down or j/k to move and Enter to confirm. In the tag picker, Space selects the
-current tag and n creates a new one. No tag is an explicit default choice. Priority defaults to
-normal and scheduling defaults to today. The custom schedule option accepts `tomorrow`,
-`+3`, weekday names, and `YYYY-MM-DD` dates. Press q or Escape to cancel a picker.
+Use Up/Down or j/k to move and Enter to confirm. Every picker shows `q/Esc cancel`; line
+prompts show `/cancel to cancel`, so every stage has an obvious exit. In the tag picker,
+Space selects the current tag and n creates a new one. No tag is an explicit default choice.
+Priority defaults to normal and scheduling defaults to today. The custom schedule option
+accepts `tomorrow`, `+3`, weekday names, and `YYYY-MM-DD` dates.
 
 Add a plain task:
 
@@ -127,8 +128,9 @@ egdo done 1 3 12
 ```
 
 With no IDs, `egdo done` opens a multi-select picker containing the global task list.
-Use Up/Down or j/k to move, Space to toggle, Enter to complete, and q or Escape to
-cancel. Selecting a parent visibly selects its descendants through cascading behavior.
+Use Up/Down or j/k to move, Space to toggle, Enter to complete, and q or Escape to cancel.
+The picker displays the same focus marker, selection grammar, and cancel hint as the add
+workflow. Selecting a parent visibly selects its descendants through cascading behavior.
 
 Completed tasks remain in the Markdown archive. They can be viewed with:
 
@@ -140,8 +142,13 @@ egdo list --completed -t work
 Edit one task's full text:
 
 ```bash
+egdo edit
+egdo edit 2
 egdo edit 2 "Buy oat milk"
 ```
+
+With no ID, `edit` opens a single-task picker. With an ID but no replacement text, it keeps
+that selection and prompts only for the new text.
 
 `edit` replaces the task text, so include any priority or tag you want to retain when
 rewriting it inline. For changing only the tag or priority, use the dedicated commands.
@@ -149,6 +156,7 @@ rewriting it inline. For changing only the tag or priority, use the dedicated co
 Delete tasks when you do not want them recorded as completed:
 
 ```bash
+egdo delete
 egdo delete 2
 egdo delete 1 6 7
 ```
@@ -199,12 +207,16 @@ Tags describe the area or context of a task. Examples include `work`, `money`, `
 Set or replace the tag on existing tasks:
 
 ```bash
+egdo tag
+egdo tag 3
 egdo tag 3 work
 egdo tag 1 6 7 work
 ```
 
 The leading values are task indexes and the final value is the tag. A task may have zero
 or one tag, so setting a tag replaces its current one.
+With omitted values, the shared interactive flow selects tasks and then chooses, creates,
+or removes a tag. Supplied task IDs are preserved when only the tag is omitted.
 
 Remove the tag:
 
@@ -233,18 +245,23 @@ leave that column empty. The marker uses the terminal's normal foreground color.
 Set the priority of one or more existing tasks:
 
 ```bash
+egdo priority
+egdo priority 3
 egdo priority 3 important
 egdo priority 1 6 7 important
 egdo priority 4 normal
 ```
 
 Important tasks store a leading `!` in Markdown. Normal tasks store no priority marker.
+The interactive form collects whichever task IDs or priority level are missing.
 
 ## Moving Tasks Between Dates
 
 Move one or more tasks to a future date:
 
 ```bash
+egdo move
+egdo move tomorrow
 egdo move 2 tomorrow
 egdo move 1 6 7 +3
 egdo move 2 friday
@@ -260,6 +277,8 @@ Accepted date forms are:
 - an ISO date in `YYYY-MM-DD` form
 
 A weekday always means its next occurrence, not today. Destinations cannot be in the past.
+With missing task IDs or destination, `move` opens only the necessary picker and preserves
+any values already supplied.
 
 See only scheduled tasks:
 
@@ -447,6 +466,7 @@ want identical behavior after setting up egdo on another computer.
 | initialize another project | `cd PROJECT_DIRECTORY && egdo init Minecraft` |
 | change the default project | `egdo project use Minecraft` |
 | use another project once | `egdo -P Minecraft list` |
+| see tasks across every project | `egdo list --all-projects` |
 | add a task | `egdo add "Task"` |
 | add a tagged task | `egdo add -t work "Task"` |
 | add priority and a tag together | `egdo add -p important -t work "Task"` |
@@ -460,7 +480,7 @@ want identical behavior after setting up egdo on another computer.
 | see completed tasks | `egdo list --completed` |
 | see only future tasks | `egdo list --future` |
 | bring a future task back | `egdo move 12 today` |
-| add a note | `egdo note "Note text"` |
+| add a note | `egdo note` or `egdo note "Note text"` |
 | see help for one command | `egdo COMMAND --help` |
 
 ## Getting Help
