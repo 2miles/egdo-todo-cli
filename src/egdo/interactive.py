@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, timedelta
+import os
+from pathlib import Path
+import shlex
+import subprocess
 import sys
+import tempfile
 from typing import Any, Callable
 
 from egdo.markdown_store import normalize_priority
@@ -194,11 +199,45 @@ def prompt_project_form(config: Any, console: Console) -> str | None:
     return None if choice is None else names[choice]
 
 
-def prompt_note_form(console: Console) -> str | None:
-    """Collect note text with the shared line-prompt cancellation convention."""
+NOTE_INSTRUCTIONS = "<!-- egdo:note-instructions -->"
+
+
+def prompt_note_form(
+    console: Console, project_name: str, today: date
+) -> str | None:
+    """Collect a multiline Markdown note using the user's terminal editor."""
     if not sys.stdin.isatty():
         raise ValueError('Interactive note requires a TTY. Use `egdo note "TEXT"`.')
-    return _prompt_required(console, "Note")
+    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "vi"
+    command = shlex.split(editor)
+    if not command:
+        raise ValueError("VISUAL or EDITOR must name an editor command")
+    template = (
+        "\n"
+        f"{NOTE_INSTRUCTIONS}\n"
+        "Write the note above this line. Save and close to add it.\n"
+        "Leave it empty to cancel. Markdown and line breaks are preserved.\n"
+        f"Project: {project_name}\n"
+        f"Date: {today.isoformat()}\n"
+    )
+    descriptor, raw_path = tempfile.mkstemp(prefix="egdo-note-", suffix=".md")
+    path = Path(raw_path)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(template)
+        try:
+            result = subprocess.run([*command, str(path)], check=False)
+        except OSError as exc:
+            raise RuntimeError(f"Could not open editor {command[0]!r}: {exc}") from exc
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Editor {command[0]!r} exited with status {result.returncode}"
+            )
+        content = path.read_text(encoding="utf-8")
+        note = content.split(NOTE_INSTRUCTIONS, 1)[0].strip()
+        return note or None
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def prompt_edit_form(

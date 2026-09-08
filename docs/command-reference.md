@@ -282,7 +282,8 @@ egdo note "Need to test villager trading setup"
 ```
 
 - uses today by default
-- with no text, opens a line prompt with the shared `/cancel` exit
+- with no text, opens `$VISUAL`, then `$EDITOR`, falling back to `vi`
+- preserves multiline Markdown; saving an empty buffer cancels without writing
 - creates the monthly file and day section if they do not exist
 - appends each new note as a new paragraph in that day’s Notes section
 

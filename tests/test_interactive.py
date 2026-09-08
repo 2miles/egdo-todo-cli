@@ -25,16 +25,68 @@ from egdo.store import TaskRef
 
 
 class InteractiveTests(unittest.TestCase):
-    def test_note_prompt_uses_shared_cancel_path(self) -> None:
+    def test_note_editor_preserves_multiline_markdown(self) -> None:
+        console = Console(file=StringIO(), force_terminal=False, color_system=None)
+        edited_path = None
+
+        def edit_note(command, check):
+            nonlocal edited_path
+            self.assertEqual(command[0], "vim")
+            self.assertFalse(check)
+            edited_path = Path(command[-1])
+            edited_path.write_text(
+                "First paragraph.\n\n- one\n- two\n\n## Heading\n",
+                encoding="utf-8",
+            )
+            return type("Result", (), {"returncode": 0})()
+
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch.dict("os.environ", {"VISUAL": "vim", "EDITOR": "nano"}),
+            patch("egdo.interactive.subprocess.run", side_effect=edit_note),
+        ):
+            result = prompt_note_form(console, "Main", date(2026, 9, 8))
+
+        self.assertEqual(
+            result, "First paragraph.\n\n- one\n- two\n\n## Heading"
+        )
+        self.assertIsNotNone(edited_path)
+        self.assertFalse(edited_path.exists())
+
+    def test_note_editor_cancels_when_instruction_buffer_is_unchanged(self) -> None:
         console = Console(file=StringIO(), force_terminal=False, color_system=None)
 
         with (
             patch("sys.stdin.isatty", return_value=True),
-            patch.object(console, "input", return_value="/cancel"),
+            patch.dict("os.environ", {"VISUAL": "vim"}),
+            patch(
+                "egdo.interactive.subprocess.run",
+                return_value=type("Result", (), {"returncode": 0})(),
+            ),
         ):
-            result = prompt_note_form(console)
+            result = prompt_note_form(console, "Main", date(2026, 9, 8))
 
         self.assertIsNone(result)
+
+    def test_note_editor_reports_nonzero_exit_and_removes_temporary_file(self) -> None:
+        console = Console(file=StringIO(), force_terminal=False, color_system=None)
+        edited_path = None
+
+        def fail_editor(command, check):
+            nonlocal edited_path
+            edited_path = Path(command[-1])
+            return type("Result", (), {"returncode": 2})()
+
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch.dict("os.environ", {"VISUAL": "nano"}),
+            patch("egdo.interactive.subprocess.run", side_effect=fail_editor),
+            self.assertRaisesRegex(RuntimeError, "status 2"),
+        ):
+            prompt_note_form(console, "Main", date(2026, 9, 8))
+
+        self.assertIsNotNone(edited_path)
+        self.assertFalse(edited_path.exists())
 
     def test_picker_hint_styles_keys_separately_from_actions(self) -> None:
         hint = _picker_hint(("Space", "Select"), ("q/Esc", "Cancel"))

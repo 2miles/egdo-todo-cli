@@ -299,7 +299,15 @@ top-level commands.
 
 ## Notes
 
-Append a paragraph to today's Notes section:
+Open your editor to write multiline Markdown in today's Notes section:
+
+```bash
+egdo note
+```
+
+Egdo uses `$VISUAL`, then `$EDITOR`, and falls back to `vi`. Write above the instruction
+block, then save and close. An empty note cancels without changing the archive. For a short
+one-line note, pass it directly:
 
 ```bash
 egdo note "Need to test villager trading setup"
@@ -480,7 +488,7 @@ want identical behavior after setting up egdo on another computer.
 | see completed tasks | `egdo list --completed` |
 | see only future tasks | `egdo list --future` |
 | bring a future task back | `egdo move 12 today` |
-| add a note | `egdo note` or `egdo note "Note text"` |
+| add a note | `egdo note` (editor) or `egdo note "Note text"` |
 | see help for one command | `egdo COMMAND --help` |
 
 ## Getting Help

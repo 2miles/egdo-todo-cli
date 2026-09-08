@@ -291,7 +291,9 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
 
     if args.command == "note":
         if args.text is None:
-            args.text = deps.prompt_note_form(console)
+            args.text = deps.prompt_note_form(
+                console, _project_name(config), target_date
+            )
             if args.text is None:
                 console.print("Canceled note creation.")
                 return 0

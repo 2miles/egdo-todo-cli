@@ -315,7 +315,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     note_parser.add_argument(
-        "text", nargs="?", help="Note text; omit to open an interactive prompt"
+        "text", nargs="?", help="Note text; omit to open your editor"
     )
 
     return parser

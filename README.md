@@ -103,6 +103,9 @@ scheduled tasks in one numbered list. Use those numbers with commands such as `d
 For interactive task creation, run `egdo add` without text. To choose tasks from an
 interactive completion list, run `egdo done` without IDs.
 
+Run `egdo note` to write multiline Markdown in `$VISUAL` or `$EDITOR`, or pass a short note
+directly with `egdo note "Text"`.
+
 Additional views:
 
 ```bash

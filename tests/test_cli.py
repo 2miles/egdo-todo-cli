@@ -651,13 +651,14 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.prompt_note_form", return_value="Remember this"),
+            patch("egdo.cli.prompt_note_form", return_value="Remember this") as prompt_mock,
             patch("egdo.cli.add_note") as note_mock,
         ):
             date_mock.today.return_value = today
             exit_code = main(["note"])
 
         self.assertEqual(exit_code, 0)
+        self.assertEqual(prompt_mock.call_args.args[1:], ("Main", today))
         note_mock.assert_called_once_with(Path("/tmp/main"), today, "Remember this")
 
     def test_priority_parser_preserves_direct_and_partial_forms(self) -> None:
