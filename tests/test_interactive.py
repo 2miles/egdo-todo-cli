@@ -208,6 +208,28 @@ class InteractiveTests(unittest.TestCase):
         self.assertEqual(result.priority, "normal")
         self.assertEqual(result.scheduled, date(2026, 7, 27))
 
+    def test_add_form_returns_selected_existing_tag(self) -> None:
+        config = type("ConfigStub", (), {})()
+        console = Console(file=StringIO(), force_terminal=False, color_system=None)
+
+        with (
+            patch("sys.stdin.isatty", return_value=True),
+            patch.object(console, "input", return_value="Tagged task"),
+            patch(
+                "egdo.interactive.read_picker_key",
+                side_effect=["down", "toggle", "enter", "enter", "enter"],
+            ),
+        ):
+            result = prompt_add_form(
+                config,
+                date(2026, 7, 27),
+                console,
+                parse_future_date,
+                known_tags=["work"],
+            )
+
+        self.assertEqual(result.tag, "work")
+
     def test_add_form_can_cancel_from_task_text_prompt(self) -> None:
         config = type("ConfigStub", (), {})()
         console = Console(file=StringIO(), force_terminal=False, color_system=None)

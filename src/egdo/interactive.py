@@ -414,12 +414,14 @@ def _choose_tag(
     selected = initial.lower() if initial else None
     cursor = 0
     while True:
-        result = _run_tag_picker(console, tags, selected, cursor)
-        if result[0] == "cancel":
+        action, cursor, selected = _run_tag_picker(
+            console, tags, selected, cursor
+        )
+        if action == "cancel":
             return _CANCELED
-        if result[0] == "done":
+        if action == "done":
             return selected
-        if result[0] == "new":
+        if action == "new":
             new_tag = console.input(
                 "New tag [dim](/cancel to cancel)[/]: "
             ).strip()
@@ -433,7 +435,6 @@ def _choose_tag(
                 selected = new_tag
                 cursor = tags.index(new_tag) + 1
             continue
-        _, cursor = result
 
 
 def _run_tag_picker(
@@ -441,7 +442,7 @@ def _run_tag_picker(
     tags: list[str],
     selected: str | None,
     cursor: int,
-) -> tuple[str, int]:
+) -> tuple[str, int, str | None]:
     item_count = len(tags) + 2
     with console.screen(hide_cursor=True) as screen:
         while True:
@@ -490,16 +491,16 @@ def _run_tag_picker(
             elif key == "down":
                 cursor = (cursor + 1) % item_count
             elif key in {"new"} or (key in {"enter", "toggle"} and cursor == item_count - 1):
-                return (("new", cursor))
+                return ("new", cursor, selected)
             elif key == "toggle":
                 if cursor == 0:
                     selected = None
                 else:
                     selected = tags[cursor - 1]
             elif key == "enter":
-                return (("done", cursor))
+                return ("done", cursor, selected)
             elif key in {"escape", "quit"}:
-                return (("cancel", cursor))
+                return ("cancel", cursor, selected)
 
 
 def _choose_priority(console: Console, initial: str | None) -> str | None | object:
