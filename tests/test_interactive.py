@@ -103,7 +103,7 @@ class InteractiveTests(unittest.TestCase):
     def test_done_form_accepts_nested_and_multiple_ids(self) -> None:
         today = date(2026, 7, 27)
         refs = [
-            TaskRef(today, Task("Parent", today, False), "1", today),
+            TaskRef(today, Task("! {WORK} Parent", today, False), "1", today),
             TaskRef(today, Task("Child", today, False, depth=1), "1a", today),
             TaskRef(date(2026, 7, 28), Task("Future", today, False), "2", today),
         ]
@@ -121,7 +121,9 @@ class InteractiveTests(unittest.TestCase):
 
         self.assertEqual(selected, ["1a", "2"])
         self.assertIn("Child", output.getvalue())
-        self.assertIn("2026-07-28", output.getvalue())
+        self.assertIn("Jul 28", output.getvalue())
+        self.assertIn("WORK", output.getvalue())
+        self.assertNotIn("{WORK}", output.getvalue())
 
     def test_done_form_requires_a_selection(self) -> None:
         today = date(2026, 7, 27)
@@ -141,7 +143,7 @@ class InteractiveTests(unittest.TestCase):
         refs = [
             TaskRef(today, Task("Parent", today, False), "1", today),
             TaskRef(today, Task("Child", today, False, depth=1), "1a", today),
-            TaskRef(today, Task("Grandchild", today, False, depth=2), "1a.a", today),
+            TaskRef(today, Task("Grandchild", today, False, depth=2), "1aa", today),
         ]
         output = StringIO()
         console = Console(file=output, force_terminal=False, color_system=None)

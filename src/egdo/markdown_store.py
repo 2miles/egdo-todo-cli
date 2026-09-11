@@ -226,7 +226,7 @@ def parse_leading_tag(text: str) -> str | None:
 
 
 def task_identifiers(tasks: list[Task]) -> list[str]:
-    """Assign numeric, lettered, and dotted display IDs to a preorder task list."""
+    """Assign compact numeric-and-letter display IDs to a preorder task list."""
     identifiers: list[str] = []
     top_index = 0
     child_counts = [0, 0, 0]
@@ -243,8 +243,7 @@ def task_identifiers(tasks: list[Task]) -> list[str]:
                 raise ValueError("A task may have at most 26 direct subtasks")
             child_counts[depth + 1 :] = [0] * (2 - depth)
             letter = chr(ord("a") + child_counts[depth] - 1)
-            separator = "" if depth == 1 else "."
-            identifier = f"{parent_ids[depth - 1]}{separator}{letter}"
+            identifier = f"{parent_ids[depth - 1]}{letter}"
         parent_ids[depth] = identifier
         identifiers.append(identifier)
     return identifiers

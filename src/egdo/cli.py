@@ -67,7 +67,7 @@ class EgdoArgumentParser(argparse.ArgumentParser):
         if getattr(parsed, "command", None) == "move":
             values = parsed.move_values
             if len(values) == 1 and re.fullmatch(
-                r"\d+(?:[a-z]|[a-z]\.[a-z])?", values[0], re.IGNORECASE
+                r"\d+[a-z]{0,2}", values[0], re.IGNORECASE
             ):
                 parsed.indexes, parsed.when = values, None
             else:

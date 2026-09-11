@@ -130,7 +130,10 @@ egdo done 1 3 12
 With no IDs, `egdo done` opens a multi-select picker containing the global task list.
 Use Up/Down or j/k to move, Space to toggle, Enter to complete, and q or Escape to cancel.
 The picker displays the same focus marker, selection grammar, and cancel hint as the add
-workflow. Selecting a parent visibly selects its descendants through cascading behavior.
+workflow. Task rows use the same aligned priority, tag, description, and wrapping layout as
+the normal list, with focus and checkbox controls added on the left. A compact scheduled date
+appears only for future tasks. Selecting a parent visibly selects its descendants through
+cascading behavior.
 
 Completed tasks remain in the Markdown archive. They can be viewed with:
 
@@ -186,12 +189,12 @@ column:
 ```text
  1.                   Build finance dashboard
  1a.                  · Add tests
- 1a.a.                ·   Test missing values
+ 1aa.                 ·   Test missing values
 10.                   Another top-level task
 10a.                  · Its child
 ```
 
-This makes the `1` in `1`, `1a`, and `1a.a` line up vertically. Task text receives two
+This makes the `1` in `1`, `1a`, and `1aa` line up vertically. Task text receives two
 additional spaces of indentation at each nesting level.
 
 Nesting is limited to three total levels and 26 direct children per parent. Completing,

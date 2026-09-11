@@ -13,14 +13,13 @@ import tempfile
 from typing import Any, Callable
 
 from egdo.markdown_store import normalize_priority
+from egdo.render import render_picker_task_line
 from egdo.terminal_keys import read_picker_key
 from rich.console import Console, Group
 from rich.text import Text
 
 
 FOCUS_MARKER = "› "
-MULTI_SELECTED = "■ "
-MULTI_UNSELECTED = "□ "
 SINGLE_SELECTED = "● "
 SINGLE_UNSELECTED = "○ "
 
@@ -118,21 +117,20 @@ def _prompt_task_multiselect(
                 identifier = ref.identifier.lower()
                 inherited = _selected_ancestor(identifier, selected)
                 checked = identifier in selected or inherited is not None
-                row = Text(
-                    FOCUS_MARKER if index == cursor else "  ",
-                    style="bold bright_white" if index == cursor else "dim",
+                schedule = (
+                    None
+                    if ref.scheduled == today
+                    else f"{ref.scheduled.strftime('%b')} {ref.scheduled.day:>2}"
                 )
-                row.append(
-                    MULTI_SELECTED if checked else MULTI_UNSELECTED,
-                    style="green" if checked else "dim",
+                row = render_picker_task_line(
+                    ref.identifier,
+                    ref.task.text,
+                    checked=checked,
+                    focused=index == cursor,
+                    wrap_width=max(40, min(console.size.width, 96)),
+                    depth=getattr(ref.task, "depth", 0),
+                    schedule_label=schedule,
                 )
-                row.append(f"{ref.identifier:>5}. ")
-                row.append("  " * getattr(ref.task, "depth", 0))
-                row.append(ref.task.text, style="dim" if inherited else None)
-                schedule = "today" if ref.scheduled == today else ref.scheduled.isoformat()
-                row.append(f" ({schedule})", style="dim")
-                if inherited:
-                    row.append(f" via {inherited}", style="dim")
                 rows.append(row)
             if warning:
                 rows.extend([Text(""), Text("Select at least one task before continuing.", style="yellow")])
@@ -339,12 +337,9 @@ def prompt_priority_form(
 
 
 def _parent_identifier(identifier: str) -> str | None:
-    if "." in identifier:
-        return identifier.rsplit(".", 1)[0]
-    original = identifier
-    while identifier and identifier[-1].isalpha():
-        identifier = identifier[:-1]
-    return identifier if identifier != original else None
+    if identifier and identifier[-1].isalpha():
+        return identifier[:-1]
+    return None
 
 
 def _selected_ancestor(identifier: str, selected: set[str]) -> str | None:

@@ -28,6 +28,7 @@ from egdo.store import TaskRef
 from egdo.render import (
     render_list_header,
     render_project_line,
+    render_picker_task_line,
     render_section_header,
     render_separator,
     render_task_line,
@@ -66,6 +67,29 @@ class CliTests(unittest.TestCase):
         self.assertEqual(line.plain, "* Minecraft: /tmp/minecraft")
         self.assertEqual(line.spans[0].style, "bold bright_white")
         self.assertEqual(line.spans[1].style, "bold cyan")
+
+    def test_render_picker_task_line_formats_markdown_prefixes(self) -> None:
+        output = StringIO()
+        console = Console(file=output, force_terminal=False, color_system=None, width=70)
+        line = render_picker_task_line(
+            "2a",
+            "! {MINECRAFT} update server plugins",
+            checked=True,
+            focused=True,
+            wrap_width=70,
+            depth=1,
+            schedule_label="Sep 11",
+        )
+        console.print(line)
+        rendered = output.getvalue()
+
+        self.assertNotIn("{MINECRAFT}", rendered)
+        self.assertNotIn("! ", rendered)
+        self.assertIn("› ■", rendered)
+        self.assertIn("●", rendered)
+        self.assertIn("MINECRAFT", rendered)
+        self.assertIn("· Update server plugins", rendered)
+        self.assertIn("Sep 11", rendered)
 
     def test_render_section_header_uses_requested_width(self) -> None:
         output = StringIO()

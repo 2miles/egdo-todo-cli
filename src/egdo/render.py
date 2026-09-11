@@ -98,6 +98,50 @@ def render_task_line(
     return table
 
 
+def render_picker_task_line(
+    identifier: str,
+    task_text: str,
+    checked: bool,
+    focused: bool,
+    wrap_width: int,
+    depth: int = 0,
+    schedule_label: str | None = None,
+) -> Table:
+    """Render a list-style task row with interactive controls on the left."""
+    priority, tag, body = split_task_prefix(task_text)
+    date_width = 8
+    description_width = max(
+        8,
+        wrap_width - 4 - INDEX_COLUMN_WIDTH - 3 - TAG_COLUMN_WIDTH - date_width,
+    )
+    table = Table.grid(padding=0)
+    table.add_column(width=2, no_wrap=True)
+    table.add_column(width=2, no_wrap=True)
+    table.add_column(width=INDEX_COLUMN_WIDTH, no_wrap=True, style="white")
+    table.add_column(width=3, no_wrap=True)
+    table.add_column(width=TAG_COLUMN_WIDTH, no_wrap=True)
+    table.add_column(width=description_width)
+    table.add_column(width=date_width, no_wrap=True, justify="right", style="dim")
+
+    description = Text()
+    if depth > 0:
+        description.append("  " * (depth - 1))
+        description.append("· ", style="dim")
+    description.append(_capitalize_first_letter(body))
+    tag_label = _truncate_tag(tag) if tag else ""
+    table.add_row(
+        Text("› " if focused else "  ", style="bold bright_white" if focused else "dim"),
+        Text("■ " if checked else "□ ", style="green" if checked else "dim"),
+        Text(_format_task_index(identifier), style="white"),
+        Text("●  " if priority else "   "),
+        Text(tag_label, style=TAG_STYLE),
+        description,
+        Text(schedule_label or "", style="dim"),
+        style="dim" if checked and not focused else None,
+    )
+    return table
+
+
 def _format_task_date(value) -> str:
     return f"{value.strftime('%b')} {value.day:>2}"
 

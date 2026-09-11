@@ -81,7 +81,7 @@ class StoreTests(unittest.TestCase):
 
             self.assertEqual(
                 [(ref.identifier, ref.task.text, ref.task.depth) for ref in refs],
-                [("1", "Parent", 0), ("1a", "Child", 1), ("1a.a", "Grandchild", 2)],
+                [("1", "Parent", 0), ("1a", "Child", 1), ("1aa", "Grandchild", 2)],
             )
             content = file_path(notes_dir, today).read_text(encoding="utf-8")
             self.assertIn("- [ ] Parent (07-27)", content)
@@ -89,7 +89,7 @@ class StoreTests(unittest.TestCase):
             self.assertIn("    - [ ] Grandchild (07-27)", content)
 
             with self.assertRaisesRegex(ValueError, "three levels"):
-                create_task(notes_dir, today, "Too deep", done=False, parent="1a.a")
+                create_task(notes_dir, today, "Too deep", done=False, parent="1aa")
 
     def test_parent_mutations_cascade_to_descendants(self) -> None:
         with TemporaryDirectory() as tmp:

@@ -108,7 +108,7 @@ egdo add --done "Call dad"
 - preserves one leading tag in the task body and normalizes it to `{UPPERCASE}`
 - `--done` creates the task already completed
 - `--parent ID` inserts a child beneath a task scheduled for today
-- nesting is limited to three total levels: `6`, `6a`, and `6a.a`
+- nesting is limited to three total levels: `6`, `6a`, and `6aa`
 
 ## `egdo list`
 
@@ -193,6 +193,8 @@ egdo done 1 3 12
 
 - without IDs, opens a multi-select picker using arrows or j/k, Space, and Enter; its visible
   `q/Esc cancel` hint matches the add workflow
+- uses the same aligned priority, tag, task, and wrapping columns as `egdo list`, with focus
+  and checkbox controls added on the left; only future tasks include a compact scheduled date
 - completes IDs shown in `egdo list`, including future tasks
 - resolves all indexes before marking anything complete, so later indexes do not shift when completing multiple tasks
 - keeps the completed task in that day’s file as part of the archive
@@ -292,7 +294,7 @@ egdo note "Need to test villager trading setup"
 ### Nested tasks
 
 - Markdown uses two spaces of indentation per nesting level
-- top-level tasks use numeric IDs, children use IDs such as `6a`, and grandchildren use `6a.a`
+- top-level tasks use numeric IDs, children use IDs such as `6a`, and grandchildren use `6aa`
 - `done`, `delete`, `move`, `tag`, and `priority` cascade to descendants
 - `edit` changes only the selected task while preserving its descendants
 - moving a child without its parent promotes that child to the top level at its destination

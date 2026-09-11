@@ -568,7 +568,7 @@ def _project_name(config: Any) -> str:
     return getattr(config, "project_name", "Main")
 
 
-TASK_ID_RE = re.compile(r"^\d+(?:[a-z]|[a-z]\.[a-z])?$")
+TASK_ID_RE = re.compile(r"^\d+[a-z]{0,2}$")
 
 
 def _split_indexed_values(values: list[str], action: str) -> tuple[list[str | int], list[str]]:
