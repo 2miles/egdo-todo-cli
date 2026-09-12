@@ -238,6 +238,27 @@ def use_project(config: Config, name: str) -> Config:
     return replace(selected, default_project=selected.project_name)
 
 
+def remove_project(config: Config, name: str) -> Config:
+    """Unregister a project without touching its marker or archive."""
+    project_name = resolve_project_name(config.projects, name)
+    if len(config.projects) == 1:
+        raise ValueError("Cannot remove the only configured project")
+
+    projects = dict(config.projects)
+    del projects[project_name]
+    default_project = config.default_project
+    if project_name == default_project:
+        default_project = next(iter(projects))
+    selected_project = config.project_name
+    if selected_project == project_name:
+        selected_project = default_project
+    return Config(
+        projects=projects,
+        default_project=default_project,
+        project_name=selected_project,
+    )
+
+
 def resolve_project_name(projects: dict[str, Path], requested: str) -> str:
     """Resolve a project name without making display capitalization significant."""
     normalized = requested.strip().casefold()

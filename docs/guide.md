@@ -1,46 +1,55 @@
-# The Complete egdo Guide
+# Egdo Guide
 
-This is the practical handbook for using `egdo`: what to type, how its task list behaves,
-how priorities and tags work, and how to use the same files from Obsidian.
-
-For a compact description of every argument, see the
+This guide teaches the ideas and everyday workflows behind `egdo`. Read it in order if you
+are getting started, or jump to a topic when you want to understand how a feature fits into
+the rest of the system. For exact command syntax and options, use the
 [command reference](command-reference.md).
 
-## The Everyday Cheat Sheet
+## Contents
+
+- [Getting Started](#getting-started)
+- [How Egdo Organizes Your Work](#how-egdo-organizes-your-work)
+- [Multiple Projects](#multiple-projects)
+- [Adding Tasks](#adding-tasks)
+- [Completing, Editing, and Deleting](#completing-editing-and-deleting)
+- [Nested Tasks](#nested-tasks)
+- [Tags](#tags)
+- [Priority](#priority)
+- [Moving Tasks Between Dates](#moving-tasks-between-dates)
+- [Notes](#notes)
+- [Interactive Commands](#interactive-commands)
+- [How Rollover Works](#how-rollover-works)
+- [The Markdown Files](#the-markdown-files)
+- [Using Egdo with Obsidian](#using-egdo-with-obsidian)
+- [Files, Configuration, and Recovery](#files-configuration-and-recovery)
+- [Getting Help](#getting-help)
+
+## Getting Started
+
+Initialize a journal from the directory where its related notes live:
 
 ```bash
-# See everything
-egdo
-
-# Add tasks
-egdo add "Buy milk"
-egdo add -t errands "Buy milk"
-egdo add -p important -t work "Submit application"
-
-# Act on the numbers shown by `egdo`
-egdo done 3
-egdo edit 3 "Buy oat milk"
-egdo delete 3
-egdo move 3 tomorrow
-
-# Do the same thing to several tasks
-egdo done 1 6 7
-egdo delete 1 6 7
-egdo move 1 6 7 friday
-egdo priority 1 6 7 important
-
-# Manage tags
-egdo tag 3 chores
-egdo tag 3 6 7 --remove
-
-# See completed or scheduled work
-egdo list --completed
-egdo list --future
+cd ~/Notes
+egdo init Main
 ```
 
-Running `egdo` by itself is the same as running `egdo list`.
+Add a task, view the list, and complete it using the number shown:
 
-## The Basic Mental Model
+```bash
+egdo add "Buy milk"
+egdo
+egdo done 1
+```
+
+That is the core workflow. `egdo init` creates a local project marker and an `egdo/`
+archive beside it. Adding the task creates the current monthly Markdown file; completing it
+keeps it in that file as history.
+
+Most task-changing commands also open a guided interface when you omit their arguments. For
+example, `egdo add` guides you through a new task and `egdo done` lets you choose tasks from
+the current list.
+
+## How Egdo Organizes Your Work
 
 `egdo` shows one numbered list containing three groups:
 
@@ -62,64 +71,82 @@ so you do not have to learn a second indexing system.
 Indexes can change whenever the list changes. Run `egdo` again before acting on an old
 number if you have added, completed, moved, or deleted tasks since you last viewed it.
 
+## Multiple Projects
+
+Each project is an independent journal with its own tasks, notes, numbering, monthly files,
+and history. Initialize another one from the directory where it belongs:
+
+```bash
+cd ~/Notes/topics/gaming/minecraft
+egdo init Minecraft
+```
+
+When you run egdo inside that directory or one of its descendants, the nearest local project
+marker selects Minecraft automatically. Outside an initialized directory, egdo uses the
+global default. You can choose that default interactively with `egdo project`, or change it
+directly:
+
+```bash
+egdo project use Minecraft
+```
+
+Use another project once without changing the default:
+
+```bash
+egdo -P Minecraft list
+```
+
+When a journal no longer needs to appear in the project registry, unregister it with:
+
+```bash
+egdo project remove Demo
+```
+
+This removes only the registration—not its local marker or Markdown archive—so the project
+can be initialized again later. Egdo refuses to remove the only configured project.
+
+To see every project together:
+
+```bash
+egdo list --all-projects
+```
+
+The combined view is read-only. Its task IDs remain local to their displayed project, so
+select that project before acting on one, for example `egdo -P Minecraft done 2`.
+
+`--all-projects` cannot be combined with `-P/--project`, `--future`, `--completed`, or
+`--tag`.
+
 ## Adding Tasks
 
-Open the guided add form:
+Run `egdo add` by itself for the guided form. It asks for the task text, then lets you choose
+a tag, priority, and schedule. No tag, normal priority, and today are the defaults.
 
 ```bash
 egdo add
 ```
 
-After the task-text prompt, full-screen pickers handle the tag, priority, and scheduling.
-Use Up/Down or j/k to move and Enter to confirm. Every picker shows `q/Esc cancel`; line
-prompts show `/cancel to cancel`, so every stage has an obvious exit. In the tag picker,
-Space selects the current tag and n creates a new one. No tag is an explicit default choice.
-Priority defaults to normal and scheduling defaults to today. The custom schedule option
-accepts `tomorrow`, `+3`, weekday names, and `YYYY-MM-DD` dates.
-
-Add a plain task:
+When you already know what you want, add it directly. A task may have one tag and may be
+marked important:
 
 ```bash
 egdo add "Call the dentist"
-```
-
-Add one optional tag with `-t`:
-
-```bash
-egdo add -t health "Call the dentist"
-egdo add -t chores "Clean the kitchen"
-```
-
-Add a priority with `-p`:
-
-```bash
-egdo add -p important "Renew registration today"
-egdo add -p important -t work "Submit application"
-```
-
-You can combine priority, a tag, and task text in any order accepted by the command:
-
-```bash
 egdo add -p important -t work "Send invoice"
 ```
 
-Add something that is already finished when you want it recorded in the archive:
+Use `--done` when something is already finished but still belongs in the history:
 
 ```bash
 egdo add --done "Called Dad"
 ```
 
-You may also type egdo's Markdown prefixes yourself:
-
-```bash
-egdo add "! {WORK} Send invoice"
-```
-
-Using `-p` and `-t` is usually easier and avoids formatting mistakes.
+Egdo creates the current month and day only when there is something to record, so adding the
+first task or note never produces empty intervening dates.
 
 ## Completing, Editing, and Deleting
 
-Complete one task or several tasks at once:
+The numbers in the list are handles for acting on tasks. Pass one or several to complete them,
+or omit the numbers to choose interactively:
 
 ```bash
 egdo done
@@ -127,46 +154,31 @@ egdo done 3
 egdo done 1 3 12
 ```
 
-With no IDs, `egdo done` opens a multi-select picker containing the global task list.
-Use Up/Down or j/k to move, Space to toggle, Enter to complete, and q or Escape to cancel.
-The picker displays the same focus marker, selection grammar, and cancel hint as the add
-workflow. Task rows use the same aligned priority, tag, description, and wrapping layout as
-the normal list, with focus and checkbox controls added on the left. A compact scheduled date
-appears only for future tasks. Selecting a parent visibly selects its descendants through
-cascading behavior.
-
-Completed tasks remain in the Markdown archive. They can be viewed with:
+Completion keeps the task in the archive instead of erasing it. Today’s completed work is
+available as a filtered view:
 
 ```bash
 egdo list --completed
-egdo list --completed -t work
 ```
 
-Edit one task's full text:
+Editing changes the full task text while preserving its original creation date:
 
 ```bash
 egdo edit
-egdo edit 2
 egdo edit 2 "Buy oat milk"
 ```
 
-With no ID, `edit` opens a single-task picker. With an ID but no replacement text, it keeps
-that selection and prompts only for the new text.
-
-`edit` replaces the task text, so include any priority or tag you want to retain when
-rewriting it inline. For changing only the tag or priority, use the dedicated commands.
-
-Delete tasks when you do not want them recorded as completed:
+Use the dedicated `tag` and `priority` commands when you only want to change those properties.
+Delete a task only when you do not want it retained as completed history:
 
 ```bash
 egdo delete
 egdo delete 2
-egdo delete 1 6 7
 ```
 
 ## Nested Tasks
 
-Create children with `--parent`:
+Use a task’s displayed ID as `--parent` to break work into smaller steps:
 
 ```bash
 egdo add "Build finance dashboard"
@@ -174,7 +186,8 @@ egdo add --parent 1 "Add tests"
 egdo add --parent 1a "Test missing values"
 ```
 
-They are stored as ordinary nested Markdown checkboxes:
+The resulting IDs express the hierarchy as `1`, `1a`, and `1aa`, while the archive remains
+ordinary nested Markdown:
 
 ```markdown
 - [ ] Build finance dashboard (07-27)
@@ -182,164 +195,116 @@ They are stored as ordinary nested Markdown checkboxes:
     - [ ] Test missing values (07-27)
 ```
 
-The terminal IDs describe the hierarchy. The numeric part remains aligned with its
-parent, the suffix grows to the right, and the priority markers occupy their own fixed
-column:
-
-```text
- 1.                   Build finance dashboard
- 1a.                  · Add tests
- 1aa.                 ·   Test missing values
-10.                   Another top-level task
-10a.                  · Its child
-```
-
-This makes the `1` in `1`, `1a`, and `1aa` line up vertically. Task text receives two
-additional spaces of indentation at each nesting level.
-
 Nesting is limited to three total levels and 26 direct children per parent. Completing,
 deleting, moving, tagging, or prioritizing a task applies to its entire subtree.
 Editing changes only the selected task's wording. Acting directly on a child affects that
-child and its descendants, not its parent or siblings.
+child and its descendants, not its parent or siblings. Moving a child without its parent
+promotes it to the top level at the destination.
 
 ## Tags
 
 Tags describe the area or context of a task. Examples include `work`, `money`, `home`,
 `minecraft`, `movies`, and `errands`.
 
-Set or replace the tag on existing tasks:
+Add a tag with a task, change it later, or filter the list around it:
 
 ```bash
-egdo tag
-egdo tag 3
+egdo add -t work "Send invoice"
 egdo tag 3 work
-egdo tag 1 6 7 work
-```
-
-The leading values are task indexes and the final value is the tag. A task may have zero
-or one tag, so setting a tag replaces its current one.
-With omitted values, the shared interactive flow selects tasks and then chooses, creates,
-or removes a tag. Supplied task IDs are preserved when only the tag is omitted.
-
-Remove the tag:
-
-```bash
 egdo tag 3 --remove
-egdo tag 3 6 7 --remove
-```
-
-Filter a view by tag:
-
-```bash
 egdo list -t work
-egdo list --completed -t work
 ```
 
-Tags are case-insensitive. `work`, `WORK`, and `{WORK}` all refer to the same tag. In the
-Markdown files it is stored as one leading brace group such as `{WORK}`.
-Only the first leading brace group is interpreted as a tag. Any later `{...}` groups are
-preserved as ordinary task-description text.
+A task has at most one tag, so setting another replaces the current one. The same operation
+can be applied to several task IDs at once. Tags are case-insensitive: `work`, `WORK`, and
+`{WORK}` all refer to the same tag.
+
+In Markdown, the tag is stored as a leading brace group such as `{WORK}`. Only the first
+leading brace group is treated as a tag; braces elsewhere remain part of the description.
+
+Terminal lists omit the braces and render tags as uppercase, dim cyan labels. Long tags are
+shortened only for display; their stored text remains unchanged.
 
 ## Priority
 
 Priority is deliberately binary. Important tasks show `●` in the terminal; normal tasks
-leave that column empty. The marker uses the terminal's normal foreground color.
-
-Set the priority of one or more existing tasks:
+leave that column empty. Set it while adding a task or change it later:
 
 ```bash
-egdo priority
-egdo priority 3
+egdo add -p important "Renew registration"
 egdo priority 3 important
-egdo priority 1 6 7 important
-egdo priority 4 normal
+egdo priority 3 normal
 ```
 
-Important tasks store a leading `!` in Markdown. Normal tasks store no priority marker.
-The interactive form collects whichever task IDs or priority level are missing.
+Important tasks store a leading `!` in Markdown. Returning one to normal removes that marker.
+As with tags, you can change several task IDs in one operation.
 
 ## Moving Tasks Between Dates
 
-Move one or more tasks to a future date:
+Move a task when you want it attached to a particular date rather than carried forward each
+day:
 
 ```bash
 egdo move
-egdo move tomorrow
 egdo move 2 tomorrow
-egdo move 1 6 7 +3
 egdo move 2 friday
-egdo move 2 2026-08-15
+egdo move 1 6 7 +3
 ```
 
-Accepted date forms are:
+Dates can be written as `today`, `tomorrow`, `+N`, a weekday, or `YYYY-MM-DD`. A weekday
+means its next occurrence, and destinations cannot be in the past. If you omit the task IDs,
+the destination, or both, egdo asks only for what is missing.
 
-- `tomorrow`
-- `today`, when bringing a future task back
-- `+N`, such as `+3` for three days from today
-- a weekday name or abbreviation, such as `friday` or `fri`
-- an ISO date in `YYYY-MM-DD` form
-
-A weekday always means its next occurrence, not today. Destinations cannot be in the past.
-With missing task IDs or destination, `move` opens only the necessary picker and preserves
-any values already supplied.
-
-See only scheduled tasks:
+Scheduled tasks appear in the normal list, or by themselves in the future view:
 
 ```bash
 egdo list --future
 ```
 
-Bring future tasks back to today with the same command:
+They use the same IDs in either view and work with the ordinary task commands. Move one back
+into today’s active work with:
 
 ```bash
 egdo move 12 today
-egdo move 10 12 15 today
 ```
-
-The ordinary `done`, `edit`, `delete`, `move`, `tag`, and `priority` commands work on
-future tasks using their global indexes. `egdo list --future` is view-only; actions are always
-top-level commands.
 
 ## Notes
 
-Open your editor to write multiline Markdown in today's Notes section:
+Notes capture context that does not need to behave like a task. Run `egdo note` to write
+multiline Markdown in your editor, or provide a short note directly:
 
 ```bash
 egdo note
-```
-
-Egdo uses `$VISUAL`, then `$EDITOR`, and falls back to `vi`. Write above the instruction
-block, then save and close. An empty note cancels without changing the archive. For a short
-one-line note, pass it directly:
-
-```bash
 egdo note "Need to test villager trading setup"
 ```
 
 Notes are not tasks: they do not receive indexes, roll forward, or appear in task views.
-They remain alongside that day's tasks in the monthly Markdown file.
+They remain alongside that day's tasks in the monthly Markdown file. The editor follows
+`$VISUAL`, then `$EDITOR`, and falls back to `vi`; saving an empty note cancels it.
 
-## Terminal Tag Display
+## Interactive Commands
 
-Markdown stores tags with braces, such as `{WORK}`. Terminal lists omit the braces and
-render every tag as an uppercase, dim cyan label. This keeps tags visually consistent
-while priorities retain the stronger urgency signal.
+Run `project`, `add`, `done`, `edit`, `move`, `delete`, `tag`, or `priority` without the
+input it needs to open a guided prompt. Pickers share the same controls: Up/Down or j/k moves,
+Space selects where applicable, and Enter continues. Press q or Escape to cancel a picker;
+enter `/cancel` to leave a line prompt. The `note` command opens your editor when no text is
+supplied.
 
 ## How Rollover Works
 
-When you first use egdo on a newer day, unfinished tasks from earlier days move into the
-new day. Their original creation dates are preserved, which is why they appear under
-**Carried forward** and still show an earlier date.
+Rollover keeps unfinished work visible without filling the archive with empty dates. When
+you first use egdo on a newer day, incomplete tasks from the most recent earlier day move
+into today. Their original creation dates remain attached, so they appear under
+**Carried forward** rather than **Today**.
 
-Completed tasks stay on the day where they were completed. Notes also stay on their
-original days. Repeatedly running `egdo` does not duplicate rolled-over tasks.
+Completed tasks and notes stay on the days where they were recorded. Running egdo repeatedly
+on the same day does not duplicate anything.
 
-Future tasks are different: they remain attached to their scheduled dates until that date
-arrives or you move them again, including back to today.
+Scheduled tasks remain on their future dates until those dates arrive or you move them again.
 
 ## The Markdown Files
 
-The configured root uses this layout:
+Each project stores its history as one Markdown file per month:
 
 ```text
 <root>/YEAR/YEAR_MM_mon.md
@@ -367,81 +332,50 @@ omitted rather than represented by empty day headers:
 Remember to compare the new electricity rate.
 ```
 
-The final `(MM-DD)` records when a task was originally created. It is not the task's
-scheduled date.
+The checkbox records completion, `!` records priority, and `{WORK}` is the tag. The final
+`(MM-DD)` is the task’s original creation date—not its scheduled date.
+
+For a larger working example, copy the repository’s [example notes](../example-notes) and
+run `egdo init Demo` inside the copy. The included archive is populated but intentionally
+uninitialized, so it can be adopted without changing the repository version.
 
 ## Using egdo with Obsidian
 
-Add a project whose root is an `egdo` directory inside your Obsidian vault. The monthly
-files then remain normal Obsidian notes and sync to the mobile app using whichever sync
-method you use for the rest of the vault.
+Initialize projects inside your Obsidian vault and their `egdo/` archives become ordinary
+vault folders. The monthly files can be opened, searched, linked, and synced like your other
+Markdown notes.
 
-For quick phone access, bookmark the current month's note in Obsidian. At the beginning
-of a new month, replace that bookmark with the new monthly note. This opens the actual
-task file directly instead of opening an intermediate list.
-
-An Obsidian Base is optional. It is useful as an archive browser for all egdo month files,
-but a Base bookmark opens the Base result list first. If the Base currently contains only
-one month file, a direct bookmark to that file is faster. A useful long-term setup is:
-
-- direct bookmark: the current month, for daily phone access
-- Base: every egdo Markdown file, for browsing and searching history
+For quick phone access, bookmark the current month’s file. An Obsidian Base is optional and
+can provide a broader searchable view of the entire archive.
 
 Editing from Obsidian is supported. Keep task items in the day's `### Tasks` section and
 notes in `### Notes`. Safe manual changes include:
 
-- editing task wording
-- checking or unchecking a checkbox
-- adding a normal Markdown checklist item
-- adding a leading tag such as `{WORK}`
-- adding a leading `!` to mark a task important
-- editing notes
+- Editing task wording
+- Checking or unchecking a checkbox
+- Adding a normal Markdown checklist item
+- Adding a leading tag such as `{WORK}`
+- Adding a leading `!` to mark a task important
+- Editing notes
 
-Avoid changing the day header format (`## Jul-24 Fri`) or manually changing the trailing
-creation-date suffix. If you add a checklist item without a suffix, egdo fills it from the
-day section the next time it normalizes that file.
+Keep checklist items under the correct `### Tasks` heading and notes under `### Notes`.
+Avoid changing day headers or creation-date suffixes. If you add a plain checklist item,
+egdo fills in its creation date from the surrounding day the next time it reads the file.
 
-## Configuration and Backup
+## Files, Configuration, and Recovery
 
-Initialize your first project from the directory containing its related notes:
+There are two small pieces of project metadata in addition to the Markdown archive:
 
-```bash
-cd ~/Notes
-egdo init Main
-```
+- `.egdo.toml` identifies the project from its local directory
+- `~/.config/egdo/config.toml` records known projects and the global default
 
-This creates `~/Notes/.egdo.toml`, registers `~/Notes/egdo`, and makes `Main` the
-default. The archive remains empty until the first task or note is added. A nested project
-uses the same workflow:
-
-```bash
-cd ~/Notes/topics/gaming/minecraft
-egdo init Minecraft
-```
-
-Egdo uses an explicit `-P/--project` first, then the nearest local marker found by walking
-upward, then the global default. A nearer nested marker therefore overrides a broader marker
-such as the one at `~/Notes`.
-
-The local marker stores only the project identity:
+The local marker deliberately stores only identity:
 
 ```toml
 project = "Minecraft"
 ```
 
-The archive is always the marker's sibling `egdo/` directory. If the initialized directory
-is moved, the archive moves with it. The next command run inside the moved tree uses the
-local archive immediately and updates the global registry.
-If the previous location still has a valid marker for the same project, egdo refuses the
-duplicate rather than guessing which copy is authoritative.
-
-The config file is:
-
-```text
-~/.config/egdo/config.toml
-```
-
-A typical config looks like:
+A typical global config maps those identities to their archive locations:
 
 ```toml
 default_project = "Main"
@@ -451,48 +385,19 @@ default_project = "Main"
 "Minecraft" = "/Users/you/Notes/topics/gaming/minecraft/egdo"
 ```
 
-Use `egdo project list` to see registered journals and `egdo project use NAME` to change
-the global fallback. New projects are always created from their local directory with
-`egdo init NAME`; there is no separate command for adding or repointing a raw root.
+The archive is always the marker’s sibling `egdo/` directory. Moving the initialized
+directory therefore moves the marker and archive together. The next command run inside the
+moved tree finds the local archive and refreshes its registered location. If a valid marker
+still exists at the old location, egdo refuses to choose between the two copies.
 
-Every task list names the active project above its date. Project names are matched without
-regard to case but retain their configured capitalization for display.
+Initialization can safely adopt an existing `egdo/` archive and can be repeated for the same
+project. It refuses conflicting local markers, project names, and registered roots. Project
+names match case-insensitively while preserving their display capitalization.
 
-Configuration changes save the previous config as `config.toml.bak`. They do not move,
-combine, or delete task files. Each project keeps its own tasks, notes, monthly files,
-numbering, and completed history. The former `egdo config --root` command is no longer
-needed; `egdo init` handles setup.
-
-Your Markdown roots contain the important task and note histories. The config contains the
-project names and root locations. Back up or sync both if you
-want identical behavior after setting up egdo on another computer.
-
-## “How Do I…?” Index
-
-| I want to… | Command |
-| --- | --- |
-| see my tasks | `egdo` |
-| initialize a journal here | `egdo init Main` |
-| list configured projects | `egdo project list` |
-| initialize another project | `cd PROJECT_DIRECTORY && egdo init Minecraft` |
-| change the default project | `egdo project use Minecraft` |
-| use another project once | `egdo -P Minecraft list` |
-| see tasks across every project | `egdo list --all-projects` |
-| add a task | `egdo add "Task"` |
-| add a tagged task | `egdo add -t work "Task"` |
-| add priority and a tag together | `egdo add -p important -t work "Task"` |
-| complete several tasks | `egdo done 1 6 7` |
-| delete several tasks | `egdo delete 1 6 7` |
-| reschedule several tasks | `egdo move 1 6 7 tomorrow` |
-| set one tag on several tasks | `egdo tag 1 6 7 work` |
-| remove a tag from several tasks | `egdo tag 1 6 7 --remove` |
-| mark several tasks important | `egdo priority 1 6 7 important` |
-| return a task to normal | `egdo priority 3 normal` |
-| see completed tasks | `egdo list --completed` |
-| see only future tasks | `egdo list --future` |
-| bring a future task back | `egdo move 12 today` |
-| add a note | `egdo note` (editor) or `egdo note "Note text"` |
-| see help for one command | `egdo COMMAND --help` |
+Configuration changes preserve the previous file as `config.toml.bak`; they never move,
+merge, or delete Markdown archives. Back up or sync both the archives and global config when
+you want the same projects and default on another computer. The former
+`egdo config --root` workflow is obsolete—initialize projects with `egdo init NAME` instead.
 
 ## Getting Help
 

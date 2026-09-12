@@ -1,82 +1,70 @@
 # Command Reference
 
-## Overview
+## Commands
 
-Running `egdo` with no command is a shortcut for `egdo list`.
+| Command | Purpose | Interactive |
+| --- | --- | --- |
+| [`egdo init NAME`](#egdo-init) | Initialize a journal | No |
+| [`egdo project`](#egdo-project) | Choose or manage projects | Yes |
+| [`egdo add`](#egdo-add) | Add a task | Yes |
+| [`egdo`](#egdo-list) / [`egdo list`](#egdo-list) | Show tasks and filtered views | No |
+| [`egdo done`](#egdo-done) | Complete tasks | Yes |
+| [`egdo edit`](#egdo-edit) | Edit a task | Yes |
+| [`egdo move`](#egdo-move) | Reschedule tasks | Yes |
+| [`egdo delete`](#egdo-delete) | Delete tasks | Yes |
+| [`egdo tag`](#egdo-tag) | Set or remove tags | Yes |
+| [`egdo priority`](#egdo-priority) | Set task priority | Yes |
+| [`egdo note`](#egdo-note) | Add a note | Yes |
 
-For normal commands, egdo selects a project in this order: an explicit `-P/--project`, the
-nearest `.egdo.toml` found from the current directory upward, then the global default.
-
-Use the global `-P/--project` option before a command to select a named project for that
-invocation without changing the default:
-
-```bash
-egdo -P Minecraft list
-egdo --project Minecraft add "Update server plugins"
-```
-
-Successful task-changing commands clear and redraw the current list when run in an
-interactive terminal, with the confirmation shown above it. Piped or redirected output
-is not cleared and receives only the confirmation line(s).
+Interactive commands open a guided prompt when required input is omitted.
 
 ## `egdo init`
 
-Initialize an egdo journal in the current directory:
+Initialize a named journal in the current directory:
 
 ```bash
 cd ~/Notes
 egdo init Main
 ```
 
-- creates `.egdo.toml` in the current directory
-- stores only the project identity in the marker; the archive is always the sibling `egdo/`
-- creates or adopts an empty `egdo/` archive directory
-- registers `<current-directory>/egdo` as the named project's root
-- makes the first initialized project the global default
-- leaves the existing default unchanged when initializing later projects
-- creates no year, month, task, note, or empty history files
-- is safe to repeat for the same case-insensitive name and root
-- refuses conflicting local markers, project names, or registered roots
-- allows commands in descendant directories to discover the project automatically
-- refreshes the global registry when a moved project is discovered and its old marker is gone
-- refuses to guess when two live markers claim the same case-insensitive project name
+This creates a `.egdo.toml` project marker and a sibling `egdo/` archive, then registers the
+project. The first initialized project becomes the default; initializing additional projects
+does not change it.
+
+Running the command again for the same project is safe. Commands run from the initialized
+directory or its descendants automatically use that project. Monthly files are created only
+after adding a task or note.
 
 ## `egdo project`
 
-Manage independent named task roots:
+List projects or choose the global default:
 
 ```bash
+egdo project
 egdo project list
 egdo project use Minecraft
-egdo project
+egdo project remove Demo
 ```
 
-- `list` prints every configured name and root; `*` marks the default
-- `use NAME` makes a project the persistent default
-- with no action, opens a single-choice picker for the persistent default
-- names are matched case-insensitively while preserving display capitalization
-- `project use` saves the previous config as `config.toml.bak`
-- projects keep independent tasks, notes, monthly files, numbering, and history
-- selecting a project never moves, merges, or deletes files in another root
+- `egdo project` opens the default-project picker
+- `egdo project list` shows every project and marks the default with `*`
+- `egdo project use NAME` changes the default directly
+- `egdo project remove NAME` unregisters a project without deleting its files
 
-The config file lives at `~/.config/egdo/config.toml` and stores the named project registry.
-New projects are created with `egdo init NAME`; there is no separate command for manually
-adding or repointing a project root.
+Removal asks for confirmation in a terminal; use `--force` for non-interactive use. The only
+configured project cannot be removed. Removing the default makes the first remaining project
+the new default.
 
-## `egdo list --all-projects`
+For normal commands, egdo selects a project in this order: an explicit `-P/--project`, the
+nearest `.egdo.toml` found from the current directory upward, then the global default.
 
-Show matching tasks from every configured project:
+Use `-P/--project` for a one-time selection without changing the default:
 
 ```bash
-egdo list --all-projects
+egdo -P Minecraft list
 ```
 
-- groups output by project and omits projects with no tasks
-- preserves each project's local task IDs and configured project order
-- computes carried-forward tasks in memory without changing any Markdown file
-- cannot be combined with `-P/--project`, `--future`, `--completed`, or `--tag`
-- is strictly read-only; use a project selection such as `egdo -P Minecraft done 2` to mutate
-  a displayed task
+Create new projects with `egdo init NAME`.
 
 ## `egdo add`
 
@@ -85,34 +73,22 @@ Add a task to today’s active list.
 ```bash
 egdo add
 egdo add "Call dentist"
-egdo add -t chores "Do the dishes"
 egdo add -p important -t work "Submit application"
 egdo add --parent 6 "Add tests"
-egdo add --parent 6a "Test missing values"
-egdo add --done -t errands "Call the DMV"
-egdo add "{CHORES} Do the dishes"
 egdo add --done "Call dad"
 ```
 
-- uses today by default
-- when task text is omitted, opens an interactive form for text, one optional tag, priority, and schedule
-- the form uses arrow or Vim navigation; Space selects a tag and Enter confirms a screen
-- every picker shows `q/Esc cancel`, and every line prompt shows `/cancel to cancel`
-- No tag is explicit and mutually exclusive with a selected tag; pressing n creates a tag
-- the form accepts `today`, `tomorrow`, `+N`, weekdays, and `YYYY-MM-DD` schedules
-- creates the monthly file and day section if they do not exist
-- first performs rollover for unfinished tasks from the most recent earlier day
-- writes day headers only for dates containing tasks or notes; empty dates are omitted
-- `-t` or `--tag` prepends one tag without requiring Markdown tag syntax
-- `-p` or `--priority` accepts `important` or `normal`
-- preserves one leading tag in the task body and normalizes it to `{UPPERCASE}`
-- `--done` creates the task already completed
-- `--parent ID` inserts a child beneath a task scheduled for today
-- nesting is limited to three total levels: `6`, `6a`, and `6aa`
+Without task text, `egdo add` opens an interactive form for the description, tag, priority,
+and schedule. Supplying text adds the task directly to today.
+
+- `-t/--tag TAG` assigns a tag
+- `-p/--priority LEVEL` sets `important` or `normal`
+- `--parent ID` creates a subtask beneath an active task
+- `--done` records the new task as already completed
 
 ## `egdo list`
 
-List active tasks for today.
+Show active and scheduled tasks for the current project.
 
 ```bash
 egdo
@@ -120,70 +96,50 @@ egdo list
 egdo list -t chores
 ```
 
-- running bare `egdo` is the same as `egdo list`
-- displays the active project above the date
-- uses today by default
-- first performs rollover for unfinished tasks from the most recent earlier day
-- shows incomplete active tasks grouped as `Today` and `Carried forward`; carried tasks are ordered by creation date, newest first
-- also shows future tasks grouped by scheduled date, with tomorrow labeled explicitly
-- `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
-- `--future` shows only tasks scheduled after today and can be combined with `--tag`
-- `--completed` shows only tasks completed today and can be combined with `--tag`
-- `--future` and `--completed` are mutually exclusive
-- numbering continues across `Today`, `Carried forward`, and future date sections without restarting
-- normal `done`, `edit`, `move`, `delete`, `tag`, and `priority` commands automatically route each index to the correct group
-- `egdo list --future` is an optional filtered view that preserves the same global indexes
+Running `egdo` with no command is the same as `egdo list`. Task IDs remain consistent across
+the normal and filtered list views.
+
+- `-t/--tag TAG` filters by tag
+- `--future` shows only scheduled tasks
+- `--completed` shows only tasks completed today
+
+`--future` and `--completed` cannot be combined; either can be combined with `--tag`.
 
 ## `egdo list --completed`
 
-List completed tasks for today.
+Show tasks completed today, optionally filtered by tag:
 
 ```bash
 egdo list --completed
 egdo list --completed -t chores
 ```
 
-- uses today by default
-- shows only completed tasks from today
-- `-t` or `--tag` filters by leading tags such as `{CHORES}` or `{HOME}`
-- cannot be combined with `--future`
-
 ## `egdo list --future`
 
-List incomplete tasks scheduled after today.
+Show future tasks grouped by scheduled date, optionally filtered by tag:
 
 ```bash
 egdo list --future
 egdo list --future -t chores
 ```
 
-- shows incomplete tasks on dates later than today
-- groups tasks by their scheduled day
-- preserves the global task numbers from the combined `egdo list` view
-- shows each task with its original created date
-- this command is view-only; use the normal top-level commands with the displayed indexes
+The displayed IDs are the same IDs used by the normal task commands.
 
-## `egdo priority`
+## `egdo list --all-projects`
 
-Mark active tasks as important or return them to normal. New tasks default to normal.
+Show tasks from every configured project:
 
 ```bash
-egdo priority
-egdo priority 3 important
-egdo priority 1 6 7 important
-egdo priority 3 normal
+egdo list --all-projects
 ```
 
-- accepts one or more numeric indexes shown by `egdo list`
-- with no level or IDs, interactively collects only the missing choices
-- `important` stores a leading `!` in Markdown
-- `normal` removes the priority marker
-- renders an uncolored `●` for important tasks and an empty priority column for normal tasks
-- the same command works for future tasks using their global indexes
+This view is grouped by project and strictly read-only. IDs remain local to each project;
+select a project before changing one of its tasks, for example `egdo -P Minecraft done 2`.
+It cannot be combined with `-P/--project` or another list filter.
 
 ## `egdo done`
 
-Mark one or more tasks complete using their global IDs.
+Complete one or more tasks:
 
 ```bash
 egdo done
@@ -191,34 +147,25 @@ egdo done 1
 egdo done 1 3 12
 ```
 
-- without IDs, opens a multi-select picker using arrows or j/k, Space, and Enter; its visible
-  `q/Esc cancel` hint matches the add workflow
-- uses the same aligned priority, tag, task, and wrapping columns as `egdo list`, with focus
-  and checkbox controls added on the left; only future tasks include a compact scheduled date
-- completes IDs shown in `egdo list`, including future tasks
-- resolves all indexes before marking anything complete, so later indexes do not shift when completing multiple tasks
-- keeps the completed task in that day’s file as part of the archive
+Without IDs, `egdo done` opens an interactive multi-select picker. Otherwise, it completes
+the supplied active or future task IDs directly.
 
 ## `egdo edit`
 
-Edit a task using its global ID.
+Choose and edit a task, or supply its ID and replacement text:
 
 ```bash
 egdo edit
 egdo edit 2
 egdo edit 2 "Buy oat milk"
-egdo edit 1 "{CHORES} Pick up detergent"
 ```
 
-- edits an ID shown in `egdo list`, including a future task
-- with no ID, opens a single-task picker; with no text, prompts for replacement text
-- updates only the task text
-- preserves the original created date suffix such as `(04-05)`
-- can be used to rewrite tags inline if you want to replace the task text completely
+With no ID, `egdo edit` opens a task picker. With an ID but no replacement text, it prompts
+only for the new text. Editing replaces the complete task text, including any tag or priority.
 
 ## `egdo move`
 
-Move one or more tasks to today or a future date.
+Move tasks to today or a future date:
 
 ```bash
 egdo move
@@ -226,23 +173,15 @@ egdo move tomorrow
 egdo move 2 tomorrow
 egdo move 7 today
 egdo move 1 6 7 tomorrow
-egdo move 2 +3
-egdo move 2 sunday
-egdo move 2 2026-04-10
 ```
 
-- accepts one or more global IDs shown in `egdo list`
-- with missing IDs or date, interactively collects only the missing choices
-- physically relocates the task into the destination day section
-- preserves the original created date suffix such as `(04-05)`
-- accepts `today`, `tomorrow`, `+N`, weekday names, and `YYYY-MM-DD`
-- weekday names mean the next occurrence of that weekday, never today
-- `today` brings a future task back to today's active list
-- rejects past destinations and moving an already-active task to today
+Missing task IDs or a destination are collected interactively without discarding supplied
+values. Dates accept `today`, `tomorrow`, `+N`, a weekday, or `YYYY-MM-DD`; destinations
+cannot be in the past.
 
 ## `egdo delete`
 
-Delete one or more tasks using their global IDs.
+Delete one or more tasks:
 
 ```bash
 egdo delete
@@ -250,13 +189,12 @@ egdo delete 2
 egdo delete 1 6 7
 ```
 
-- accepts one or more IDs shown in `egdo list`, including future tasks
-- with no IDs, opens a multi-select picker and requires an explicit confirmation
-- removes the task entirely instead of marking it complete
+Without IDs, `egdo delete` opens a multi-select picker and asks for confirmation. Deletion
+removes tasks from the archive rather than recording them as completed.
 
 ## `egdo tag`
 
-Set, replace, or remove the tag on tasks using their global IDs.
+Set, replace, or remove task tags:
 
 ```bash
 egdo tag
@@ -266,67 +204,31 @@ egdo tag 1 6 7 chores
 egdo tag 3 6 7 --remove
 ```
 
-- reads leading values as task indexes and the final value as one tag
-- with missing IDs or tag, interactively collects only the missing choices
-- works on active and future tasks
-- setting a tag replaces any tag already on every selected task
-- `--remove` clears the tag from every selected task
-- stores the tag as one leading brace group such as `{CHORES}`
-- normalizes tag names case-insensitively
+Missing task IDs or a tag are collected interactively. Setting a tag replaces the existing
+tag; `--remove` clears it.
+
+## `egdo priority`
+
+Mark tasks as important or return them to normal:
+
+```bash
+egdo priority
+egdo priority 3 important
+egdo priority 1 6 7 important
+egdo priority 3 normal
+```
+
+Missing task IDs or a priority are collected interactively. The available levels are
+`important` and `normal`.
 
 ## `egdo note`
 
-Append a note to today’s `### Notes` section.
+Add a note for today:
 
 ```bash
 egdo note
 egdo note "Need to test villager trading setup"
 ```
 
-- uses today by default
-- with no text, opens `$VISUAL`, then `$EDITOR`, falling back to `vi`
-- preserves multiline Markdown; saving an empty buffer cancels without writing
-- creates the monthly file and day section if they do not exist
-- appends each new note as a new paragraph in that day’s Notes section
-
-## Behavior Notes
-
-### Nested tasks
-
-- Markdown uses two spaces of indentation per nesting level
-- top-level tasks use numeric IDs, children use IDs such as `6a`, and grandchildren use `6aa`
-- `done`, `delete`, `move`, `tag`, and `priority` cascade to descendants
-- `edit` changes only the selected task while preserving its descendants
-- moving a child without its parent promotes that child to the top level at its destination
-- a parent may have at most 26 direct children
-
-### Carry-Forward
-
-When you access a new day with `add`, `list`, `done`, `edit`, `move`, `delete`, or `tag`, `egdo` moves unfinished tasks from the most recent earlier day into the current day.
-
-That means:
-
-- incomplete tasks do not stay stranded in old files
-- completed tasks stay where they were finished
-- your archive reflects when work was actually done
-
-Rollover is idempotent, so repeating `list` for the same day does not duplicate tasks.
-
-### Tags
-
-- one leading brace group is treated as the task's tag for filtering
-- you can create a tag either with `egdo add -t chores "Task"` or by typing `{CHORES} Task` directly in Markdown
-- only the first leading brace group is a tag; later brace groups remain ordinary task text
-- braces later in the task text are treated as normal text
-- terminal lists show the tag without braces as an uppercase, dim cyan label in a fixed-width column; long labels are shortened only for display
-
-### Normalization
-
-You can manually add simple checklist items like:
-
-```markdown
-- [ ] Pick up prescription
-- [x] Paid invoice
-```
-
-On the next read/write command, `egdo` normalizes them into the standard task format and fills in the created date from the day section if needed.
+Without text, `egdo note` opens `$VISUAL`, then `$EDITOR`, falling back to `vi`. Multiline
+Markdown is preserved, and saving an empty buffer cancels without writing.

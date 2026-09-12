@@ -15,6 +15,7 @@ from egdo.config import (
     initialize_local_marker,
     load_config,
     register_initialized_project,
+    remove_project,
     save_config,
     select_project_for_directory,
     use_project,
@@ -132,6 +133,34 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.default_project, "Minecraft")
         self.assertEqual(config.project_name, "Minecraft")
         self.assertEqual(config.root, Path("/tmp/minecraft"))
+
+    def test_remove_project_preserves_files_and_other_projects(self) -> None:
+        config = Config(
+            projects={"Main": Path("/tmp/main"), "Demo": Path("/tmp/demo")}
+        )
+
+        updated = remove_project(config, "demo")
+
+        self.assertEqual(updated.projects, {"Main": Path("/tmp/main")})
+        self.assertEqual(updated.default_project, "Main")
+        self.assertEqual(config.projects["Demo"], Path("/tmp/demo"))
+
+    def test_remove_default_project_promotes_first_remaining_project(self) -> None:
+        config = Config(
+            projects={"Main": Path("/tmp/main"), "Minecraft": Path("/tmp/minecraft")},
+            default_project="Main",
+        )
+
+        updated = remove_project(config, "Main")
+
+        self.assertEqual(updated.default_project, "Minecraft")
+        self.assertEqual(updated.project_name, "Minecraft")
+
+    def test_remove_project_rejects_only_configured_project(self) -> None:
+        config = Config(projects={"Main": Path("/tmp/main")})
+
+        with self.assertRaisesRegex(ValueError, "only configured project"):
+            remove_project(config, "Main")
 
     def test_initialize_local_marker_creates_archive_without_fake_history(self) -> None:
         with TemporaryDirectory() as tmp:

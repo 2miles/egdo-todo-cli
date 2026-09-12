@@ -193,6 +193,43 @@ Also:
 
 ## Packaging Path
 
+### Installation documentation transition
+
+The README currently documents an editable installation from a local clone:
+
+```bash
+python3 -m venv ~/.venvs/tools
+~/.venvs/tools/bin/pip install -e /path/to/egdo-todo-cli
+```
+
+This is appropriate while egdo is primarily a development checkout, but it assumes the user
+already has the repository and understands how to replace the example path. The `-e` flag
+also means Python runs the package from that working tree, which is useful for development
+rather than a normal end-user installation.
+
+Before presenting egdo as a generally installable tool, choose and test one primary public
+installation path. Likely stages are:
+
+```bash
+# Install directly from GitHub
+pipx install git+https://github.com/USER/egdo-todo-cli.git
+
+# Install from PyPI after publication
+pipx install egdo
+```
+
+`pipx` is a natural default for a Python CLI because it provides an isolated environment
+while exposing the `egdo` executable globally. Confirm the final repository URL and PyPI
+package name before publishing either command.
+
+Once a public installation path is ready:
+
+- Replace the editable-install instructions in the README with the shortest supported command.
+- Keep source-checkout and editable-install instructions in contributor or development docs.
+- Test the documented command on a clean machine or isolated environment.
+- Verify that `egdo --help`, `egdo init Main`, upgrades, and uninstalling all work as described.
+- State the supported Python versions and how users should upgrade.
+
 ### GitHub first
 
 - Publish the repository once the README, license, and basic docs are ready.

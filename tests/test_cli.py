@@ -548,6 +548,45 @@ class CliTests(unittest.TestCase):
         self.assertEqual(saved.root, Path("/tmp/minecraft"))
         self.assertEqual(output.getvalue(), 'Using project "Minecraft"\n')
 
+    def test_project_remove_force_unregisters_without_touching_files(self) -> None:
+        config = Config(
+            projects={"Main": Path("/tmp/main"), "Demo": Path("/tmp/demo")}
+        )
+        output = StringIO()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.save_config") as save_config_mock,
+            patch("sys.stdout", output),
+        ):
+            exit_code = main(["project", "remove", "demo", "--force"])
+
+        self.assertEqual(exit_code, 0)
+        saved = save_config_mock.call_args.args[0]
+        self.assertEqual(saved.projects, {"Main": Path("/tmp/main")})
+        self.assertEqual(
+            output.getvalue(),
+            'Unregistered project "Demo"; its files were not deleted\n',
+        )
+
+    def test_project_remove_can_be_canceled(self) -> None:
+        config = Config(
+            projects={"Main": Path("/tmp/main"), "Demo": Path("/tmp/demo")}
+        )
+        output = StringIO()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli._confirm_project_removal", return_value=False),
+            patch("egdo.cli.save_config") as save_config_mock,
+            patch("sys.stdout", output),
+        ):
+            exit_code = main(["project", "remove", "Demo"])
+
+        self.assertEqual(exit_code, 0)
+        save_config_mock.assert_not_called()
+        self.assertEqual(output.getvalue(), "Canceled project removal.\n")
+
     def test_bare_project_opens_default_project_picker(self) -> None:
         config = Config(
             projects={"Main": Path("/tmp/main"), "Minecraft": Path("/tmp/minecraft")}

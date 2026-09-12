@@ -1,253 +1,135 @@
 # egdo
 
-`egdo` is a terminal workflow that carries unfinished tasks forward while preserving
-completed work as a plain-Markdown journal.
+Egdo is a local-first command-line journal for tasks and notes, stored as readable Markdown
+history.
 
-## Why egdo?
+Unfinished work follows you forward. Completed work stays on the day it was finished. Each
+project keeps an independent journal beside its related notes, without hiding your data in an
+application database.
 
-Many task managers treat their database as the source of truth. With `egdo`, your Markdown files are the source of truth:
+## Why Egdo?
 
-- unfinished tasks roll forward automatically
-- completed tasks remain in a daily archive
-- notes live alongside tasks
-- files can be viewed and edited in any text editor
-- optional tags keep tasks organized without complicating the file format
-
-Each month is stored in a single Markdown file, with sections only for days containing
-tasks or notes. Empty dates are omitted. The result is a lightweight task list that
-preserves a useful history of your work.
+- **Plain Markdown** — Read and edit the archive with Obsidian, any text editor, or ordinary
+  file tools.
+- **Useful history** — Completed tasks and notes remain organized by day in monthly files.
+- **Rolling work** — Unfinished tasks return automatically instead of becoming stranded on
+  an old list.
+- **Independent projects** — Initialize a journal wherever its work belongs and let directory
+  context select it.
+- **Terminal-native** — Use concise commands when you know what you want or guided prompts
+  when you do not.
 
 ## Installation
 
-If you want `egdo` available from anywhere on your machine, install it into a small personal tools virtual environment.
+Egdo currently installs from a local clone. A dedicated tools environment keeps it available
+from any directory without mixing it into another Python project:
 
 ```bash
 python3 -m venv ~/.venvs/tools
 ~/.venvs/tools/bin/pip install -e /path/to/egdo-todo-cli
 ```
 
-Then add it to your shell `PATH`:
+Add that environment to your shell path:
 
 ```bash
 export PATH="$HOME/.venvs/tools/bin:$PATH"
 ```
 
-Put that line in `~/.zshrc`, then reload your shell:
-
-```bash
-source ~/.zshrc
-```
-
-If project dependencies change later, run the editable install command again.
+Put the export in `~/.zshrc` or the corresponding startup file for your shell.
 
 ## Quick Start
 
-Install egdo, open the directory where your notes live, and initialize your first journal:
+Initialize a journal in the directory where its related notes live:
 
 ```bash
 cd ~/Notes
 egdo init Main
-egdo add "My first task"
-egdo
 ```
 
-Initialization creates a small `.egdo.toml` marker and an `egdo/` archive directory. Year
-and month files appear only when you add a task or note:
-
-```text
-~/Notes/
-├── .egdo.toml
-└── egdo/
-    └── 2026/
-        └── 2026_09_sep.md
-```
-
-Run egdo anywhere below `~/Notes` and it recognizes `Main` automatically.
-The marker stores only the project identity. Its archive is always the sibling `egdo/`
-directory, so moving the initialized directory keeps local use working and refreshes its
-global registry location automatically.
-
-## Basic Usage
-
-View your tasks:
+Then add, view, and complete your first task:
 
 ```bash
+egdo add "Try egdo"
 egdo
-```
-
-Add and complete tasks:
-
-```bash
-egdo add "Buy milk"
 egdo done 1
 ```
 
-Schedule a task for another day:
+Completing the task removes it from the active list but preserves it in the monthly Markdown
+archive. Run `egdo add` or `egdo done` without further arguments when you prefer a guided
+interactive flow.
 
-```bash
-egdo move 2 tomorrow
-egdo move 5 today
-```
+## What It Looks Like
 
-Organize tasks with tags and priority:
+![Egdo task list showing current, carried-forward, and scheduled work](docs/assets/egdo-list.png)
 
-```bash
-egdo add -t chores "Do the dishes"
-egdo add -p important -t work "Submit application"
-```
+The displayed numbers are temporary handles for commands such as `done`, `edit`, `move`,
+`delete`, `tag`, and `priority`. Tags, priority, nesting, creation dates, and scheduling remain
+visible without turning the list into a dashboard.
 
-Running `egdo` without a command displays today’s tasks, carried-forward work, and
-scheduled tasks in one numbered list. Use those numbers with commands such as `done`,
-`edit`, `move`, `delete`, `tag`, and `priority`.
+Commands can also guide you through missing choices. This tag picker appears during
+interactive task creation:
 
-For interactive task creation, run `egdo add` without text. To choose tasks from an
-interactive completion list, run `egdo done` without IDs.
+![Egdo interactive tag picker](docs/assets/egdo-tag-picker.png)
 
-Run `egdo note` to write multiline Markdown in `$VISUAL` or `$EDITOR`, or pass a short note
-directly with `egdo note "Text"`.
+Behind both views is the Markdown archive. Completed work remains readable alongside notes,
+while active tasks use ordinary checklist syntax:
 
-Additional views:
+![Completed Egdo tasks and notes from August](docs/assets/egdo-markdown-aug.png)
 
-```bash
-egdo list --future
-egdo list --completed
-egdo list -t chores
-egdo list --all-projects
-```
+![Active Egdo tasks and notes from September](docs/assets/egdo-markdown-sep.png)
 
-The all-projects view groups tasks beneath their project names without changing
-any archive. Task IDs remain local to each project; select that project before modifying a
-listed task, for example `egdo -P Minecraft done 2`. It is a deliberately focused overview;
-`--future`, `--completed`, and `--tag` cannot be combined with `--all-projects`.
+## Core Ideas
 
-Initialize another journal from the directory containing its related notes:
+**Markdown is the source of truth.** Each project stores tasks and notes in monthly files
+containing only dates with actual content.
+
+**Rollover keeps work visible.** Incomplete tasks move into the current day while retaining
+their original creation dates; completed tasks and notes stay in history.
+
+**Projects follow their context.** Running `egdo init NAME` creates a local marker and an
+`egdo/` archive. Commands inside that directory tree select the project automatically.
+
+**Direct and interactive use coexist.** Enter a complete command such as
+`egdo move 2 tomorrow`, or omit what you do not know yet and let Egdo prompt for it.
+
+**The archive belongs with your notes.** Egdo files work naturally inside an Obsidian vault
+and remain usable without Egdo.
+
+## Multiple Projects
+
+Initialize another journal from the directory where it belongs:
 
 ```bash
 cd ~/Notes/topics/gaming/minecraft
 egdo init Minecraft
-egdo add "Update server plugins"
 ```
 
-Inside that directory tree, egdo selects `Minecraft`; elsewhere beneath `~/Notes`, it
-selects `Main`. Every list displays its active project. The global `-P/--project` option
-always provides an explicit one-command override:
+Egdo now selects Minecraft inside that directory tree and Main inside the broader notes tree.
+Use `egdo project` to choose the global default, `-P Minecraft` for a one-command override,
+or `egdo list --all-projects` for a read-only overview.
+
+## Documentation
+
+- [Guide](docs/guide.md) — Learn Egdo’s workflows, mental model, Markdown format, and project
+  behavior.
+- [Command reference](docs/command-reference.md) — Look up commands, arguments, and options.
+
+The [example notes](example-notes) directory contains a populated, uninitialized journal you
+can copy and adopt with `egdo init Demo` as a demo or playground. When finished, run
+`egdo project remove Demo` before deleting the copy; removal unregisters the project but never
+deletes its files.
+
+The built-in help always reflects the version installed on your machine:
 
 ```bash
-egdo -P Minecraft add "Update server plugins"
+egdo --help
+egdo add --help
 ```
-
-Tasks are stored in ordinary Markdown files. They may have one optional tag, one binary
-priority, and up to two levels of subtasks.
-
-See the [complete guide](docs/guide.md) for workflows and the
-[command reference](docs/command-reference.md) for every option.
-
-## Storage Format
-
-Files are stored like this:
-
-```text
-<root>/YYYY/YYYY_MM_mon.md
-```
-
-Example:
-
-```text
-/path/to/your/notes/egdo/2026/2026_04_apr.md
-```
-
-Each day is a section in that month file:
-
-```markdown
-## Apr-05 Sun
-
-### Tasks
-
-- [ ] ! {CHORES} Buy milk (04-05)
-
-### Notes
-
-Need to test villager trading setup.
-```
-
-The trailing `(MM-DD)` is the date the task first entered the system.
-
-## Manual Editing
-
-Manual editing is a normal part of the workflow.
-
-You can safely:
-
-- change task text in a day’s `### Tasks` section
-- add simple checklist items in a `### Tasks` section
-- create a tag by typing one leading brace group such as `{CHORES}` or `{HOME}`
-- mark a task important by typing a leading `!`
-- edit or add text in a day’s `### Notes` section
-- open and edit the files directly in any text editor
-
-You should avoid:
-
-- changing the `## Apr-05 Sun` day header format
-- changing task date suffixes away from `MM-DD`
-
-If a manual task is missing its trailing `(MM-DD)` date, `egdo` fills it in from the day section date the next time it normalizes the file.
-
-## Projects and Configuration
-
-The config file lives at:
-
-```text
-~/.config/egdo/config.toml
-```
-
-Example:
-
-```toml
-default_project = "Main"
-
-[projects]
-"Main" = "/Users/you/Notes/egdo"
-"Minecraft" = "/Users/you/Notes/topics/gaming/minecraft/egdo"
-```
-
-The preferred setup is local initialization:
-
-```bash
-cd ~/Notes
-egdo init Main
-```
-
-Egdo selects projects in this order: explicit `-P/--project`, the nearest `.egdo.toml`
-found by walking upward, then the global default. Project commands show the registry or
-change its global fallback:
-
-```bash
-egdo project list
-egdo project use Main
-```
-
-Project changes preserve unrelated config content and copy the previous version to
-`config.toml.bak`.
-
-Initializing or selecting a project does not relocate, modify, combine, or delete another
-project's task files. Each root keeps its own tasks, notes, monthly files, numbering, and
-completed-task history. To restore previous configuration, use `config.toml.bak`.
-
-Terminal lists render the tag as an uppercase, dim cyan label without the Markdown braces.
-The tag column has a fixed width; long labels are shortened with an ellipsis for display
-without changing the full tag stored in Markdown.
 
 ## Development
 
-Run tests:
-
 ```bash
 python3 -m unittest discover -s tests
-```
-
-Compile the source tree:
-
-```bash
 python3 -m compileall src
 ```
 

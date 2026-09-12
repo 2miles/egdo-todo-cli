@@ -15,6 +15,7 @@ from egdo.config import (
     load_config,
     read_local_project,
     register_initialized_project,
+    remove_project,
     save_config,
     select_project_for_directory,
     use_project,
@@ -137,7 +138,8 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "Examples:\n  egdo project\n  egdo project list\n"
-            "  egdo project use Minecraft"
+            "  egdo project use Minecraft\n"
+            "  egdo project remove Demo"
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
@@ -150,6 +152,15 @@ def build_parser() -> argparse.ArgumentParser:
         "use", help="Make a project the default"
     )
     project_use_parser.add_argument("name", help="Configured project name")
+    project_remove_parser = project_subparsers.add_parser(
+        "remove", help="Unregister a project without deleting its files"
+    )
+    project_remove_parser.add_argument("name", help="Configured project name")
+    project_remove_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Remove without an interactive confirmation",
+    )
 
     add_parser = subparsers.add_parser(
         "add",
@@ -416,6 +427,16 @@ def _run_project(args: argparse.Namespace, config: object | None) -> int:
         save_config(updated, CONFIG_PATH)
         print(f'Using project "{updated.project_name}"')
         return 0
+    if args.project_command == "remove":
+        project_name = config.select(args.name).project_name
+        assert project_name is not None
+        if not args.force and not _confirm_project_removal(project_name):
+            print("Canceled project removal.")
+            return 0
+        updated = remove_project(config, project_name)
+        save_config(updated, CONFIG_PATH)
+        print(f'Unregistered project "{project_name}"; its files were not deleted')
+        return 0
     raise ValueError(f"Unknown project action: {args.project_command}")
 
 
@@ -447,6 +468,18 @@ def _run_init(name: str, config: object | None, directory: Path) -> int:
 def _current_directory() -> Path:
     """Return the process working directory through an easy-to-test boundary."""
     return Path.cwd()
+
+
+def _confirm_project_removal(name: str) -> bool:
+    """Confirm an unregister operation, requiring --force outside a terminal."""
+    if not sys.stdin.isatty():
+        raise ValueError(
+            "Project removal requires confirmation in a terminal; use --force to continue"
+        )
+    answer = input(
+        f'Unregister project "{name}"? Its files will not be deleted. [y/N] '
+    )
+    return answer.strip().casefold() in {"y", "yes"}
 
 
 if __name__ == "__main__":
