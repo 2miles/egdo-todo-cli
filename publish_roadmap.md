@@ -72,6 +72,8 @@ Initially it should only report problems. A future `egdo doctor --fix` could nor
 - Choose one spelling and casing convention everywhere for terms such as “Markdown,” “ID,” “todo,” dates, quotation marks, and arrows.
 - Avoid clearing the entire terminal after every mutation unless users opt into it; an inline refresh may be less disruptive.
 - If clearing remains, add `--quiet` and possibly `--no-refresh`.
+- Consider naming the active project in mutation confirmations when it improves orientation,
+  especially after an explicit `-P/--project` override.
 
 ### A future command
 
@@ -124,6 +126,69 @@ egdo search --completed application
 
 A simple text, tag, and date search is enough. Egdo does not need a query language.
 
+### Completed work across projects
+
+A future retrospective command could answer “What did I accomplish on this date?” without
+expanding the deliberately focused `list --all-projects` interface:
+
+```bash
+egdo completed today
+egdo completed yesterday
+egdo completed 2026-09-04
+```
+
+The view should:
+
+- Group completed tasks by project beneath one date heading.
+- Remain strictly read-only.
+- Preserve project-local history and IDs.
+- Omit projects with no completions on the requested date.
+- Accept a small, documented date grammar consistent with other commands where practical.
+
+The command name and exact date grammar should be reconsidered before implementation rather
+than treated as part of the current CLI contract.
+
+### Reversible project archiving
+
+Projects may eventually need an inactive state that remains registered and easy to restore:
+
+```bash
+egdo project archive Minecraft
+egdo project restore Minecraft
+egdo project list --archived
+egdo project list --all
+```
+
+Archiving is distinct from the existing `project remove` command. Removal forgets a registry
+entry while leaving its marker and files untouched; archiving would retain the name, root,
+and inactive status in the registry.
+
+Expected behavior:
+
+- `project list` shows active projects by default.
+- `project list --archived` shows inactive projects and their remembered roots.
+- `project list --all` clearly distinguishes both groups.
+- Archived projects cannot be selected with `project use` or `-P/--project`.
+- `project restore NAME` reactivates the same registration and archive.
+- Archive and restore operations never modify task, note, or history files.
+- Project names remain reserved while archived.
+- The default project cannot be archived until another default is selected.
+
+The global config could keep this lifecycle state outside project roots:
+
+```toml
+default_project = "Main"
+
+[projects]
+Main = "/Users/miles/Notes/egdo"
+
+[archived_projects]
+Minecraft = "/Users/miles/Notes/topics/gaming/minecraft/egdo"
+```
+
+After archiving exists, `egdo list --all-projects --include-archived` could become an explicit
+read-only option. Archived projects should remain absent from the default combined view.
+
 ## Features to Defer
 
 Avoid these until real usage demonstrates a repeated need:
@@ -133,7 +198,11 @@ Avoid these until real usage demonstrates a repeated need:
 - dependencies
 - task durations
 - cloud synchronization
-- project management
+- heavyweight project management such as milestones, dependencies, teams, and workflows
+- linked parent and child projects
+- nested project hierarchies
+- synchronized or shared tasks between projects
+- moving tasks between projects
 - calendar integrations
 - arbitrary custom fields
 - a full-screen TUI
@@ -246,9 +315,6 @@ Once a public installation path is ready:
 
 ## Recommended Release Sequence
 
-1. Redesign the default list and simplify priority presentation.
-2. Reconcile command names and remove `unmove`.
-3. Standardize interactive picker visuals.
 4. Improve parser errors and add `egdo doctor`.
 5. Add atomic writes, CI, a license, `--version`, and `--no-color`.
 6. Expand tests around malformed Markdown, manual edits, and rollover edge cases.
