@@ -22,6 +22,7 @@ Interactive commands open a guided prompt when required input is omitted.
 
 - `-P/--project NAME` uses one configured project for the current command.
 - `--debug` shows a traceback when a command fails; normal errors are concise.
+- `--version` prints the installed Egdo version and exits.
 
 ## `egdo init`
 

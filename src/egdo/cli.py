@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import sys
 
+from egdo import __version__
 from egdo.config import (
     CONFIG_PATH,
     LOCAL_CONFIG_NAME,
@@ -115,6 +116,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--debug",
         action="store_true",
         help="Show a traceback when a command fails",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Show the installed version and exit",
     )
     subparsers = parser.add_subparsers(
         title="commands",

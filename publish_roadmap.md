@@ -26,7 +26,6 @@ unambiguous, and safe.
 
 ### CLI UX and command language
 
-- Add `--version`.
 - Add `--no-color` and respect the `NO_COLOR` environment variable.
 - Send machine-readable errors to stderr and use reliable exit codes.
 - Choose one spelling and casing convention everywhere for terms such as “Markdown,” “ID,” “todo,” dates, quotation marks, and arrows.
@@ -248,6 +247,12 @@ pipx install egdo
 while exposing the `egdo` executable globally. Confirm the final repository URL and PyPI
 package name before publishing either command.
 
+The current repo-local environment is sufficient for running egdo and its tests, but it does
+not include the tooling needed for a non-isolated wheel build. Treat that as deferred release
+tooling rather than a runtime dependency or product defect. During the packaging pass, build
+the wheel and source distribution in an isolated environment and document any development
+tools required to reproduce those artifacts.
+
 Once a public installation path is ready:
 
 - Replace the editable-install instructions in the README with the shortest supported command.
@@ -272,7 +277,7 @@ Once a public installation path is ready:
 
 ## Recommended Release Sequence
 
-1. Add CI, `--version`, and `--no-color`.
+1. Add CI and `--no-color`.
 2. Expand tests around manual edits, recovery, and rollover edge cases.
 3. Test installation from a wheel in a clean environment.
 4. Clean up packaging metadata and document supported Python versions.

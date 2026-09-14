@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "egdo"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A rolling Markdown work journal for the terminal."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -22,3 +22,6 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = { attr = "egdo.__version__" }

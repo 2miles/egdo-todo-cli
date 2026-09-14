@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from rich.console import Console
 
+from egdo import __version__
 from egdo.cli import build_parser, main
 from egdo.config import Config
 from egdo.dates import format_display_date, parse_future_date
@@ -84,8 +85,18 @@ class CliTests(unittest.TestCase):
 
         self.assertIn("-P, --project", help_text)
         self.assertIn("--debug", help_text)
+        self.assertIn("--version", help_text)
         self.assertIn("egdo -P Minecraft list", help_text)
         self.assertIn("egdo COMMAND --help", help_text)
+
+    def test_version_prints_package_version_without_a_command(self) -> None:
+        output = StringIO()
+
+        with patch("sys.stdout", output), self.assertRaises(SystemExit) as raised:
+            build_parser().parse_args(["--version"])
+
+        self.assertEqual(raised.exception.code, 0)
+        self.assertEqual(output.getvalue(), f"egdo {__version__}\n")
 
     def test_format_display_date_uses_short_weekday_month_and_ordinal(self) -> None:
         self.assertEqual(format_display_date(date(2026, 4, 4)), "Sat, Apr 4th")
