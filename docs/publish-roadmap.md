@@ -147,12 +147,6 @@ Recurrence looks obvious, but it introduces identity, duplication, completion, e
 
 ## GitHub Readiness
 
-### Project metadata
-
-- State supported Python versions clearly in the README and packaging metadata.
-- Confirm the versioning approach for early releases such as `0.1.x`.
-- Add a simple changelog or release-notes file.
-
 ## Packaging Path
 
 ### Installation documentation transition
