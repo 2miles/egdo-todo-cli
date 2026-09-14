@@ -81,7 +81,8 @@ while active tasks use ordinary checklist syntax:
 ## Core Ideas
 
 **Markdown is the source of truth.** Each project stores tasks and notes in monthly files
-containing only dates with actual content.
+containing only dates with actual content. If manually edited managed sections are ambiguous,
+Egdo reports the file and line to fix and leaves the file unchanged.
 
 **Rollover keeps work visible.** Incomplete tasks move into the current day while retaining
 their original creation dates; completed tasks and notes stay in history.

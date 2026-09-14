@@ -19,10 +19,6 @@ Make `egdo` solid enough that someone outside this repo can:
 
 ### Markdown safeguards and diagnostics
 
-- Improve errors for malformed or partially malformed daily task sections.
-- Make parser failures identify the file, line, and likely problem rather than raising generic exceptions.
-- Decide how tolerant `egdo` should be of partially malformed task blocks.
-- Keep the parser permissive enough for manual editing without making behavior ambiguous.
 - Make writes atomic so an interruption cannot corrupt a month file.
 - Verify that the documented storage invariant consistently describes the actual monthly format.
 
@@ -82,7 +78,6 @@ An undo mechanism would be valuable, but atomic backup files or Git integration 
 ### Edge cases
 
 - Review rollover behavior around sparse files and unusual manual edits.
-- Verify behavior when files contain unexpected content inside daily sections.
 - Verify behavior when tasks are manually checked or unchecked after creation.
 
 ## Focused Feature Additions
@@ -203,9 +198,7 @@ Recurrence looks obvious, but it introduces identity, duplication, completion, e
 - Add CI across supported Python versions.
 - Fix the repo-local environment and test-installation instructions.
 - Test installation from a built wheel in a completely clean environment.
-- Add tests for malformed or partially malformed Markdown in daily sections.
 - Add tests for unusual manual edits and recovery behavior.
-- Add tests for files with preserved preamble content and unusual Notes sections.
 - Add tests for month and year boundaries if they are not already covered well enough.
 - Add tests focused on user-facing error messages where failures are intentional.
 
@@ -302,15 +295,14 @@ Once a public installation path is ready:
 
 ## Recommended Release Sequence
 
-1. Improve parser errors so normal commands identify the file, line, and likely correction.
-2. Add atomic writes, CI, `--version`, and `--no-color`.
-3. Expand tests around malformed Markdown, manual edits, and rollover edge cases.
-4. Test installation from a wheel in a clean environment.
-5. Clean up packaging metadata and document supported Python versions.
-6. Publish to GitHub as a `0.1.x` release candidate.
-7. Use it for several weeks before choosing between search and recurrence.
-8. Evaluate PyPI publication after one more installation pass.
+1. Add atomic writes, CI, `--version`, and `--no-color`.
+2. Expand tests around manual edits, recovery, and rollover edge cases.
+3. Test installation from a wheel in a clean environment.
+4. Clean up packaging metadata and document supported Python versions.
+5. Publish to GitHub as a `0.1.x` release candidate.
+6. Use it for several weeks before choosing between search and recurrence.
+7. Evaluate PyPI publication after one more installation pass.
 
-If only three things are done next, prioritize atomic writes, CI and clean-install testing,
-and actionable parser errors. Those changes reinforce trust in the Markdown archive and make
-the existing product safer to distribute.
+If only three things are done next, prioritize atomic writes, CI, and clean-install testing.
+Those changes reinforce trust in the Markdown archive and make the existing product safer to
+distribute.

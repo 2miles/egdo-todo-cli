@@ -360,6 +360,11 @@ Keep checklist items under the correct `### Tasks` heading and notes under `### 
 Avoid changing day headers or creation-date suffixes. If you add a plain checklist item,
 egdo fills in its creation date from the surrounding day the next time it reads the file.
 
+Egdo stops without rewriting a monthly file when managed Markdown is ambiguous or malformed.
+The error identifies the file and line and suggests a correction. Content in `### Notes` and
+content before the first daily section remain free-form; nonblank content elsewhere in a daily
+section must be placed under `### Tasks` or `### Notes`.
+
 ## Files, Configuration, and Recovery
 
 There are two small pieces of project metadata in addition to the Markdown archive:

@@ -9,11 +9,44 @@ import re
 
 
 DAY_HEADER_RE = re.compile(r"^## ([A-Za-z]{3})-(\d{2}) ([A-Za-z]{3})$")
+DAY_HEADER_CANDIDATE_RE = re.compile(
+    r"^##\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(?:[-–]|\s+)\S+",
+    re.IGNORECASE,
+)
 TASK_LINE_RE = re.compile(r"^( *)- \[( |x)\] (.*?)(?: \((\d{2}-\d{2})\))?$")
 MONTH_FILE_RE = re.compile(r"^(\d{4})_(\d{2})_([a-z]{3})$")
 IMPORTANT_TOKEN_RE = re.compile(r"^!(?:\s+|$)")
 TASKS_HEADING = "### Tasks"
 NOTES_HEADING = "### Notes"
+
+
+class MarkdownParseError(ValueError):
+    """Describe unsafe or ambiguous Markdown with an actionable location."""
+
+    def __init__(
+        self,
+        line_number: int,
+        problem: str,
+        correction: str,
+        line: str | None = None,
+    ) -> None:
+        self.line_number = line_number
+        self.problem = problem
+        self.correction = correction
+        self.line = line
+        super().__init__(self._details())
+
+    def _details(self) -> str:
+        details = self.problem
+        if self.line is not None:
+            details += f'\nFound: "{self.line}"'
+        return f"{details}\nFix: {self.correction}"
+
+    def for_path(self, path: Path) -> str:
+        return f"cannot parse {path}:{self.line_number}\n{self._details()}"
+
+    def __str__(self) -> str:
+        return f"Line {self.line_number}: {self._details()}"
 
 
 @dataclass(slots=True)
@@ -52,7 +85,11 @@ def file_path(notes_dir: Path, target_date: date) -> Path:
     return notes_dir / f"{target_date:%Y}" / f"{target_date:%Y_%m}_{month_name}.md"
 
 
-def parse_file(content: str, default_year: int | None = None) -> FileState:
+def parse_file(
+    content: str,
+    default_year: int | None = None,
+    expected_month: int | None = None,
+) -> FileState:
     """Parse day sections while preserving content before the first day header."""
     lines = content.splitlines()
     prefix_lines: list[str] = []
@@ -64,13 +101,57 @@ def parse_file(content: str, default_year: int | None = None) -> FileState:
         header = DAY_HEADER_RE.match(line)
         if header:
             if default_year is None:
-                raise ValueError("Month file year is required to parse day headers")
-            month = datetime.strptime(header.group(1), "%b").month
-            day_of_month = int(header.group(2))
-            current_date = date(default_year, month, day_of_month)
-            current_day = days.setdefault(current_date, DayState())
+                raise MarkdownParseError(
+                    line_number,
+                    "A year is required to interpret this day heading.",
+                    "Parse the file with its four-digit year.",
+                    line,
+                )
+            try:
+                month = datetime.strptime(header.group(1), "%b").month
+                day_of_month = int(header.group(2))
+                current_date = date(default_year, month, day_of_month)
+            except ValueError as exc:
+                raise MarkdownParseError(
+                    line_number,
+                    "The day heading contains an invalid month or date.",
+                    "Use a heading like `## Apr-05 Sun`.",
+                    line,
+                ) from exc
+            if expected_month is not None and month != expected_month:
+                raise MarkdownParseError(
+                    line_number,
+                    "The day heading does not belong in this monthly file.",
+                    f"Move it to month {month:02d}, or use a month {expected_month:02d} date.",
+                    line,
+                )
+            expected_weekday = current_date.strftime("%a")
+            if header.group(3).lower() != expected_weekday.lower():
+                raise MarkdownParseError(
+                    line_number,
+                    f"The weekday does not match {current_date:%b-%d-%Y}.",
+                    f"Change the heading to `## {current_date:%b-%d} {expected_weekday}`.",
+                    line,
+                )
+            if current_date in days:
+                raise MarkdownParseError(
+                    line_number,
+                    "This day has more than one section.",
+                    "Combine the duplicate day sections under one heading.",
+                    line,
+                )
+            current_day = DayState()
+            days[current_date] = current_day
             section = None
             continue
+
+        if DAY_HEADER_CANDIDATE_RE.match(line):
+            raise MarkdownParseError(
+                line_number,
+                "This looks like a malformed day heading.",
+                "Use a heading like `## Apr-05 Sun`.",
+                line,
+            )
 
         if current_day is None:
             prefix_lines.append(line)
@@ -83,17 +164,48 @@ def parse_file(content: str, default_year: int | None = None) -> FileState:
             section = "notes"
             continue
 
+        if line.startswith("###") and section != "notes":
+            raise MarkdownParseError(
+                line_number,
+                "This is not a supported daily section heading.",
+                "Use `### Tasks` or `### Notes`.",
+                line,
+            )
+
+        if section is None and line.strip():
+            raise MarkdownParseError(
+                line_number,
+                "Content appears outside a Tasks or Notes section.",
+                "Move it under `### Tasks` or `### Notes`.",
+                line,
+            )
+
         if section == "tasks":
             if not line.strip():
                 continue
             try:
                 task = parse_task_line(line, current_date)
             except ValueError as exc:
-                raise ValueError(f"Line {line_number}: {exc}") from exc
+                raise MarkdownParseError(
+                    line_number,
+                    str(exc),
+                    "Use a checklist item like `- [ ] Task` with two spaces per nesting level.",
+                    line,
+                ) from exc
             if task.depth and not current_day.tasks:
-                raise ValueError("A nested task must follow a parent task")
+                raise MarkdownParseError(
+                    line_number,
+                    "A nested task must follow a parent task.",
+                    "Add a less-indented parent task immediately before it.",
+                    line,
+                )
             if current_day.tasks and task.depth > current_day.tasks[-1].depth + 1:
-                raise ValueError("Task nesting cannot skip a level")
+                raise MarkdownParseError(
+                    line_number,
+                    "Task nesting cannot skip a level.",
+                    "Reduce the indentation or add the missing parent task.",
+                    line,
+                )
             current_day.tasks.append(task)
             continue
 
@@ -131,10 +243,14 @@ def ensure_state(path: Path) -> FileState:
         return FileState(prefix="", days={})
     try:
         return parse_file(
-            path.read_text(encoding="utf-8"), default_year=file_year_from_path(path)
+            path.read_text(encoding="utf-8"),
+            default_year=file_year_from_path(path),
+            expected_month=_file_month_from_path(path),
         )
+    except MarkdownParseError as exc:
+        raise ValueError(exc.for_path(path)) from exc
     except ValueError as exc:
-        raise ValueError(f"{path}: {exc}") from exc
+        raise ValueError(f"cannot parse {path}\n{exc}") from exc
 
 
 def write_state(path: Path, state: FileState) -> None:
@@ -157,6 +273,13 @@ def file_year_from_path(path: Path) -> int | None:
     if match is None:
         return None
     return int(match.group(1))
+
+
+def _file_month_from_path(path: Path) -> int | None:
+    match = MONTH_FILE_RE.match(path.stem)
+    if match is None:
+        return None
+    return int(match.group(2))
 
 
 def render_day(day_date: date, day: DayState) -> str:

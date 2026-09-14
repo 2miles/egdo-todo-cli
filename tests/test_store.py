@@ -979,6 +979,102 @@ class StoreTests(unittest.TestCase):
             self.assertEqual([task.text for task in tasks], ["{CHORES} Buy milk"])
             self.assertEqual(state.days[target_date].notes, ["Need to remember cat meds."])
 
+    def test_malformed_task_error_identifies_file_line_text_and_correction(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+            path = file_path(notes_dir, target_date)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "## Apr-05 Sun\n\n### Tasks\n\n- [] Missing checkbox space\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(ValueError) as raised:
+                ensure_state(path)
+
+            message = str(raised.exception)
+            self.assertIn(f"cannot parse {path}:5", message)
+            self.assertIn('Found: "- [] Missing checkbox space"', message)
+            self.assertIn("Fix: Use a checklist item", message)
+
+    def test_malformed_day_and_section_headings_have_specific_corrections(self) -> None:
+        cases = [
+            ("## Apr 05 Sun\n", "malformed day heading", "## Apr-05 Sun"),
+            (
+                "## Apr-05 Sun\n\n### Task\n\n- [ ] Buy milk\n",
+                "not a supported daily section heading",
+                "### Tasks",
+            ),
+        ]
+        for content, problem, correction in cases:
+            with self.subTest(content=content), TemporaryDirectory() as tmp:
+                path = file_path(Path(tmp), date(2026, 4, 5))
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+
+                with self.assertRaisesRegex(ValueError, problem) as raised:
+                    ensure_state(path)
+
+                self.assertIn(correction, str(raised.exception))
+
+    def test_daily_content_outside_managed_sections_is_rejected(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = file_path(Path(tmp), date(2026, 4, 5))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "## Apr-05 Sun\n\nRemember to buy milk.\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "outside a Tasks or Notes section"):
+                ensure_state(path)
+
+    def test_nesting_error_includes_the_offending_line_number(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = file_path(Path(tmp), date(2026, 4, 5))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "## Apr-05 Sun\n\n### Tasks\n\n  - [ ] Orphan\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(ValueError) as raised:
+                ensure_state(path)
+
+            self.assertIn(f"{path}:5", str(raised.exception))
+            self.assertIn("must follow a parent", str(raised.exception))
+
+    def test_mutation_never_rewrites_a_malformed_month_file(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+            path = file_path(notes_dir, target_date)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            malformed = "## Apr-05 Sun\n\n### Tasks\n\nnot a checklist item\n"
+            path.write_text(malformed, encoding="utf-8")
+
+            with self.assertRaises(ValueError):
+                add_task(notes_dir, target_date, "A new task")
+
+            self.assertEqual(path.read_text(encoding="utf-8"), malformed)
+
+    def test_preamble_and_notes_remain_free_form(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = file_path(Path(tmp), date(2026, 4, 5))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "# Monthly context\n\nArbitrary preamble.\n\n"
+                "## Apr-05 Sun\n\n### Notes\n\n"
+                "Free-form prose.\n\n### A note subheading\n\n- not a task\n",
+                encoding="utf-8",
+            )
+
+            state = ensure_state(path)
+
+            self.assertIn("Arbitrary preamble.", state.prefix)
+            self.assertIn("### A note subheading", state.days[date(2026, 4, 5)].notes)
+
     def test_rollover_across_month_boundary_keeps_original_created_date(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
