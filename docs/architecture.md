@@ -68,8 +68,10 @@ hold `Task` objects and free-form notes. For example:
 Remember to follow up tomorrow.
 ```
 
-The parser validates day headings, checklist syntax, creation dates, and nesting. The
-renderer writes only populated dates and preserves supported notes and preamble content.
+The parser validates that headings match the file's year and month, checklist syntax,
+creation dates, section placement, and nesting. A canonical file contains at most one section
+per populated date, with optional `### Tasks` and `### Notes` subsections. The renderer omits
+empty dates, preserves preamble and Notes content, and atomically replaces monthly files.
 
 ## Important Boundaries
 

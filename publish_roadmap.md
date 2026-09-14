@@ -17,25 +17,6 @@ Make `egdo` solid enough that someone outside this repo can:
 
 ## Product Hardening
 
-### Markdown safeguards and diagnostics
-
-- Make writes atomic so an interruption cannot corrupt a month file.
-- Verify that the documented storage invariant consistently describes the actual monthly format.
-
-Useful errors should include:
-
-- what failed
-- where it failed
-- how to correct it
-- no traceback unless `--debug` is supplied
-
-For example:
-
-```text
-egdo: cannot parse ~/Notes/egdo/2026/2026_08_aug.md:42
-Nested task must follow a parent task.
-```
-
 ### Archive-wide diagnostics (deferred)
 
 Reconsider a read-only archive-wide validation command only if manual edits, sync conflicts,
@@ -295,7 +276,7 @@ Once a public installation path is ready:
 
 ## Recommended Release Sequence
 
-1. Add atomic writes, CI, `--version`, and `--no-color`.
+1. Add CI, `--version`, and `--no-color`.
 2. Expand tests around manual edits, recovery, and rollover edge cases.
 3. Test installation from a wheel in a clean environment.
 4. Clean up packaging metadata and document supported Python versions.
@@ -303,6 +284,6 @@ Once a public installation path is ready:
 6. Use it for several weeks before choosing between search and recurrence.
 7. Evaluate PyPI publication after one more installation pass.
 
-If only three things are done next, prioritize atomic writes, CI, and clean-install testing.
-Those changes reinforce trust in the Markdown archive and make the existing product safer to
-distribute.
+If only three things are done next, prioritize CI, clean-install testing, and the remaining
+CLI release basics. Those changes reinforce trust in the Markdown archive and make the
+existing product safer to distribute.

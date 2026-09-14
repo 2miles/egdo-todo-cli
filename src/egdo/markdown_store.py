@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
+import os
 from pathlib import Path
 import re
+import tempfile
 
 
 DAY_HEADER_RE = re.compile(r"^## ([A-Za-z]{3})-(\d{2}) ([A-Za-z]{3})$")
@@ -254,14 +256,36 @@ def ensure_state(path: Path) -> FileState:
 
 
 def write_state(path: Path, state: FileState) -> None:
-    """Persist a state, removing the month file when it has no content."""
+    """Atomically persist a state, removing its file when it has no content."""
     content = render_file(state)
     if not content:
         if path.exists():
             path.unlink()
         return
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    )
+    temporary_path = Path(temporary_name)
+    try:
+        if path.exists():
+            os.chmod(temporary_path, path.stat().st_mode)
+        else:
+            os.chmod(temporary_path, 0o644)
+        temporary_file = os.fdopen(descriptor, "w", encoding="utf-8")
+        descriptor = -1
+        with temporary_file:
+            temporary_file.write(content)
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+        os.replace(temporary_path, path)
+    except BaseException:
+        if descriptor >= 0:
+            os.close(descriptor)
+        temporary_path.unlink(missing_ok=True)
+        raise
 
 
 def is_month_file(path: Path) -> bool:

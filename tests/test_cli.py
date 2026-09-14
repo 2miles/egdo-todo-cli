@@ -1274,6 +1274,24 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
 
+    def test_main_formats_failures_without_a_traceback_by_default(self) -> None:
+        error = StringIO()
+        with (
+            patch("egdo.cli.load_config", side_effect=RuntimeError("boom")),
+            patch("sys.stderr", error),
+        ):
+            exit_code = main(["list"])
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(error.getvalue(), "egdo: boom\n")
+
+    def test_debug_reraises_failures_for_a_traceback(self) -> None:
+        with (
+            patch("egdo.cli.load_config", side_effect=RuntimeError("boom")),
+            self.assertRaisesRegex(RuntimeError, "boom"),
+        ):
+            main(["--debug", "list"])
+
 
 if __name__ == "__main__":
     unittest.main()

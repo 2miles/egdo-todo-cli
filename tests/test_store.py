@@ -7,9 +7,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from egdo.markdown_store import parse_file, render_file, write_state
 from egdo.store import (
     add_note,
     add_task,
@@ -1074,6 +1076,39 @@ class StoreTests(unittest.TestCase):
 
             self.assertIn("Arbitrary preamble.", state.prefix)
             self.assertIn("### A note subheading", state.days[date(2026, 4, 5)].notes)
+
+    def test_documented_monthly_format_round_trips_exactly(self) -> None:
+        content = (
+            "## Jul-12 Sun\n\n"
+            "### Tasks\n\n"
+            "- [ ] {ERRANDS} Go to the grocery store (07-12)\n"
+            "- [x] Finish lookup table (07-12)\n\n"
+            "### Notes\n\n"
+            "Remember to follow up tomorrow.\n"
+        )
+
+        state = parse_file(content, default_year=2026, expected_month=7)
+
+        self.assertEqual(render_file(state), content)
+
+    def test_atomic_write_keeps_original_file_if_replacement_fails(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            target_date = date(2026, 4, 5)
+            path = file_path(notes_dir, target_date)
+            add_task(notes_dir, target_date, "Original task")
+            original = path.read_bytes()
+            state = ensure_state(path)
+            state.days[target_date].tasks[0].text = "Changed task"
+
+            with (
+                patch("egdo.markdown_store.os.replace", side_effect=OSError("interrupted")),
+                self.assertRaisesRegex(OSError, "interrupted"),
+            ):
+                write_state(path, state)
+
+            self.assertEqual(path.read_bytes(), original)
+            self.assertEqual(list(path.parent.glob(f".{path.name}.*.tmp")), [])
 
     def test_rollover_across_month_boundary_keeps_original_created_date(self) -> None:
         with TemporaryDirectory() as tmp:

@@ -18,6 +18,11 @@
 
 Interactive commands open a guided prompt when required input is omitted.
 
+## Global options
+
+- `-P/--project NAME` uses one configured project for the current command.
+- `--debug` shows a traceback when a command fails; normal errors are concise.
+
 ## `egdo init`
 
 Initialize a named journal in the current directory:

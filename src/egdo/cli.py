@@ -108,6 +108,11 @@ def build_parser() -> argparse.ArgumentParser:
         dest="selected_project",
         help="Use a named project for this command without changing the active project",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Show a traceback when a command fails",
+    )
     subparsers = parser.add_subparsers(
         title="commands",
         dest="command",
@@ -387,7 +392,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         return dispatch_command(args, config, target_date, console, deps)
     except Exception as exc:  # noqa: BLE001
-        print(str(exc), file=sys.stderr)
+        if args.debug:
+            raise
+        print(f"egdo: {exc}", file=sys.stderr)
         return 1
 
     parser.error(f"Unknown command: {args.command}")
