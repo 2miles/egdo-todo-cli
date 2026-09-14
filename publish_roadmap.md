@@ -26,7 +26,6 @@ unambiguous, and safe.
 
 ### CLI UX and command language
 
-- Add `--no-color` and respect the `NO_COLOR` environment variable.
 - Send machine-readable errors to stderr and use reliable exit codes.
 - Choose one spelling and casing convention everywhere for terms such as “Markdown,” “ID,” “todo,” dates, quotation marks, and arrows.
 - Avoid clearing the entire terminal after every mutation unless users opt into it; an inline refresh may be less disruptive.
@@ -277,7 +276,7 @@ Once a public installation path is ready:
 
 ## Recommended Release Sequence
 
-1. Add CI and `--no-color`.
+1. Add CI.
 2. Expand tests around manual edits, recovery, and rollover edge cases.
 3. Test installation from a wheel in a clean environment.
 4. Clean up packaging metadata and document supported Python versions.

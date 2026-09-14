@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import date
+import os
 from pathlib import Path
 import re
 import sys
@@ -426,14 +427,17 @@ def main(argv: list[str] | None = None) -> int:
                 config = load_config()
             except FileNotFoundError:
                 config = None
+            _configure_console(config)
             return _run_init(args.name, config, _current_directory())
         if args.command == "project":
             try:
                 config = load_config()
             except FileNotFoundError:
                 config = None
+            _configure_console(config)
             return _run_project(args, config)
         config = load_config()
+        _configure_console(config)
         if not (args.command == "list" and args.all_projects):
             if args.selected_project is not None:
                 config = config.select(args.selected_project)
@@ -475,6 +479,12 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.error(f"Unknown command: {args.command}")
     return 2
+
+
+def _configure_console(config: object | None) -> None:
+    """Apply persistent display preferences while honoring NO_COLOR."""
+    color_enabled = True if config is None else getattr(config, "color", True)
+    console.no_color = not color_enabled or os.environ.get("NO_COLOR", "") != ""
 
 
 def _run_project(args: argparse.Namespace, config: object | None) -> int:

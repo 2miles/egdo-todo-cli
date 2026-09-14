@@ -16,11 +16,12 @@ MAIN_PROJECT = "Main"
 
 @dataclass(slots=True)
 class Config:
-    """The persistent active project plus every named storage root."""
+    """Persistent project selection, storage roots, and display preferences."""
 
     projects: dict[str, Path]
     active_project: str = MAIN_PROJECT
     project_name: str | None = None
+    color: bool = True
 
     def __post_init__(self) -> None:
         if not self.projects:
@@ -79,7 +80,13 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
         raw.get("active_project", raw.get("default_project", MAIN_PROJECT))
     )
     active_project = resolve_project_name(projects, requested_active)
-    return Config(projects=projects, active_project=active_project)
+    raw_display = raw.get("display", {})
+    if not isinstance(raw_display, dict):
+        raise ValueError("Invalid config: [display] must be a table")
+    color = raw_display.get("color", True)
+    if not isinstance(color, bool):
+        raise ValueError("Invalid config: display.color must be true or false")
+    return Config(projects=projects, active_project=active_project, color=color)
 
 
 def save_config(config: Config, path: Path = CONFIG_PATH) -> Path:
@@ -91,7 +98,14 @@ def save_config(config: Config, path: Path = CONFIG_PATH) -> Path:
         shutil.copy2(path, path.with_suffix(f"{path.suffix}.bak"))
         remaining = _remove_managed_settings(original).strip("\n")
 
-    lines = [f"active_project = {json.dumps(config.active_project)}", "", "[projects]"]
+    lines = [
+        f"active_project = {json.dumps(config.active_project)}",
+        "",
+        "[display]",
+        f"color = {str(config.color).lower()}",
+        "",
+        "[projects]",
+    ]
     for name, root in config.projects.items():
         lines.append(f"{json.dumps(name)} = {json.dumps(str(root.expanduser()))}")
     if remaining:
@@ -221,6 +235,7 @@ def remove_project(config: Config, name: str) -> Config:
         projects=projects,
         active_project=active_project,
         project_name=selected_project,
+        color=config.color,
     )
 
 
@@ -245,16 +260,16 @@ def _remove_managed_settings(content: str) -> str:
     """Remove root/project settings while retaining unrelated TOML content."""
     output: list[str] = []
     section: str | None = None
-    in_projects = False
+    in_managed_section = False
     for line in content.splitlines():
         stripped = line.strip()
         section_match = re.match(r"^\[([^]]+)]$", stripped)
         if section_match:
             section = section_match.group(1).strip()
-            in_projects = section == "projects"
-            if in_projects:
+            in_managed_section = section in {"display", "projects"}
+            if in_managed_section:
                 continue
-        if in_projects:
+        if in_managed_section:
             continue
         if section is None and re.match(
             r"^\s*(?:active_project|default_project)\s*=", line
@@ -280,7 +295,7 @@ def _parse_toml(content: str) -> dict[str, object]:
             continue
         key, value = stripped.split("=", 1)
         parsed_key = _parse_string(key.strip())
-        parsed_value = _parse_string(value.strip())
+        parsed_value = _parse_value(value.strip())
         if section is not None:
             values = raw.setdefault(section, {})
             assert isinstance(values, dict)
@@ -302,3 +317,11 @@ def _parse_string(value: str) -> str:
     if value.startswith("'") and value.endswith("'"):
         return value[1:-1]
     return value
+
+
+def _parse_value(value: str) -> str | bool:
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    return _parse_string(value)

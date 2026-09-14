@@ -67,9 +67,24 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(
                 content,
                 'active_project = "Main"\n\n'
+                '[display]\n'
+                'color = true\n\n'
                 '[projects]\n'
                 '"Main" = "/tmp/notes/egdo"\n',
             )
+
+    def test_save_config_persists_disabled_color_preference(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            config = Config(
+                projects={"Main": Path("/tmp/notes/egdo")},
+                color=False,
+            )
+
+            save_config(config, path)
+
+            self.assertIn("[display]\ncolor = false\n", path.read_text(encoding="utf-8"))
+            self.assertFalse(load_config(path).color)
 
     def test_save_config_preserves_unrelated_content_and_creates_backup(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -87,6 +102,8 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(
                 path.read_text(encoding="utf-8"),
                 'active_project = "Main"\n\n'
+                '[display]\n'
+                'color = true\n\n'
                 '[projects]\n'
                 '"Main" = "/new/root"\n\n'
                 '[unrelated]\n# Personal settings\nvalue = "keep me"\n',
@@ -137,6 +154,34 @@ class ConfigTests(unittest.TestCase):
             config = load_config(path)
 
             self.assertEqual(config.active_project, "Minecraft")
+
+    def test_load_config_reads_persistent_color_preference(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            path.write_text(
+                'active_project = "Main"\n\n'
+                '[display]\n'
+                'color = false\n\n'
+                '[projects]\n'
+                'Main = "/tmp/main"\n',
+                encoding="utf-8",
+            )
+
+            config = load_config(path)
+
+            self.assertFalse(config.color)
+
+    def test_load_config_rejects_non_boolean_color_preference(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            path.write_text(
+                '[display]\ncolor = "sometimes"\n\n'
+                '[projects]\nMain = "/tmp/main"\n',
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "display.color must be true or false"):
+                load_config(path)
 
     def test_use_project_preserves_display_name(self) -> None:
         config = Config(

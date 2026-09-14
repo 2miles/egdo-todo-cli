@@ -383,10 +383,16 @@ A typical global config maps those identities to their archive locations:
 ```toml
 active_project = "Main"
 
+[display]
+color = true
+
 [projects]
 "Main" = "/Users/you/Notes/egdo"
 "Minecraft" = "/Users/you/Notes/topics/gaming/minecraft/egdo"
 ```
+
+Set `display.color` to `false` to disable colored Egdo output persistently. The standard
+`NO_COLOR` environment variable also disables color and takes precedence over this setting.
 
 The archive is always the marker’s sibling `egdo/` directory. Moving the initialized
 directory therefore moves the marker and archive together. Run `egdo init NAME` from the new

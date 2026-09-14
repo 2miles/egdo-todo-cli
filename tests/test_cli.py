@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from io import StringIO
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import sys
@@ -13,6 +14,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from rich.console import Console
+from rich.text import Text
 
 from egdo import __version__
 from egdo.cli import build_parser, main
@@ -97,6 +99,54 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, 0)
         self.assertEqual(output.getvalue(), f"egdo {__version__}\n")
+
+    def test_display_config_disables_color(self) -> None:
+        config = Config(
+            projects={"Main": Path("/tmp/main"), "Minecraft": Path("/tmp/minecraft")},
+            color=False,
+        )
+        output = StringIO()
+        command_console = Console(
+            file=output,
+            force_terminal=True,
+            color_system="standard",
+        )
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.save_config"),
+            patch("egdo.cli.console", command_console),
+        ):
+            exit_code = main(["project", "use", "Minecraft"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            Text.from_ansi(output.getvalue()).plain,
+            "✓ Selected project “Minecraft”",
+        )
+        self.assertNotIn("\x1b[32m", output.getvalue())
+
+    def test_no_color_environment_overrides_enabled_color_config(self) -> None:
+        config = Config(
+            projects={"Main": Path("/tmp/main"), "Minecraft": Path("/tmp/minecraft")}
+        )
+        output = StringIO()
+        command_console = Console(
+            file=output,
+            force_terminal=True,
+            color_system="standard",
+        )
+
+        with (
+            patch.dict(os.environ, {"NO_COLOR": "1"}),
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.save_config"),
+            patch("egdo.cli.console", command_console),
+        ):
+            exit_code = main(["project", "use", "Minecraft"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertNotIn("\x1b[32m", output.getvalue())
 
     def test_format_display_date_uses_short_weekday_month_and_ordinal(self) -> None:
         self.assertEqual(format_display_date(date(2026, 4, 4)), "Sat, Apr 4th")
