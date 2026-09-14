@@ -26,8 +26,6 @@ unambiguous, and safe.
 
 ### CLI UX and command language
 
-- Review `--help` output for every command.
-- Add clearer help text and examples where the CLI is too terse.
 - Decide whether common mistakes such as `egdo --add` deserve a friendlier error path.
 - Make success and failure messages consistent.
 - Add `--version`.

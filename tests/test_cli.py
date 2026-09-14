@@ -36,6 +36,43 @@ from egdo.render import (
 
 
 class CliTests(unittest.TestCase):
+    def test_every_command_help_explains_usage_and_shows_an_example(self) -> None:
+        cases = [
+            (["init", "--help"], "Creates .egdo.toml"),
+            (["project", "--help"], "list, select, or unregister"),
+            (["project", "list", "--help"], "mark the active one"),
+            (["project", "use", "--help"], "default for future commands"),
+            (["project", "remove", "--help"], "without deleting its Markdown archive"),
+            (["add", "--help"], "text, tag, priority, and schedule interactively"),
+            (["list", "--help"], "today's active tasks by default"),
+            (["done", "--help"], "IDs shown by egdo list"),
+            (["edit", "--help"], "provide both values directly"),
+            (["move", "--help"], "move future tasks back to today"),
+            (["delete", "--help"], "tasks and their subtasks"),
+            (["tag", "--help"], "replacing any current tag"),
+            (["priority", "--help"], "important or normal"),
+            (["note", "--help"], "$VISUAL or $EDITOR"),
+        ]
+        parser = build_parser()
+
+        for arguments, guidance in cases:
+            with self.subTest(arguments=arguments):
+                output = StringIO()
+                with patch("sys.stdout", output), self.assertRaises(SystemExit) as raised:
+                    parser.parse_args(arguments)
+
+                self.assertEqual(raised.exception.code, 0)
+                self.assertIn(guidance, output.getvalue())
+                self.assertRegex(output.getvalue(), r"Example(?:s)?:")
+
+    def test_top_level_help_exposes_global_options_and_command_examples(self) -> None:
+        help_text = build_parser().format_help()
+
+        self.assertIn("-P, --project", help_text)
+        self.assertIn("--debug", help_text)
+        self.assertIn("egdo -P Minecraft list", help_text)
+        self.assertIn("egdo COMMAND --help", help_text)
+
     def test_format_display_date_uses_short_weekday_month_and_ordinal(self) -> None:
         self.assertEqual(format_display_date(date(2026, 4, 4)), "Sat, Apr 4th")
 

@@ -97,7 +97,8 @@ def build_parser() -> argparse.ArgumentParser:
             '  egdo add --parent 6 "Add tests"\n'
             "  egdo done 1 3\n"
             "  egdo move 2 5 tomorrow\n"
-            "  egdo priority 4 important\n\n"
+            "  egdo priority 4 important\n"
+            "  egdo -P Minecraft list\n\n"
             "Run `egdo COMMAND --help` for command-specific usage."
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
@@ -106,6 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-P",
         "--project",
         dest="selected_project",
+        metavar="NAME",
         help="Use a named project for this command without changing the active project",
     )
     parser.add_argument(
@@ -131,14 +133,16 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="Example:\n  cd ~/Notes\n  egdo init Main",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    init_parser.add_argument("name", help="Project display name, such as Main or Minecraft")
+    init_parser.add_argument(
+        "name", metavar="NAME", help="Display name, such as Main or Minecraft"
+    )
 
     project_parser = subparsers.add_parser(
         "project",
-        help="Manage named task roots",
+        help="Manage projects",
         description=(
-            "Choose the active project interactively, list named projects, or select one "
-            "directly."
+            "Choose the active project interactively, or use an action to list, select, "
+            "or unregister configured projects."
         ),
         epilog=(
             "Examples:\n  egdo project\n  egdo project list\n"
@@ -151,15 +155,38 @@ def build_parser() -> argparse.ArgumentParser:
         dest="project_command",
         metavar="[ACTION]",
     )
-    project_subparsers.add_parser("list", help="List configured projects")
+    project_subparsers.add_parser(
+        "list",
+        help="List configured projects",
+        description="List every configured project and mark the active one.",
+        epilog="Example:\n  egdo project list",
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
     project_use_parser = project_subparsers.add_parser(
-        "use", help="Make a project active"
+        "use",
+        help="Make a project active",
+        description="Make one configured project the default for future commands.",
+        epilog="Example:\n  egdo project use Minecraft",
+        formatter_class=RawDescriptionRichHelpFormatter,
     )
-    project_use_parser.add_argument("name", help="Configured project name")
+    project_use_parser.add_argument("name", metavar="NAME", help="Configured project name")
     project_remove_parser = project_subparsers.add_parser(
-        "remove", help="Unregister a project without deleting its files"
+        "remove",
+        help="Unregister a project without deleting its files",
+        description=(
+            "Unregister a configured project without deleting its Markdown archive. "
+            "Confirmation is required unless --force is supplied."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  egdo project remove Demo\n"
+            "  egdo project remove Demo --force"
+        ),
+        formatter_class=RawDescriptionRichHelpFormatter,
     )
-    project_remove_parser.add_argument("name", help="Configured project name")
+    project_remove_parser.add_argument(
+        "name", metavar="NAME", help="Configured project name"
+    )
     project_remove_parser.add_argument(
         "--force",
         action="store_true",
@@ -169,37 +196,47 @@ def build_parser() -> argparse.ArgumentParser:
     add_parser = subparsers.add_parser(
         "add",
         help="Add a task",
-        description="Add a task, or omit the text to open an interactive form.",
+        description=(
+            "Add a task directly, or omit TEXT to choose its text, tag, priority, and "
+            "schedule interactively."
+        ),
         epilog=(
             "Examples:\n  egdo add\n"
             '  egdo add "Buy milk"\n'
             '  egdo add -t chores "Do laundry"\n'
             '  egdo add -p important -t work "Submit application"\n'
             '  egdo add --parent 6 "Add tests"\n'
-            '  egdo add "{CHORES} Do laundry"\n'
-            '  egdo add --done -t errands "Call the DMV"\n'
             '  egdo add --done "Call dad"'
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    add_parser.add_argument("text", nargs="?", help="Task text; omit to open the add form")
+    add_parser.add_argument(
+        "text", nargs="?", metavar="TEXT", help="Task text; omit to open the add form"
+    )
     add_parser.add_argument(
         "-t",
         "--tag",
-        help="Set the task's tag",
+        metavar="TAG",
+        help="Set one leading task tag",
     )
     add_parser.add_argument(
         "-p",
         "--priority",
+        metavar="LEVEL",
         help="Set priority: important or normal",
     )
     add_parser.add_argument("--done", action="store_true", help="Create the task already completed")
-    add_parser.add_argument("--parent", help="Parent task ID, such as 6 or 6a")
+    add_parser.add_argument(
+        "--parent", metavar="ID", help="Create under a parent task, such as 6 or 6a"
+    )
 
     list_parser = subparsers.add_parser(
         "list",
         help="List tasks",
-        description="List active, future, or completed tasks, optionally filtering by tag.",
+        description=(
+            "List today's active tasks by default, or show future, completed, or "
+            "all-project views."
+        ),
         epilog=(
             "Examples:\n"
             "  egdo list\n"
@@ -211,7 +248,9 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    list_parser.add_argument("-t", "--tag", help="Show only tasks with this leading tag")
+    list_parser.add_argument(
+        "-t", "--tag", metavar="TAG", help="Show only tasks with this leading tag"
+    )
     list_parser.add_argument(
         "--all-projects",
         action="store_true",
@@ -228,29 +267,43 @@ def build_parser() -> argparse.ArgumentParser:
     done_parser = subparsers.add_parser(
         "done",
         help="Complete a task",
-        description="Complete task IDs, or omit them to open an interactive form.",
+        description=(
+            "Complete one or more IDs shown by egdo list, or omit IDs to choose tasks "
+            "interactively."
+        ),
         epilog="Examples:\n  egdo done\n  egdo done 1\n  egdo done 1 3 12",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     done_parser.add_argument(
-        "indexes", nargs="*", help="Task ID(s); omit to open the completion form"
+        "indexes",
+        nargs="*",
+        metavar="ID",
+        help="Task ID(s); omit to open the completion form",
     )
 
     edit_parser = subparsers.add_parser(
         "edit",
         help="Edit a task",
-        description="Choose and edit a task, or supply its ID and replacement text.",
+        description=(
+            "Choose a task interactively, supply an ID and then enter text, or provide "
+            "both values directly."
+        ),
         epilog='Examples:\n  egdo edit\n  egdo edit 2\n  egdo edit 2 "Buy oat milk"',
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    edit_parser.add_argument("index", nargs="?", help="Task ID from `egdo list`")
-    edit_parser.add_argument("text", nargs="?", help="Replacement task text")
+    edit_parser.add_argument(
+        "index", nargs="?", metavar="ID", help="Task ID shown by egdo list"
+    )
+    edit_parser.add_argument(
+        "text", nargs="?", metavar="TEXT", help="Replacement task text"
+    )
 
     move_parser = subparsers.add_parser(
         "move",
         help="Move a task to another date",
         description=(
-            "Choose tasks and a date interactively, or supply IDs followed by a date."
+            "Move tasks to a future date, or move future tasks back to today. Supply IDs "
+            "followed by WHEN, or omit either part to choose it interactively."
         ),
         epilog=(
             "Examples:\n"
@@ -268,23 +321,31 @@ def build_parser() -> argparse.ArgumentParser:
     move_parser.add_argument(
         "move_values",
         nargs="*",
-        metavar="ID... WHEN",
-        help="Task ID(s) followed by today or a future date",
+        metavar="ID_OR_WHEN",
+        help="Task ID(s), then today, tomorrow, +N, weekday, or YYYY-MM-DD",
     )
 
     delete_parser = subparsers.add_parser(
         "delete",
         help="Delete a task",
-        description="Choose and confirm tasks interactively, or supply their IDs.",
+        description=(
+            "Permanently remove tasks and their subtasks. Choose and confirm tasks "
+            "interactively, or supply IDs directly."
+        ),
         epilog="Examples:\n  egdo delete\n  egdo delete 2\n  egdo delete 1 6 7",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    delete_parser.add_argument("indexes", nargs="*", help="Task ID(s) from `egdo list`")
+    delete_parser.add_argument(
+        "indexes", nargs="*", metavar="ID", help="Task ID(s) shown by egdo list"
+    )
 
     tag_parser = subparsers.add_parser(
         "tag",
         help="Set or remove a task tag",
-        description="Choose tasks and a tag interactively, or supply IDs and a tag.",
+        description=(
+            "Set one tag on selected tasks, replacing any current tag. Missing IDs or "
+            "the tag are collected interactively."
+        ),
         epilog=(
             "Examples:\n"
             "  egdo tag\n"
@@ -298,14 +359,18 @@ def build_parser() -> argparse.ArgumentParser:
     tag_parser.add_argument(
         "values",
         nargs="*",
-        help="Task numbers followed by one tag; with --remove, task numbers only",
+        metavar="ID_OR_TAG",
+        help="Task ID(s), then one tag; with --remove, task IDs only",
     )
     tag_parser.add_argument("--remove", action="store_true", help="Remove the current tag")
 
     priority_parser = subparsers.add_parser(
         "priority",
         help="Set a task's priority",
-        description="Choose tasks and priority interactively, or supply both directly.",
+        description=(
+            "Mark selected tasks important or normal. Missing IDs or the level are "
+            "collected interactively."
+        ),
         epilog=(
             "Examples:\n  egdo priority\n  egdo priority 3\n"
             "  egdo priority 1 6 7 important\n  egdo priority 3 normal"
@@ -315,14 +380,17 @@ def build_parser() -> argparse.ArgumentParser:
     priority_parser.add_argument(
         "priority_values",
         nargs="*",
-        metavar="ID... LEVEL",
+        metavar="ID_OR_LEVEL",
         help="Task ID(s) followed by important or normal",
     )
 
     note_parser = subparsers.add_parser(
         "note",
         help="Add a note for today",
-        description="Prompt for or directly append a note to today's Notes section.",
+        description=(
+            "Append text to today's Notes section, or omit TEXT to compose a multiline "
+            "note in $VISUAL or $EDITOR."
+        ),
         epilog=(
             'Examples:\n  egdo note\n'
             '  egdo note "Need to test villager trading setup"'
@@ -330,7 +398,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     note_parser.add_argument(
-        "text", nargs="?", help="Note text; omit to open your editor"
+        "text", nargs="?", metavar="TEXT", help="Note text; omit to open your editor"
     )
 
     return parser
