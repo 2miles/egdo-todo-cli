@@ -180,7 +180,6 @@ Also:
 
 ### Repository hygiene
 
-- Review `.gitignore` for anything else that should be excluded.
 - Make sure the repository layout is clean and understandable to a new visitor.
 - Decide whether planning documents should remain in the root or move into `docs/` later.
 
