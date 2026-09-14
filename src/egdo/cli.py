@@ -17,7 +17,6 @@ from egdo.config import (
     register_initialized_project,
     remove_project,
     save_config,
-    select_project_for_directory,
     use_project,
 )
 from egdo.dates import parse_future_date as _parse_future_date
@@ -107,7 +106,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-P",
         "--project",
         dest="selected_project",
-        help="Use a named project for this command without changing the default",
+        help="Use a named project for this command without changing the active project",
     )
     subparsers = parser.add_subparsers(
         title="commands",
@@ -133,8 +132,8 @@ def build_parser() -> argparse.ArgumentParser:
         "project",
         help="Manage named task roots",
         description=(
-            "Choose the global fallback interactively, list named projects, or select "
-            "one directly."
+            "Choose the active project interactively, list named projects, or select one "
+            "directly."
         ),
         epilog=(
             "Examples:\n  egdo project\n  egdo project list\n"
@@ -149,7 +148,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     project_subparsers.add_parser("list", help="List configured projects")
     project_use_parser = project_subparsers.add_parser(
-        "use", help="Make a project the default"
+        "use", help="Make a project active"
     )
     project_use_parser.add_argument("name", help="Configured project name")
     project_remove_parser = project_subparsers.add_parser(
@@ -355,11 +354,8 @@ def main(argv: list[str] | None = None) -> int:
             return _run_project(args, config)
         config = load_config()
         if not (args.command == "list" and args.all_projects):
-            config, registry_changed = select_project_for_directory(
-                config, args.selected_project, _current_directory()
-            )
-            if registry_changed:
-                save_config(config, CONFIG_PATH)
+            if args.selected_project is not None:
+                config = config.select(args.selected_project)
         target_date = date.today()
         deps = HandlerDeps(
             add_note=add_note,
@@ -409,7 +405,7 @@ def _run_project(args: argparse.Namespace, config: object | None) -> int:
         for name, root in config.projects.items():
             console.print(
                 _render_project_line(
-                    name, str(root), is_default=name == config.default_project
+                    name, str(root), is_active=name == config.active_project
                 )
             )
         return 0
@@ -420,12 +416,12 @@ def _run_project(args: argparse.Namespace, config: object | None) -> int:
             return 0
         updated = use_project(config, name)
         save_config(updated, CONFIG_PATH)
-        console.print(f'Using project "{updated.project_name}"')
+        console.print(f'Active project set to "{updated.project_name}"')
         return 0
     if args.project_command == "use":
         updated = use_project(config, args.name)
         save_config(updated, CONFIG_PATH)
-        print(f'Using project "{updated.project_name}"')
+        print(f'Active project set to "{updated.project_name}"')
         return 0
     if args.project_command == "remove":
         project_name = config.select(args.name).project_name

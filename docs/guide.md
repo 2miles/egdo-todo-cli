@@ -81,16 +81,14 @@ cd ~/Notes/topics/gaming/minecraft
 egdo init Minecraft
 ```
 
-When you run egdo inside that directory or one of its descendants, the nearest local project
-marker selects Minecraft automatically. Outside an initialized directory, egdo uses the
-global default. You can choose that default interactively with `egdo project`, or change it
-directly:
+Switch to Minecraft interactively with `egdo project`, or select it directly:
 
 ```bash
 egdo project use Minecraft
 ```
 
-Use another project once without changing the default:
+The selection remains active until you switch again. Use another project once without
+changing it:
 
 ```bash
 egdo -P Minecraft list
@@ -367,7 +365,7 @@ egdo fills in its creation date from the surrounding day the next time it reads 
 There are two small pieces of project metadata in addition to the Markdown archive:
 
 - `.egdo.toml` identifies the project from its local directory
-- `~/.config/egdo/config.toml` records known projects and the global default
+- `~/.config/egdo/config.toml` records known projects and the active project
 
 The local marker deliberately stores only identity:
 
@@ -378,7 +376,7 @@ project = "Minecraft"
 A typical global config maps those identities to their archive locations:
 
 ```toml
-default_project = "Main"
+active_project = "Main"
 
 [projects]
 "Main" = "/Users/you/Notes/egdo"
@@ -386,9 +384,9 @@ default_project = "Main"
 ```
 
 The archive is always the marker’s sibling `egdo/` directory. Moving the initialized
-directory therefore moves the marker and archive together. The next command run inside the
-moved tree finds the local archive and refreshes its registered location. If a valid marker
-still exists at the old location, egdo refuses to choose between the two copies.
+directory therefore moves the marker and archive together. Run `egdo init NAME` from the new
+location to refresh its registered root. If a valid marker still exists at the old location,
+egdo refuses to choose between the two copies.
 
 Initialization can safely adopt an existing `egdo/` archive and can be repeated for the same
 project. It refuses conflicting local markers, project names, and registered roots. Project
@@ -396,7 +394,7 @@ names match case-insensitively while preserving their display capitalization.
 
 Configuration changes preserve the previous file as `config.toml.bak`; they never move,
 merge, or delete Markdown archives. Back up or sync both the archives and global config when
-you want the same projects and default on another computer. The former
+you want the same projects and active selection on another computer. The former
 `egdo config --root` workflow is obsolete—initialize projects with `egdo init NAME` instead.
 
 ## Getting Help

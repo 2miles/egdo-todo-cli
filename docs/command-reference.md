@@ -28,16 +28,15 @@ egdo init Main
 ```
 
 This creates a `.egdo.toml` project marker and a sibling `egdo/` archive, then registers the
-project. The first initialized project becomes the default; initializing additional projects
-does not change it.
+project. The first initialized project becomes active; later projects become available for
+selection.
 
-Running the command again for the same project is safe. Commands run from the initialized
-directory or its descendants automatically use that project. Monthly files are created only
-after adding a task or note.
+Running the command again for the same project is safe. Monthly files are created only after
+adding a task or note.
 
 ## `egdo project`
 
-List projects or choose the global default:
+List projects or choose the persistent active project:
 
 ```bash
 egdo project
@@ -46,19 +45,17 @@ egdo project use Minecraft
 egdo project remove Demo
 ```
 
-- `egdo project` opens the default-project picker
-- `egdo project list` shows every project and marks the default with `*`
-- `egdo project use NAME` changes the default directly
+- `egdo project` opens the active-project picker
+- `egdo project list` shows every project and marks the active one with `*`
+- `egdo project use NAME` changes the active project directly
 - `egdo project remove NAME` unregisters a project without deleting its files
 
 Removal asks for confirmation in a terminal; use `--force` for non-interactive use. The only
-configured project cannot be removed. Removing the default makes the first remaining project
-the new default.
+configured project cannot be removed. Removing the active project makes the first remaining
+project active.
 
-For normal commands, egdo selects a project in this order: an explicit `-P/--project`, the
-nearest `.egdo.toml` found from the current directory upward, then the global default.
-
-Use `-P/--project` for a one-time selection without changing the default:
+The active project remains selected regardless of the current directory. Use `-P/--project`
+for a one-time selection without changing it:
 
 ```bash
 egdo -P Minecraft list

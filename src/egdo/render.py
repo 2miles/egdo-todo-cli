@@ -24,10 +24,10 @@ def render_list_header(target_date, project_name: str = "Main") -> Text:
     return header
 
 
-def render_project_line(name: str, root: str, is_default: bool) -> Text:
-    """Render one project registry entry with a visible default marker."""
+def render_project_line(name: str, root: str, is_active: bool) -> Text:
+    """Render one project registry entry with a visible active marker."""
     line = Text()
-    line.append("*" if is_default else " ", style="bold bright_white")
+    line.append("*" if is_active else " ", style="bold bright_white")
     line.append(" ")
     line.append(name, style="bold cyan")
     line.append(f": {root}")

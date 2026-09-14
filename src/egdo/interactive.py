@@ -188,12 +188,12 @@ def _prompt_task_single(
 
 
 def prompt_project_form(config: Any, console: Console) -> str | None:
-    """Choose the persistent default project."""
+    """Choose the persistent active project."""
     if not sys.stdin.isatty():
         raise ValueError("Interactive project selection requires a TTY.")
     names = list(config.projects)
-    selected = names.index(config.default_project)
-    choice = _run_single_picker(console, "Choose default project", names, selected)
+    selected = names.index(config.active_project)
+    choice = _run_single_picker(console, "Choose active project", names, selected)
     return None if choice is None else names[choice]
 
 

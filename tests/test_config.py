@@ -11,13 +11,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from egdo.config import (
     Config,
-    find_local_project,
     initialize_local_marker,
     load_config,
+    read_local_project,
     register_initialized_project,
     remove_project,
     save_config,
-    select_project_for_directory,
     use_project,
 )
 
@@ -29,7 +28,7 @@ class ConfigTests(unittest.TestCase):
             path.write_text(
                 "\n".join(
                     [
-                        'default_project = "Main"',
+                        'active_project = "Main"',
                         "",
                         "[projects]",
                         'Main = "/tmp/notes/egdo"',
@@ -67,7 +66,7 @@ class ConfigTests(unittest.TestCase):
             content = path.read_text(encoding="utf-8")
             self.assertEqual(
                 content,
-                'default_project = "Main"\n\n'
+                'active_project = "Main"\n\n'
                 '[projects]\n'
                 '"Main" = "/tmp/notes/egdo"\n',
             )
@@ -76,7 +75,7 @@ class ConfigTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "config.toml"
             original = (
-                'default_project = "Main"\n\n'
+                'active_project = "Main"\n\n'
                 '[projects]\nMain = "/old/root"\n\n'
                 '[unrelated]\n# Personal settings\nvalue = "keep me"\n'
             )
@@ -87,7 +86,7 @@ class ConfigTests(unittest.TestCase):
 
             self.assertEqual(
                 path.read_text(encoding="utf-8"),
-                'default_project = "Main"\n\n'
+                'active_project = "Main"\n\n'
                 '[projects]\n'
                 '"Main" = "/new/root"\n\n'
                 '[unrelated]\n# Personal settings\nvalue = "keep me"\n',
@@ -109,7 +108,7 @@ class ConfigTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             path = Path(tmp) / "config.toml"
             path.write_text(
-                'default_project = "Minecraft"\n\n'
+                'active_project = "Minecraft"\n\n'
                 '[projects]\n'
                 '"Main" = "/tmp/main"\n'
                 '"Minecraft" = "/tmp/minecraft"\n',
@@ -124,13 +123,28 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(selected.project_name, "Main")
             self.assertEqual(selected.root, Path("/tmp/main"))
 
+    def test_load_config_accepts_previous_default_project_key(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            path.write_text(
+                'default_project = "Minecraft"\n\n'
+                '[projects]\n'
+                '"Main" = "/tmp/main"\n'
+                '"Minecraft" = "/tmp/minecraft"\n',
+                encoding="utf-8",
+            )
+
+            config = load_config(path)
+
+            self.assertEqual(config.active_project, "Minecraft")
+
     def test_use_project_preserves_display_name(self) -> None:
         config = Config(
             projects={"Main": Path("/tmp/main"), "Minecraft": Path("/tmp/minecraft")}
         )
         config = use_project(config, "minecraft")
 
-        self.assertEqual(config.default_project, "Minecraft")
+        self.assertEqual(config.active_project, "Minecraft")
         self.assertEqual(config.project_name, "Minecraft")
         self.assertEqual(config.root, Path("/tmp/minecraft"))
 
@@ -142,18 +156,18 @@ class ConfigTests(unittest.TestCase):
         updated = remove_project(config, "demo")
 
         self.assertEqual(updated.projects, {"Main": Path("/tmp/main")})
-        self.assertEqual(updated.default_project, "Main")
+        self.assertEqual(updated.active_project, "Main")
         self.assertEqual(config.projects["Demo"], Path("/tmp/demo"))
 
-    def test_remove_default_project_promotes_first_remaining_project(self) -> None:
+    def test_remove_active_project_promotes_first_remaining_project(self) -> None:
         config = Config(
             projects={"Main": Path("/tmp/main"), "Minecraft": Path("/tmp/minecraft")},
-            default_project="Main",
+            active_project="Main",
         )
 
         updated = remove_project(config, "Main")
 
-        self.assertEqual(updated.default_project, "Minecraft")
+        self.assertEqual(updated.active_project, "Minecraft")
         self.assertEqual(updated.project_name, "Minecraft")
 
     def test_remove_project_rejects_only_configured_project(self) -> None:
@@ -194,18 +208,6 @@ class ConfigTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "already identifies"):
                 initialize_local_marker(directory, "Main")
 
-    def test_find_local_project_uses_nearest_parent_marker(self) -> None:
-        with TemporaryDirectory() as tmp:
-            notes = Path(tmp) / "Notes"
-            minecraft = notes / "topics" / "gaming" / "minecraft"
-            child = minecraft / "server" / "plugins"
-            child.mkdir(parents=True)
-            initialize_local_marker(notes, "Main")
-            initialize_local_marker(minecraft, "Minecraft")
-
-            self.assertEqual(find_local_project(child).name, "Minecraft")
-            self.assertEqual(find_local_project(notes / "personal").name, "Main")
-
     def test_local_marker_resolves_archive_relative_to_its_current_location(self) -> None:
         with TemporaryDirectory() as tmp:
             original = Path(tmp) / "old" / "minecraft"
@@ -214,98 +216,24 @@ class ConfigTests(unittest.TestCase):
             moved.parent.mkdir(parents=True)
             original.rename(moved)
 
-            local_project = find_local_project(moved / "server")
+            local_project = read_local_project(moved / ".egdo.toml")
 
             self.assertEqual(local_project.name, "Minecraft")
             self.assertEqual(local_project.root, (moved / "egdo").resolve())
 
-    def test_directory_selection_relinks_a_moved_project(self) -> None:
-        with TemporaryDirectory() as tmp:
-            original = Path(tmp) / "old" / "minecraft"
-            initialize_local_marker(original, "Minecraft")
-            config = Config(
-                projects={"Minecraft": original / "egdo"},
-                default_project="Minecraft",
-            )
-            moved = Path(tmp) / "new" / "minecraft"
-            moved.parent.mkdir(parents=True)
-            original.rename(moved)
-
-            selected, changed = select_project_for_directory(config, None, moved)
-
-            self.assertTrue(changed)
-            self.assertEqual(selected.root, (moved / "egdo").resolve())
-
-    def test_directory_selection_rejects_two_live_markers_for_one_project(self) -> None:
-        with TemporaryDirectory() as tmp:
-            first = Path(tmp) / "first"
-            second = Path(tmp) / "second"
-            initialize_local_marker(first, "Minecraft")
-            initialize_local_marker(second, "Minecraft")
-            config = Config(
-                projects={"Minecraft": first / "egdo"},
-                default_project="Minecraft",
-            )
-
-            with self.assertRaisesRegex(ValueError, "also active"):
-                select_project_for_directory(config, None, second)
-
-    def test_directory_selection_prefers_explicit_then_marker_then_default(self) -> None:
-        with TemporaryDirectory() as tmp:
-            notes = Path(tmp) / "Notes"
-            minecraft = notes / "minecraft"
-            initialize_local_marker(notes, "Main")
-            initialize_local_marker(minecraft, "Minecraft")
-            config = Config(
-                projects={
-                    "Main": notes / "egdo",
-                    "Minecraft": minecraft / "egdo",
-                }
-            )
-
-            explicit, explicit_changed = select_project_for_directory(
-                config, "Main", minecraft
-            )
-            detected, detected_changed = select_project_for_directory(
-                config, None, minecraft
-            )
-            fallback, fallback_changed = select_project_for_directory(
-                config, None, Path(tmp)
-            )
-
-            self.assertEqual(explicit.project_name, "Main")
-            self.assertEqual(detected.project_name, "Minecraft")
-            self.assertEqual(fallback.project_name, "Main")
-            self.assertFalse(explicit_changed)
-            self.assertFalse(detected_changed)
-            self.assertFalse(fallback_changed)
-
-    def test_explicit_selection_bypasses_an_unregistered_local_marker(self) -> None:
-        with TemporaryDirectory() as tmp:
-            directory = Path(tmp)
-            (directory / ".egdo.toml").write_text(
-                'project = "Unknown"\n', encoding="utf-8"
-            )
-            config = Config(projects={"Main": Path("/tmp/main/egdo")})
-
-            selected, changed = select_project_for_directory(config, "Main", directory)
-
-            self.assertEqual(selected.project_name, "Main")
-            self.assertFalse(changed)
-
-    def test_register_initialized_project_makes_first_project_default(self) -> None:
+    def test_register_initialized_project_makes_first_project_active(self) -> None:
         config, changed = register_initialized_project(
             None, "Minecraft", Path("/tmp/minecraft/egdo")
         )
 
         self.assertTrue(changed)
-        self.assertEqual(config.default_project, "Minecraft")
+        self.assertEqual(config.active_project, "Minecraft")
         self.assertEqual(config.root, Path("/tmp/minecraft/egdo").resolve())
 
     def test_register_initialized_project_relinks_when_old_location_is_gone(self) -> None:
         config = Config(
             projects={"Minecraft": Path("/tmp/old/egdo")},
-            default_project="Minecraft",
+            active_project="Minecraft",
         )
 
         updated, changed = register_initialized_project(

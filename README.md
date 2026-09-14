@@ -86,8 +86,8 @@ containing only dates with actual content.
 **Rollover keeps work visible.** Incomplete tasks move into the current day while retaining
 their original creation dates; completed tasks and notes stay in history.
 
-**Projects follow their context.** Running `egdo init NAME` creates a local marker and an
-`egdo/` archive. Commands inside that directory tree select the project automatically.
+**Project selection is explicit.** Running `egdo init NAME` creates a local marker and an
+`egdo/` archive. Choose the active project once and Egdo keeps using it until you switch.
 
 **Direct and interactive use coexist.** Enter a complete command such as
 `egdo move 2 tomorrow`, or omit what you do not know yet and let Egdo prompt for it.
@@ -104,9 +104,8 @@ cd ~/Notes/topics/gaming/minecraft
 egdo init Minecraft
 ```
 
-Egdo now selects Minecraft inside that directory tree and Main inside the broader notes tree.
-Use `egdo project` to choose the global default, `-P Minecraft` for a one-command override,
-or `egdo list --all-projects` for a read-only overview.
+Switch to Minecraft with `egdo project`, use `-P Minecraft` for a one-command override, or
+review every journal with `egdo list --all-projects`.
 
 ## Documentation
 

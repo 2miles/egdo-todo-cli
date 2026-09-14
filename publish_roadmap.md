@@ -38,27 +38,14 @@ For example:
 ```text
 egdo: cannot parse ~/Notes/egdo/2026/2026_08_aug.md:42
 Nested task must follow a parent task.
-
-Run `egdo doctor` to check the rest of the archive.
 ```
 
-### A useful doctor command
+### Archive-wide diagnostics (deferred)
 
-Because the files are manually editable, a diagnostic command fits the product well:
-
-```bash
-egdo doctor
-```
-
-It could check:
-
-- configuration exists
-- root directory is writable
-- month files parse successfully
-- task dates and nesting are valid
-- no malformed task sections exist
-
-Initially it should only report problems. A future `egdo doctor --fix` could normalize safe cases after showing a preview.
+Reconsider a read-only archive-wide validation command only if manual edits, sync conflicts,
+or malformed historical files become a recurring problem that normal command errors do not
+solve. Do not add repair behavior until real failures demonstrate which fixes are common,
+unambiguous, and safe.
 
 ### CLI UX and command language
 
@@ -172,12 +159,12 @@ Expected behavior:
 - `project restore NAME` reactivates the same registration and archive.
 - Archive and restore operations never modify task, note, or history files.
 - Project names remain reserved while archived.
-- The default project cannot be archived until another default is selected.
+- The active project cannot be archived until another project is selected.
 
 The global config could keep this lifecycle state outside project roots:
 
 ```toml
-default_project = "Main"
+active_project = "Main"
 
 [projects]
 Main = "/Users/miles/Notes/egdo"
@@ -315,14 +302,15 @@ Once a public installation path is ready:
 
 ## Recommended Release Sequence
 
-4. Improve parser errors and add `egdo doctor`.
-5. Add atomic writes, CI, a license, `--version`, and `--no-color`.
-6. Expand tests around malformed Markdown, manual edits, and rollover edge cases.
-7. Test installation from a wheel in a clean environment.
-8. Rewrite the README around one screenshot and the daily workflow.
-9. Clean up packaging metadata and document supported Python versions.
-10. Publish to GitHub as a `0.1.x` release candidate.
-11. Use it for several weeks before choosing between search and recurrence.
-12. Evaluate PyPI publication after one more installation pass.
+1. Improve parser errors so normal commands identify the file, line, and likely correction.
+2. Add atomic writes, CI, `--version`, and `--no-color`.
+3. Expand tests around malformed Markdown, manual edits, and rollover edge cases.
+4. Test installation from a wheel in a clean environment.
+5. Clean up packaging metadata and document supported Python versions.
+6. Publish to GitHub as a `0.1.x` release candidate.
+7. Use it for several weeks before choosing between search and recurrence.
+8. Evaluate PyPI publication after one more installation pass.
 
-If only three things are done, prioritize simplifying the list display, adding professional diagnostics, and radically tightening the README. Those changes will make egdo feel more mature than another ten commands would.
+If only three things are done next, prioritize atomic writes, CI and clean-install testing,
+and actionable parser errors. Those changes reinforce trust in the Markdown archive and make
+the existing product safer to distribute.

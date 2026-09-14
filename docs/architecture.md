@@ -19,7 +19,7 @@ Terminal output
 ```
 
 There is no task database. Each project owns an independent monthly Markdown archive, while
-the global configuration only records project names, locations, and the default project.
+the global configuration only records project names, locations, and the active project.
 
 ## Module Responsibilities
 
@@ -88,5 +88,5 @@ A useful order for understanding the code is:
 2. `handlers.py` for command workflows.
 3. `store.py` for task and note behavior.
 4. `markdown_store.py` for the persisted format.
-5. `config.py` for project discovery and lifecycle.
+5. `config.py` for project identity, selection, and lifecycle.
 6. `interactive.py` and `render.py` for terminal interaction and presentation.

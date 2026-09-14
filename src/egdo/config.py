@@ -16,10 +16,10 @@ MAIN_PROJECT = "Main"
 
 @dataclass(slots=True)
 class Config:
-    """The active project plus every named storage root."""
+    """The persistent active project plus every named storage root."""
 
     projects: dict[str, Path]
-    default_project: str = MAIN_PROJECT
+    active_project: str = MAIN_PROJECT
     project_name: str | None = None
 
     def __post_init__(self) -> None:
@@ -29,11 +29,11 @@ class Config:
             name: project_root.expanduser()
             for name, project_root in self.projects.items()
         }
-        self.default_project = resolve_project_name(
-            self.projects, self.default_project
+        self.active_project = resolve_project_name(
+            self.projects, self.active_project
         )
         self.project_name = resolve_project_name(
-            self.projects, self.project_name or self.default_project
+            self.projects, self.project_name or self.active_project
         )
 
     @property
@@ -75,9 +75,11 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
         str(name): Path(str(root)).expanduser()
         for name, root in raw_projects.items()
     }
-    requested_default = str(raw.get("default_project", MAIN_PROJECT))
-    default_project = resolve_project_name(projects, requested_default)
-    return Config(projects=projects, default_project=default_project)
+    requested_active = str(
+        raw.get("active_project", raw.get("default_project", MAIN_PROJECT))
+    )
+    active_project = resolve_project_name(projects, requested_active)
+    return Config(projects=projects, active_project=active_project)
 
 
 def save_config(config: Config, path: Path = CONFIG_PATH) -> Path:
@@ -89,7 +91,7 @@ def save_config(config: Config, path: Path = CONFIG_PATH) -> Path:
         shutil.copy2(path, path.with_suffix(f"{path.suffix}.bak"))
         remaining = _remove_managed_settings(original).strip("\n")
 
-    lines = [f"default_project = {json.dumps(config.default_project)}", "", "[projects]"]
+    lines = [f"active_project = {json.dumps(config.active_project)}", "", "[projects]"]
     for name, root in config.projects.items():
         lines.append(f"{json.dumps(name)} = {json.dumps(str(root.expanduser()))}")
     if remaining:
@@ -107,7 +109,7 @@ def register_initialized_project(
     if config is None:
         return Config(
             projects={cleaned_name: normalized_root},
-            default_project=cleaned_name,
+            active_project=cleaned_name,
         ), True
 
     matching_name = next(
@@ -120,9 +122,11 @@ def register_initialized_project(
     )
     if matching_name is not None:
         if config.projects[matching_name].resolve() != normalized_root:
-            if _registered_project_is_live(config.projects[matching_name], matching_name):
+            if _registered_project_marker_exists(
+                config.projects[matching_name], matching_name
+            ):
                 raise ValueError(
-                    f'Project "{matching_name}" is already active at '
+                    f'Project "{matching_name}" is already initialized at '
                     f"{config.projects[matching_name]}"
                 )
             projects = dict(config.projects)
@@ -168,16 +172,6 @@ def initialize_local_marker(directory: Path, name: str) -> tuple[Path, bool]:
     return root, True
 
 
-def find_local_project(start: Path) -> LocalProject | None:
-    """Find the nearest project marker at or above a working directory."""
-    current = start.expanduser().resolve()
-    for directory in (current, *current.parents):
-        marker_path = directory / LOCAL_CONFIG_NAME
-        if marker_path.exists():
-            return read_local_project(marker_path)
-    return None
-
-
 def read_local_project(path: Path) -> LocalProject:
     """Read one local project identity and derive its sibling archive root."""
     raw = _parse_toml(path.read_text(encoding="utf-8"))
@@ -189,36 +183,7 @@ def read_local_project(path: Path) -> LocalProject:
     return LocalProject(project.strip(), root, path.resolve())
 
 
-def select_project_for_directory(
-    config: Config, explicit_project: str | None, directory: Path
-) -> tuple[Config, bool]:
-    """Apply explicit, nearest-marker, then default project precedence."""
-    if explicit_project is not None:
-        return config.select(explicit_project), False
-    local_project = find_local_project(directory)
-    if local_project is not None:
-        try:
-            project_name = resolve_project_name(config.projects, local_project.name)
-        except ValueError as exc:
-            raise ValueError(
-                f'Local project "{local_project.name}" is not registered. '
-                f"Run `egdo init {local_project.name}` from its directory."
-            ) from exc
-        registered_root = config.projects[project_name].resolve()
-        if registered_root != local_project.root:
-            if _registered_project_is_live(registered_root, project_name):
-                raise ValueError(
-                    f'Project "{project_name}" is also active at {registered_root}. '
-                    "Remove the duplicate marker before relocating it."
-                )
-            projects = dict(config.projects)
-            projects[project_name] = local_project.root
-            return replace(config, projects=projects, project_name=project_name), True
-        return config.select(project_name), False
-    return config, False
-
-
-def _registered_project_is_live(root: Path, name: str) -> bool:
+def _registered_project_marker_exists(root: Path, name: str) -> bool:
     marker_path = root.expanduser().resolve().parent / LOCAL_CONFIG_NAME
     if not marker_path.exists():
         return False
@@ -233,9 +198,9 @@ def _registered_project_is_live(root: Path, name: str) -> bool:
 
 
 def use_project(config: Config, name: str) -> Config:
-    """Select a project and make it the persistent default."""
+    """Select a project and make it persistently active."""
     selected = config.select(name)
-    return replace(selected, default_project=selected.project_name)
+    return replace(selected, active_project=selected.project_name)
 
 
 def remove_project(config: Config, name: str) -> Config:
@@ -246,15 +211,15 @@ def remove_project(config: Config, name: str) -> Config:
 
     projects = dict(config.projects)
     del projects[project_name]
-    default_project = config.default_project
-    if project_name == default_project:
-        default_project = next(iter(projects))
+    active_project = config.active_project
+    if project_name == active_project:
+        active_project = next(iter(projects))
     selected_project = config.project_name
     if selected_project == project_name:
-        selected_project = default_project
+        selected_project = active_project
     return Config(
         projects=projects,
-        default_project=default_project,
+        active_project=active_project,
         project_name=selected_project,
     )
 
@@ -291,7 +256,9 @@ def _remove_managed_settings(content: str) -> str:
                 continue
         if in_projects:
             continue
-        if section is None and re.match(r"^\s*default_project\s*=", line):
+        if section is None and re.match(
+            r"^\s*(?:active_project|default_project)\s*=", line
+        ):
             continue
         output.append(line)
     return "\n".join(output)
