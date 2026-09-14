@@ -148,40 +148,11 @@ Recurrence looks obvious, but it introduces identity, duplication, completion, e
 
 ## GitHub Readiness
 
-### README presentation
-
-The top of the README should be much shorter and make the value obvious within the first few paragraphs. Add a short “why this exists” pitch and consider this opening:
-
-> egdo is a terminal task list that keeps your work in ordinary Markdown.
->
-> Unfinished tasks roll into today. Completed tasks remain in the day they were finished, turning your task list into a searchable work journal.
-
-Then present:
-
-1. A short animated demo or polished terminal screenshot.
-2. Installation.
-3. A five-command, copy-paste-friendly quick start.
-4. Example Markdown output.
-5. “Why egdo instead of Taskwarrior or todo.txt?”
-6. Links to the full guide and command reference.
-
-Also:
-
-- Make the manual-editing workflow clear.
-- Make the `.venv` workflow clear and consistent throughout.
-- Avoid introducing nearly every command before the reader experiences the basic loop.
-
 ### Project metadata
 
-- Choose and add a license.
 - State supported Python versions clearly in the README and packaging metadata.
 - Confirm the versioning approach for early releases such as `0.1.x`.
 - Add a simple changelog or release-notes file.
-
-### Repository hygiene
-
-- Make sure the repository layout is clean and understandable to a new visitor.
-- Decide whether planning documents should remain in the root or move into `docs/` later.
 
 ## Packaging Path
 

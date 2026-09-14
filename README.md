@@ -134,8 +134,8 @@ See the [architecture overview](docs/architecture.md) for the codebase structure
 boundaries between command handling, storage, Markdown parsing, projects, and terminal UI.
 
 ```bash
-python3 -m unittest discover -s tests
-python3 -m compileall src
+.venv/bin/python -m unittest discover -s tests
+.venv/bin/python -m compileall src tests
 ```
 
 ## License

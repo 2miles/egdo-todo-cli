@@ -42,7 +42,7 @@
 - Prefer deterministic section rewrites over fragile in-place text editing.
 - Add tests for behavior changes, especially parser, rollover, and manual-edit cases.
 - If changing the Markdown contract, update `README.md`, `docs/guide.md`, and `docs/command-reference.md`.
-- If changing publish-facing expectations, update `publish_roadmap.md` when relevant.
+- If changing publish-facing expectations, update `docs/publish-roadmap.md` when relevant.
 
 ## Verification
 
