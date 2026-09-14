@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`egdo` is a small Python CLI for markdown-backed daily todos in a notes directory. Keep changes aligned with that core model: plain files, manual editability, deterministic behavior.
+`egdo` is a small Python CLI for Markdown-backed daily tasks in a notes directory. Keep changes aligned with that core model: plain files, manual editability, deterministic behavior.
 
 ## Working Rules
 

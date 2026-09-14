@@ -90,13 +90,13 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
             create_kwargs["scheduled_date"] = scheduled
         task = deps.create_task(config.root, target_date, task_text, **create_kwargs)
         action = "Added" if not args.done else "Added completed task"
-        suffix = f" -> {scheduled.isoformat()}" if scheduled != target_date else ""
+        destination = scheduled.isoformat() if scheduled != target_date else ""
         return _finish_task_mutation(
             config,
             target_date,
             console,
             deps,
-            [(action, task.created.isoformat(), task.text, suffix)],
+            [(action, task.created.isoformat(), task.text, destination)],
         )
 
     if args.command == "list":
@@ -188,7 +188,7 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
             console,
             deps,
             [
-                ("Moved", task.created.isoformat(), task.text, f" -> {destination_date.isoformat()}")
+                ("Moved", task.created.isoformat(), task.text, destination_date.isoformat())
                 for task in tasks
             ],
         )
@@ -299,7 +299,13 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
                 console.print("Canceled note creation.")
                 return 0
         deps.add_note(config.root, target_date, args.text)
-        _print_task_message(console, "Noted", target_date.isoformat(), args.text)
+        _print_task_message(
+            console,
+            "Noted",
+            target_date.isoformat(),
+            args.text,
+            project=_confirmation_project(config),
+        )
         return 0
 
     raise ValueError(f"Unknown command: {args.command}")
@@ -422,7 +428,7 @@ def _handle_all_projects(
                 deps,
             )
         except (OSError, ValueError) as exc:
-            raise ValueError(f'Project "{name}" at {root}: {exc}') from exc
+            raise ValueError(f"Project “{name}” at {root}: {exc}") from exc
         rendered = True
 
     if not rendered:
@@ -530,11 +536,22 @@ def _future_group_label(target_date: date, scheduled_date: date) -> str:
 
 
 def _print_task_message(
-    console: Console, action: str, _date_label: str, text: str, suffix: str = ""
+    console: Console,
+    action: str,
+    _date_label: str,
+    text: str,
+    destination: str = "",
+    project: str | None = None,
 ) -> None:
     """Print a compact, consistently styled confirmation banner."""
-    destination = suffix.removeprefix(" -> ") if suffix else None
-    console.print(render_confirmation(action, text, destination=destination))
+    console.print(
+        render_confirmation(
+            action,
+            text,
+            destination=destination or None,
+            project=project,
+        )
+    )
 
 
 def _finish_task_mutation(
@@ -545,11 +562,20 @@ def _finish_task_mutation(
     messages: list[tuple[str, str, str, str]],
 ) -> int:
     """Confirm a successful task change and refresh interactive terminals."""
-    if console.is_terminal:
+    refresh = console.is_terminal and getattr(config, "refresh_after_mutation", True)
+    if refresh:
         console.clear()
-    for action, date_label, text, suffix in messages:
-        _print_task_message(console, action, date_label, text, suffix=suffix)
-    if not console.is_terminal:
+    project = None if refresh else _confirmation_project(config)
+    for action, date_label, text, destination in messages:
+        _print_task_message(
+            console,
+            action,
+            date_label,
+            text,
+            destination=destination,
+            project=project,
+        )
+    if not refresh:
         return 0
     list_args = type(
         "ListArgs",
@@ -562,6 +588,12 @@ def _finish_task_mutation(
 def _project_name(config: Any) -> str:
     """Support project-aware configs while keeping simple test doubles useful."""
     return getattr(config, "project_name", "Main")
+
+
+def _confirmation_project(config: Any) -> str | None:
+    """Name the selected project only when multiple projects create ambiguity."""
+    projects = getattr(config, "projects", {})
+    return _project_name(config) if len(projects) > 1 else None
 
 
 TASK_ID_RE = re.compile(r"^\d+[a-z]{0,2}$")
@@ -578,19 +610,19 @@ def _split_indexed_values(values: list[str], action: str) -> tuple[list[str | in
         position += 1
     remaining = values[position:]
     if not indexes:
-        raise ValueError(f"At least one task index is required for {action}")
+        raise ValueError(f"At least one task ID is required for {action}")
     if not remaining:
         raise ValueError(f"At least one value is required for {action}")
     return indexes, remaining
 
 
 def _parse_indexes(values: list[str], action: str) -> list[str | int]:
-    """Validate positionals that must contain only task indexes."""
+    """Validate positionals that must contain only task IDs."""
     if any(not TASK_ID_RE.fullmatch(value.lower()) for value in values):
-        raise ValueError(f"Only task indexes may appear before --remove for {action}")
+        raise ValueError(f"Only task IDs may appear before --remove for {action}")
     indexes = [_parse_task_id(value) for value in values]
     if not indexes:
-        raise ValueError(f"At least one task index is required for {action}")
+        raise ValueError(f"At least one task ID is required for {action}")
     return indexes
 
 

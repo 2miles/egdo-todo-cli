@@ -82,6 +82,16 @@ empty dates, preserves preamble and Notes content, and atomically replaces month
 - Project selection must not move, merge, or delete another project’s files.
 - Tests should exercise observable behavior at the lowest appropriate layer.
 
+## Writing Conventions
+
+- Write “Markdown” with a capital M and use “task” rather than “todo” for Egdo concepts.
+- Use “ID” in user-facing text; “index” is reserved for internal implementation details.
+- Use `YYYY-MM-DD` for CLI dates, `Mon-DD Day` for stored headings, and readable month names
+  in terminal displays.
+- Use curly quotation marks around user-provided names and text. Use backticks for commands,
+  configuration keys, and literal syntax.
+- Use `→` for movement or scheduling in user-facing output and `—` for secondary details.
+
 ## Reading the Repository
 
 A useful order for understanding the code is:

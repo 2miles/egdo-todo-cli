@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import calendar
 from datetime import date
 import os
 from pathlib import Path
@@ -25,6 +26,7 @@ from egdo.dates import parse_future_date as _parse_future_date
 from egdo.handlers import HandlerDeps
 from egdo.handlers import dispatch_command
 from egdo.interactive import (
+    open_editor,
     prompt_add_form,
     prompt_delete_form,
     prompt_done_form,
@@ -35,6 +37,7 @@ from egdo.interactive import (
     prompt_project_form,
     prompt_tag_form,
 )
+from egdo.markdown_store import file_path
 from egdo.store import (
     add_note,
     complete_tasks,
@@ -287,7 +290,7 @@ def build_parser() -> argparse.ArgumentParser:
         "indexes",
         nargs="*",
         metavar="ID",
-        help="Task ID(s); omit to open the completion form",
+        help="Task IDs; omit to open the completion form",
     )
 
     edit_parser = subparsers.add_parser(
@@ -331,7 +334,7 @@ def build_parser() -> argparse.ArgumentParser:
         "move_values",
         nargs="*",
         metavar="ID_OR_WHEN",
-        help="Task ID(s), then today, tomorrow, +N, weekday, or YYYY-MM-DD",
+        help="Task IDs, then today, tomorrow, +N, weekday, or YYYY-MM-DD",
     )
 
     delete_parser = subparsers.add_parser(
@@ -345,7 +348,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     delete_parser.add_argument(
-        "indexes", nargs="*", metavar="ID", help="Task ID(s) shown by egdo list"
+        "indexes", nargs="*", metavar="ID", help="Task IDs shown by egdo list"
     )
 
     tag_parser = subparsers.add_parser(
@@ -369,7 +372,7 @@ def build_parser() -> argparse.ArgumentParser:
         "values",
         nargs="*",
         metavar="ID_OR_TAG",
-        help="Task ID(s), then one tag; with --remove, task IDs only",
+        help="Task IDs, then one tag; with --remove, task IDs only",
     )
     tag_parser.add_argument("--remove", action="store_true", help="Remove the current tag")
 
@@ -390,7 +393,7 @@ def build_parser() -> argparse.ArgumentParser:
         "priority_values",
         nargs="*",
         metavar="ID_OR_LEVEL",
-        help="Task ID(s) followed by important or normal",
+        help="Task IDs followed by important or normal",
     )
 
     note_parser = subparsers.add_parser(
@@ -408,6 +411,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     note_parser.add_argument(
         "text", nargs="?", metavar="TEXT", help="Note text; omit to open your editor"
+    )
+
+    open_parser = subparsers.add_parser(
+        "open",
+        help="Open a monthly Markdown file",
+        description=(
+            "Open a project's monthly Markdown file in $VISUAL, $EDITOR, or vi. "
+            "With no month, open the current month."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  egdo open\n"
+            "  egdo open 2026-01\n"
+            "  egdo open jan\n"
+            "  egdo open jan 2026\n"
+            "  egdo open January 2026"
+        ),
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
+    open_parser.add_argument(
+        "month_values",
+        nargs="*",
+        metavar="MONTH",
+        help="YYYY-MM, a month name, or a month name followed by a year",
     )
 
     return parser
@@ -442,6 +469,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.selected_project is not None:
                 config = config.select(args.selected_project)
         target_date = date.today()
+        if args.command == "open":
+            return _run_open(args.month_values, config, target_date)
         deps = HandlerDeps(
             add_note=add_note,
             complete_tasks=complete_tasks,
@@ -479,6 +508,55 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.error(f"Unknown command: {args.command}")
     return 2
+
+
+def _run_open(month_values: list[str], config: object, today: date) -> int:
+    """Open the selected project's requested monthly Markdown file."""
+    selected_month = _parse_open_month(month_values, today)
+    path = file_path(config.root, selected_month)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    open_editor(path)
+    return 0
+
+
+def _parse_open_month(values: list[str], today: date) -> date:
+    """Parse the friendly month forms accepted by ``egdo open``."""
+    if not values:
+        return today.replace(day=1)
+    if len(values) == 1:
+        iso_match = re.fullmatch(r"(\d{4})-(\d{2})", values[0])
+        if iso_match:
+            return _replace_month(today, int(iso_match[1]), int(iso_match[2]))
+        month = _month_number(values[0])
+        if month is not None:
+            return today.replace(month=month, day=1)
+    elif len(values) == 2:
+        month = _month_number(values[0])
+        if month is not None and re.fullmatch(r"\d{4}", values[1]):
+            return _replace_month(today, int(values[1]), month)
+    raise ValueError(
+        "Invalid month. Use YYYY-MM, MONTH, or MONTH YYYY, such as `jan 2026`."
+    )
+
+
+def _month_number(value: str) -> int | None:
+    normalized = value.casefold()
+    for month in range(1, 13):
+        if normalized in {
+            calendar.month_abbr[month].casefold(),
+            calendar.month_name[month].casefold(),
+        }:
+            return month
+    return None
+
+
+def _replace_month(today: date, year: int, month: int) -> date:
+    try:
+        return today.replace(year=year, month=month, day=1)
+    except ValueError as exc:
+        raise ValueError(
+            "Invalid month. Use YYYY-MM, MONTH, or MONTH YYYY, such as `jan 2026`."
+        ) from exc
 
 
 def _configure_console(config: object | None) -> None:
@@ -538,7 +616,7 @@ def _run_init(name: str, config: object | None, directory: Path) -> int:
         existing = read_local_project(marker_path)
         if existing.name.casefold() != name.strip().casefold():
             raise ValueError(
-                f'{marker_path} already identifies project "{existing.name}"'
+                f"{marker_path} already identifies project “{existing.name}”"
             )
         name = existing.name
 
@@ -572,7 +650,7 @@ def _confirm_project_removal(name: str) -> bool:
             "Project removal requires confirmation in a terminal; use --force to continue"
         )
     answer = input(
-        f'Unregister project "{name}"? Its files will not be deleted. [y/N] '
+        f"Unregister project “{name}”? Its files will not be deleted. [y/N] "
     )
     return answer.strip().casefold() in {"y", "yes"}
 

@@ -41,7 +41,7 @@ class MarkdownParseError(ValueError):
     def _details(self) -> str:
         details = self.problem
         if self.line is not None:
-            details += f'\nFound: "{self.line}"'
+            details += f"\nFound: {self.line}"
         return f"{details}\nFix: {self.correction}"
 
     def for_path(self, path: Path) -> str:
@@ -131,7 +131,7 @@ def parse_file(
             if header.group(3).lower() != expected_weekday.lower():
                 raise MarkdownParseError(
                     line_number,
-                    f"The weekday does not match {current_date:%b-%d-%Y}.",
+                    f"The weekday does not match {current_date.isoformat()}.",
                     f"Change the heading to `## {current_date:%b-%d} {expected_weekday}`.",
                     line,
                 )

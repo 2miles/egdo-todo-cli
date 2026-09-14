@@ -997,7 +997,7 @@ class StoreTests(unittest.TestCase):
 
             message = str(raised.exception)
             self.assertIn(f"cannot parse {path}:5", message)
-            self.assertIn('Found: "- [] Missing checkbox space"', message)
+            self.assertIn("Found: - [] Missing checkbox space", message)
             self.assertIn("Fix: Use a checklist item", message)
 
     def test_malformed_day_and_section_headings_have_specific_corrections(self) -> None:

@@ -200,16 +200,28 @@ def prompt_project_form(config: Any, console: Console) -> str | None:
 NOTE_INSTRUCTIONS = "<!-- egdo:note-instructions -->"
 
 
+def open_editor(path: Path) -> None:
+    """Open a path in the configured terminal editor and wait for it to close."""
+    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "vi"
+    command = shlex.split(editor)
+    if not command:
+        raise ValueError("VISUAL or EDITOR must name an editor command")
+    try:
+        result = subprocess.run([*command, str(path)], check=False)
+    except OSError as exc:
+        raise RuntimeError(f"Could not open editor {command[0]!r}: {exc}") from exc
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Editor {command[0]!r} exited with status {result.returncode}"
+        )
+
+
 def prompt_note_form(
     console: Console, project_name: str, today: date
 ) -> str | None:
     """Collect a multiline Markdown note using the user's terminal editor."""
     if not sys.stdin.isatty():
         raise ValueError('Interactive note requires a TTY. Use `egdo note "TEXT"`.')
-    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "vi"
-    command = shlex.split(editor)
-    if not command:
-        raise ValueError("VISUAL or EDITOR must name an editor command")
     template = (
         "\n"
         f"{NOTE_INSTRUCTIONS}\n"
@@ -223,14 +235,7 @@ def prompt_note_form(
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
             handle.write(template)
-        try:
-            result = subprocess.run([*command, str(path)], check=False)
-        except OSError as exc:
-            raise RuntimeError(f"Could not open editor {command[0]!r}: {exc}") from exc
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"Editor {command[0]!r} exited with status {result.returncode}"
-            )
+        open_editor(path)
         content = path.read_text(encoding="utf-8")
         note = content.split(NOTE_INSTRUCTIONS, 1)[0].strip()
         return note or None

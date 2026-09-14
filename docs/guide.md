@@ -112,8 +112,24 @@ egdo list --all-projects
 The combined view is read-only. Its task IDs remain local to their displayed project, so
 select that project before acting on one, for example `egdo -P Minecraft done 2`.
 
+When multiple projects are configured, mutation confirmations name the selected project if
+no refreshed task list is displayed. This keeps redirected output and confirmations shown
+with `display.refresh_after_mutation = false` unambiguous.
+
 `--all-projects` cannot be combined with `-P/--project`, `--future`, `--completed`, or
 `--tag`.
+
+Open a project's monthly Markdown file directly in your editor:
+
+```bash
+egdo open
+egdo open 2026-01
+egdo open jan 2026
+egdo -P Minecraft open January 2026
+```
+
+With no month, egdo opens the current month. A month name without a year uses the current
+year. The editor follows `$VISUAL`, then `$EDITOR`, and falls back to `vi`.
 
 ## Adding Tasks
 
@@ -385,6 +401,7 @@ active_project = "Main"
 
 [display]
 color = true
+refresh_after_mutation = true
 
 [projects]
 "Main" = "/Users/you/Notes/egdo"
@@ -393,6 +410,10 @@ color = true
 
 Set `display.color` to `false` to disable colored Egdo output persistently. The standard
 `NO_COLOR` environment variable also disables color and takes precedence over this setting.
+
+By default, a successful task mutation clears the interactive terminal and displays the
+updated task list so its IDs are current. Set `display.refresh_after_mutation` to `false` to
+print only the confirmation instead. Output redirected to a file or pipe is never refreshed.
 
 The archive is always the marker’s sibling `egdo/` directory. Moving the initialized
 directory therefore moves the marker and archive together. Run `egdo init NAME` from the new

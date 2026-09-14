@@ -21,6 +21,7 @@ def render_confirmation(
     *,
     detail: str | None = None,
     destination: str | None = None,
+    project: str | None = None,
 ) -> Text:
     """Render one restrained, consistently structured success message."""
     if detail is not None and destination is not None:
@@ -33,6 +34,9 @@ def render_confirmation(
         message.append(f" → {destination}", style="dim")
     elif detail is not None:
         message.append(f" — {detail}", style="dim")
+    if project is not None:
+        message.append(" · ", style="dim")
+        message.append(project, style="cyan")
     return message
 
 

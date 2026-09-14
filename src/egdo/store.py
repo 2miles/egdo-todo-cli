@@ -491,11 +491,11 @@ def _validated_indexes(indexes: list[str | int], refs: list[TaskRef]) -> list[st
     """Deduplicate and validate one-based indexes as a complete batch."""
     unique_indexes = _dedupe_indexes(indexes)
     if not unique_indexes:
-        raise ValueError("At least one task index is required")
+        raise ValueError("At least one task ID is required")
     valid = {ref.identifier for ref in refs}
     for index in unique_indexes:
         if index not in valid:
-            raise IndexError(f"Task index {index} is out of range")
+            raise IndexError(f"Task ID {index} is out of range")
     return unique_indexes
 
 

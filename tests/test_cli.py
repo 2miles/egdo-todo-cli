@@ -53,6 +53,17 @@ class CliTests(unittest.TestCase):
         self.assertEqual(confirmation.spans[1].style, "bold")
         self.assertEqual(confirmation.spans[-1].style, "dim")
 
+    def test_render_confirmation_can_name_the_selected_project(self) -> None:
+        confirmation = render_confirmation(
+            "Moved", "Build iron farm", destination="2026-04-07", project="Minecraft"
+        )
+
+        self.assertEqual(
+            confirmation.plain,
+            "✓ Moved “Build iron farm” → 2026-04-07 · Minecraft",
+        )
+        self.assertEqual(confirmation.spans[-1].style, "cyan")
+
     def test_every_command_help_explains_usage_and_shows_an_example(self) -> None:
         cases = [
             (["init", "--help"], "Creates .egdo.toml"),
@@ -69,6 +80,7 @@ class CliTests(unittest.TestCase):
             (["tag", "--help"], "replacing any current tag"),
             (["priority", "--help"], "important or normal"),
             (["note", "--help"], "$VISUAL or $EDITOR"),
+            (["open", "--help"], "current month"),
         ]
         parser = build_parser()
 
@@ -81,6 +93,48 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(raised.exception.code, 0)
                 self.assertIn(guidance, output.getvalue())
                 self.assertRegex(output.getvalue(), r"Example(?:s)?:")
+
+    def test_open_accepts_current_iso_and_named_months(self) -> None:
+        mocked_today = date(2026, 9, 14)
+        cases = [
+            (["open"], "2026/2026_09_sep.md"),
+            (["open", "2026-01"], "2026/2026_01_jan.md"),
+            (["open", "jan"], "2026/2026_01_jan.md"),
+            (["open", "Jan"], "2026/2026_01_jan.md"),
+            (["open", "January"], "2026/2026_01_jan.md"),
+            (["open", "january", "2025"], "2025/2025_01_jan.md"),
+            (["open", "JANUARY", "2025"], "2025/2025_01_jan.md"),
+        ]
+
+        with TemporaryDirectory() as tmp:
+            config = Config(projects={"Main": Path(tmp) / "egdo"})
+            for arguments, relative_path in cases:
+                with self.subTest(arguments=arguments):
+                    with (
+                        patch("egdo.cli.load_config", return_value=config),
+                        patch("egdo.cli.date") as date_mock,
+                        patch("egdo.cli.open_editor") as open_editor_mock,
+                    ):
+                        date_mock.today.return_value = mocked_today
+                        exit_code = main(arguments)
+
+                    self.assertEqual(exit_code, 0)
+                    open_editor_mock.assert_called_once_with(
+                        config.root / Path(relative_path)
+                    )
+
+    def test_open_rejects_an_invalid_month_with_examples(self) -> None:
+        config = Config(projects={"Main": Path("/tmp/main/egdo")})
+        errors = StringIO()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("sys.stderr", errors),
+        ):
+            exit_code = main(["open", "winter", "2026"])
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("Use YYYY-MM, MONTH, or MONTH YYYY", errors.getvalue())
 
     def test_top_level_help_exposes_global_options_and_command_examples(self) -> None:
         help_text = build_parser().format_help()
@@ -475,6 +529,64 @@ class CliTests(unittest.TestCase):
         rendered = output.getvalue()
         self.assertLess(rendered.index("✓ Added “Buy milk”"), rendered.index("Today"))
         self.assertIn("1.                   Buy milk", rendered)
+
+    def test_disabled_mutation_refresh_only_prints_confirmation_in_a_terminal(self) -> None:
+        config = Config(
+            projects={
+                "Main": Path("/tmp/notes/egdo"),
+                "Minecraft": Path("/tmp/minecraft/egdo"),
+            },
+            refresh_after_mutation=False,
+        )
+        output = StringIO()
+        mocked_today = date(2026, 4, 6)
+        created_task = type(
+            "TaskStub", (), {"created": mocked_today, "text": "Buy milk", "depth": 0}
+        )()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.date") as date_mock,
+            patch("egdo.cli.create_task", return_value=created_task),
+            patch("egdo.cli.list_task_refs") as list_task_refs_mock,
+            patch(
+                "egdo.cli.console",
+                Console(file=output, force_terminal=True, color_system=None, width=80),
+            ),
+        ):
+            date_mock.today.return_value = mocked_today
+            exit_code = main(["-P", "Minecraft", "add", "Buy milk"])
+
+        self.assertEqual(exit_code, 0)
+        list_task_refs_mock.assert_not_called()
+        rendered = output.getvalue()
+        self.assertIn("✓ Added “Buy milk” · Minecraft", rendered)
+        self.assertNotIn("Today", rendered)
+        self.assertNotIn("\x1b[2J", rendered)
+
+    def test_note_confirmation_names_project_when_multiple_are_configured(self) -> None:
+        config = Config(
+            projects={
+                "Main": Path("/tmp/main/egdo"),
+                "Work": Path("/tmp/work/egdo"),
+            },
+            active_project="Work",
+        )
+        output = StringIO()
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.add_note") as add_note_mock,
+            patch(
+                "egdo.cli.console",
+                Console(file=output, force_terminal=False, color_system=None),
+            ),
+        ):
+            exit_code = main(["note", "Review release"])
+
+        self.assertEqual(exit_code, 0)
+        add_note_mock.assert_called_once()
+        self.assertIn("✓ Noted “Review release” · Work", output.getvalue())
 
     def test_project_override_selects_root_and_displays_project(self) -> None:
         config = Config(

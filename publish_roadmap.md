@@ -24,52 +24,21 @@ or malformed historical files become a recurring problem that normal command err
 solve. Do not add repair behavior until real failures demonstrate which fixes are common,
 unambiguous, and safe.
 
-### CLI UX and command language
-
-- Send machine-readable errors to stderr and use reliable exit codes.
-- Choose one spelling and casing convention everywhere for terms such as “Markdown,” “ID,” “todo,” dates, quotation marks, and arrows.
-- Avoid clearing the entire terminal after every mutation unless users opt into it; an inline refresh may be less disruptive.
-- If clearing remains, add `--quiet` and possibly `--no-refresh`.
-- Consider naming the active project in mutation confirmations when it improves orientation,
-  especially after an explicit `-P/--project` override.
-
 ### A future command
 
 - a future read-only `egdo completed DATE` command
 
-### Destructive-operation safety
+### Possible future undo
 
-A concise recovery path is preferable to confirmation prompts on every deletion:
-
-```text
-egdo delete 4
-
-# Deleted “Cancel old subscription”
-# Undo: egdo restore
-```
-
-An undo mechanism would be valuable, but atomic backup files or Git integration may be enough initially. Avoid making the CLI tedious with confirmation prompts for every deletion.
+Consider a future `egdo undo` command if accidental mutations become a recurring problem.
+It should reverse the most recent mutation without replacing an entire month file or
+overwriting unrelated manual edits. Design the recovery record and conflict behavior before
+adding the command; do not imply that undo is currently available.
 
 ### Edge cases
 
 - Review rollover behavior around sparse files and unusual manual edits.
 - Verify behavior when tasks are manually checked or unchecked after creation.
-
-## Focused Feature Additions
-
-These additions reinforce the product’s existing model rather than expanding away from it.
-
-### Direct file opening
-
-Manual editing is one of egdo’s differentiators, so make it effortless:
-
-```bash
-egdo open
-egdo open today
-egdo open 2026-08-12
-```
-
-Use `$EDITOR` and open the relevant monthly file at the relevant day if practical.
 
 ### Modest search
 
@@ -185,7 +154,7 @@ The top of the README should be much shorter and make the value obvious within t
 
 > egdo is a terminal task list that keeps your work in ordinary Markdown.
 >
-> Unfinished tasks roll into today. Completed tasks remain in the day they were finished, turning your todo list into a searchable work journal.
+> Unfinished tasks roll into today. Completed tasks remain in the day they were finished, turning your task list into a searchable work journal.
 
 Then present:
 

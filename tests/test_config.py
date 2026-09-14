@@ -68,7 +68,8 @@ class ConfigTests(unittest.TestCase):
                 content,
                 'active_project = "Main"\n\n'
                 '[display]\n'
-                'color = true\n\n'
+                'color = true\n'
+                'refresh_after_mutation = true\n\n'
                 '[projects]\n'
                 '"Main" = "/tmp/notes/egdo"\n',
             )
@@ -85,6 +86,21 @@ class ConfigTests(unittest.TestCase):
 
             self.assertIn("[display]\ncolor = false\n", path.read_text(encoding="utf-8"))
             self.assertFalse(load_config(path).color)
+
+    def test_save_config_persists_disabled_mutation_refresh(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            config = Config(
+                projects={"Main": Path("/tmp/notes/egdo")},
+                refresh_after_mutation=False,
+            )
+
+            save_config(config, path)
+
+            self.assertIn(
+                "refresh_after_mutation = false\n", path.read_text(encoding="utf-8")
+            )
+            self.assertFalse(load_config(path).refresh_after_mutation)
 
     def test_save_config_preserves_unrelated_content_and_creates_backup(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -103,7 +119,8 @@ class ConfigTests(unittest.TestCase):
                 path.read_text(encoding="utf-8"),
                 'active_project = "Main"\n\n'
                 '[display]\n'
-                'color = true\n\n'
+                'color = true\n'
+                'refresh_after_mutation = true\n\n'
                 '[projects]\n'
                 '"Main" = "/new/root"\n\n'
                 '[unrelated]\n# Personal settings\nvalue = "keep me"\n',
@@ -181,6 +198,20 @@ class ConfigTests(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(ValueError, "display.color must be true or false"):
+                load_config(path)
+
+    def test_load_config_rejects_non_boolean_mutation_refresh(self) -> None:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.toml"
+            path.write_text(
+                '[display]\nrefresh_after_mutation = "sometimes"\n\n'
+                '[projects]\nMain = "/tmp/main"\n',
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError, "display.refresh_after_mutation must be true or false"
+            ):
                 load_config(path)
 
     def test_use_project_preserves_display_name(self) -> None:

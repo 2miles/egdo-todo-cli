@@ -6,6 +6,7 @@
 | --- | --- | --- |
 | [`egdo init NAME`](#egdo-init) | Initialize a journal | No |
 | [`egdo project`](#egdo-project) | Choose or manage projects | Yes |
+| [`egdo open`](#egdo-open) | Open a monthly Markdown file | No |
 | [`egdo add`](#egdo-add) | Add a task | Yes |
 | [`egdo`](#egdo-list) / [`egdo list`](#egdo-list) | Show tasks and filtered views | No |
 | [`egdo done`](#egdo-done) | Complete tasks | Yes |
@@ -68,6 +69,23 @@ egdo -P Minecraft list
 ```
 
 Create new projects with `egdo init NAME`.
+
+## `egdo open`
+
+Open one monthly Markdown file from the selected project in `$VISUAL`, then `$EDITOR`,
+falling back to `vi`:
+
+```bash
+egdo open
+egdo open 2026-01
+egdo open jan
+egdo open jan 2026
+egdo open January 2026
+```
+
+With no argument, `egdo open` opens the current month. A month name without a year uses the
+current year. Names are case-insensitive and may be abbreviated or written in full. Use
+`-P/--project` to open a month from another configured project.
 
 ## `egdo add`
 

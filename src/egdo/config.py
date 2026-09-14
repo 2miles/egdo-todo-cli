@@ -22,6 +22,7 @@ class Config:
     active_project: str = MAIN_PROJECT
     project_name: str | None = None
     color: bool = True
+    refresh_after_mutation: bool = True
 
     def __post_init__(self) -> None:
         if not self.projects:
@@ -86,7 +87,17 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
     color = raw_display.get("color", True)
     if not isinstance(color, bool):
         raise ValueError("Invalid config: display.color must be true or false")
-    return Config(projects=projects, active_project=active_project, color=color)
+    refresh_after_mutation = raw_display.get("refresh_after_mutation", True)
+    if not isinstance(refresh_after_mutation, bool):
+        raise ValueError(
+            "Invalid config: display.refresh_after_mutation must be true or false"
+        )
+    return Config(
+        projects=projects,
+        active_project=active_project,
+        color=color,
+        refresh_after_mutation=refresh_after_mutation,
+    )
 
 
 def save_config(config: Config, path: Path = CONFIG_PATH) -> Path:
@@ -103,6 +114,7 @@ def save_config(config: Config, path: Path = CONFIG_PATH) -> Path:
         "",
         "[display]",
         f"color = {str(config.color).lower()}",
+        f"refresh_after_mutation = {str(config.refresh_after_mutation).lower()}",
         "",
         "[projects]",
     ]
@@ -140,7 +152,7 @@ def register_initialized_project(
                 config.projects[matching_name], matching_name
             ):
                 raise ValueError(
-                    f'Project "{matching_name}" is already initialized at '
+                    f"Project “{matching_name}” is already initialized at "
                     f"{config.projects[matching_name]}"
                 )
             projects = dict(config.projects)
@@ -152,7 +164,7 @@ def register_initialized_project(
         if existing_root.resolve() == normalized_root:
             raise ValueError(
                 f"Project root {normalized_root} is already registered as "
-                f'"{existing_name}"'
+                f"“{existing_name}”"
             )
     projects = dict(config.projects)
     projects[cleaned_name] = normalized_root
@@ -171,7 +183,7 @@ def initialize_local_marker(directory: Path, name: str) -> tuple[Path, bool]:
         existing = read_local_project(marker_path)
         if existing.name.casefold() != cleaned_name.casefold():
             raise ValueError(
-                f'{marker_path} already identifies project "{existing.name}"'
+                f"{marker_path} already identifies project “{existing.name}”"
             )
         canonical_content = f"project = {json.dumps(existing.name)}\n"
         root.mkdir(parents=True, exist_ok=True)
@@ -191,7 +203,7 @@ def read_local_project(path: Path) -> LocalProject:
     raw = _parse_toml(path.read_text(encoding="utf-8"))
     project = raw.get("project")
     if not isinstance(project, str) or not project.strip():
-        raise ValueError(f'{path} must define a non-empty "project" value')
+        raise ValueError(f"{path} must define a non-empty `project` value")
     marker_directory = path.parent.resolve()
     root = marker_directory / "egdo"
     return LocalProject(project.strip(), root, path.resolve())
@@ -236,6 +248,7 @@ def remove_project(config: Config, name: str) -> Config:
         active_project=active_project,
         project_name=selected_project,
         color=config.color,
+        refresh_after_mutation=config.refresh_after_mutation,
     )
 
 
@@ -246,7 +259,7 @@ def resolve_project_name(projects: dict[str, Path], requested: str) -> str:
         if name.casefold() == normalized:
             return name
     available = ", ".join(projects) or "none"
-    raise ValueError(f'Unknown project "{requested}". Available projects: {available}')
+    raise ValueError(f"Unknown project “{requested}”. Available projects: {available}")
 
 
 def _clean_project_name(name: str) -> str:
