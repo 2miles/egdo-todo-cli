@@ -102,3 +102,25 @@ A useful order for understanding the code is:
 4. `markdown_store.py` for the persisted format.
 5. `config.py` for project identity, selection, and lifecycle.
 6. `interactive.py` and `render.py` for terminal interaction and presentation.
+
+## Versioning and Release Maintenance
+
+Egdo uses semantic versioning with a single version source in `src/egdo/__init__.py`.
+Before 1.0, use patch releases such as `0.1.1` for compatible fixes and minor releases such
+as `0.2.0` for features or intentional compatibility breaks. Release `1.0.0` only when the
+CLI, configuration, and Markdown storage expectations are considered stable.
+
+Maintain an `Unreleased` section in `CHANGELOG.md` as user-facing behavior changes. For a
+release:
+
+1. Run the full test suite and clean-install checks.
+2. Update `__version__` in `src/egdo/__init__.py`.
+3. Rename the changelog's `Unreleased` content to the version and release date, then add a
+   new empty `Unreleased` section.
+4. Commit the release and tag that commit with the matching `vX.Y.Z` tag.
+
+When changing Python support, update `requires-python` and the classifiers in
+`pyproject.toml`, the Installation statement in `README.md`, and the matrix in
+`.github/workflows/ci.yml` together. Record dropped or newly supported versions in the
+changelog. Do not add a newly released Python version to the documented range until CI passes
+on it, and remove an end-of-life version deliberately in a release rather than silently.

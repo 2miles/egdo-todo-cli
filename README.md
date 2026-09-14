@@ -21,6 +21,8 @@ application database.
 
 ## Installation
 
+Egdo requires Python 3.10 or newer and is tested on Python 3.10 through 3.14.
+
 Egdo currently installs from a local clone. A dedicated tools environment keeps it available
 from any directory without mixing it into another Python project:
 
@@ -115,6 +117,7 @@ review every journal with `egdo list --all-projects`.
 - [Guide](docs/guide.md) — Learn Egdo’s workflows, mental model, Markdown format, and project
   behavior.
 - [Command reference](docs/command-reference.md) — Look up commands, arguments, and options.
+- [Changelog](CHANGELOG.md) — Review user-facing changes by release.
 
 The [example notes](example-notes) directory contains a populated, uninitialized journal you
 can copy and adopt with `egdo init Demo` as a demo or playground. When finished, run
