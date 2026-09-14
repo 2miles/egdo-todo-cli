@@ -26,6 +26,7 @@ from egdo.interactive import (
 )
 from egdo.store import TaskRef
 from egdo.render import (
+    render_confirmation,
     render_list_header,
     render_project_line,
     render_picker_task_line,
@@ -36,6 +37,19 @@ from egdo.render import (
 
 
 class CliTests(unittest.TestCase):
+    def test_render_confirmation_uses_restrained_status_styling(self) -> None:
+        confirmation = render_confirmation(
+            "Initialized project", "Main", detail="/tmp/notes/egdo"
+        )
+
+        self.assertEqual(
+            confirmation.plain,
+            "✓ Initialized project “Main” — /tmp/notes/egdo",
+        )
+        self.assertEqual(confirmation.spans[0].style, "bold green")
+        self.assertEqual(confirmation.spans[1].style, "bold")
+        self.assertEqual(confirmation.spans[-1].style, "dim")
+
     def test_every_command_help_explains_usage_and_shows_an_example(self) -> None:
         cases = [
             (["init", "--help"], "Creates .egdo.toml"),
@@ -469,7 +483,10 @@ class CliTests(unittest.TestCase):
                 patch("egdo.cli.load_config", side_effect=FileNotFoundError),
                 patch("egdo.cli._current_directory", return_value=directory),
                 patch("egdo.cli.save_config") as save_mock,
-                patch("sys.stdout", output),
+                patch(
+                    "egdo.cli.console",
+                    Console(file=output, force_terminal=False, color_system=None),
+                ),
             ):
                 exit_code = main(["init", "Main"])
 
@@ -483,7 +500,8 @@ class CliTests(unittest.TestCase):
             )
             self.assertTrue((directory / "egdo").is_dir())
             self.assertEqual(list((directory / "egdo").iterdir()), [])
-            self.assertIn('Initialized egdo project "Main"', output.getvalue())
+            self.assertIn("✓ Initialized project “Main” —", output.getvalue())
+            self.assertIn(str((directory / "egdo").resolve()), output.getvalue())
 
     def test_init_adds_project_without_changing_existing_active_project(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -494,7 +512,10 @@ class CliTests(unittest.TestCase):
                 patch("egdo.cli.load_config", return_value=config),
                 patch("egdo.cli._current_directory", return_value=directory),
                 patch("egdo.cli.save_config") as save_mock,
-                patch("sys.stdout", new_callable=StringIO),
+                patch(
+                    "egdo.cli.console",
+                    Console(file=StringIO(), force_terminal=False, color_system=None),
+                ),
             ):
                 exit_code = main(["init", "Minecraft"])
 
@@ -544,7 +565,10 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.save_config") as save_config_mock,
-            patch("sys.stdout", output),
+            patch(
+                "egdo.cli.console",
+                Console(file=output, force_terminal=False, color_system=None),
+            ),
         ):
             exit_code = main(["project", "use", "minecraft"])
 
@@ -552,7 +576,7 @@ class CliTests(unittest.TestCase):
         saved = save_config_mock.call_args.args[0]
         self.assertEqual(saved.active_project, "Minecraft")
         self.assertEqual(saved.root, Path("/tmp/minecraft"))
-        self.assertEqual(output.getvalue(), 'Active project set to "Minecraft"\n')
+        self.assertEqual(output.getvalue(), "✓ Selected project “Minecraft”\n")
 
     def test_project_remove_force_unregisters_without_touching_files(self) -> None:
         config = Config(
@@ -563,7 +587,10 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.save_config") as save_config_mock,
-            patch("sys.stdout", output),
+            patch(
+                "egdo.cli.console",
+                Console(file=output, force_terminal=False, color_system=None),
+            ),
         ):
             exit_code = main(["project", "remove", "demo", "--force"])
 
@@ -572,7 +599,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(saved.projects, {"Main": Path("/tmp/main")})
         self.assertEqual(
             output.getvalue(),
-            'Unregistered project "Demo"; its files were not deleted\n',
+            "✓ Unregistered project “Demo” — files kept\n",
         )
 
     def test_project_remove_can_be_canceled(self) -> None:
@@ -585,7 +612,10 @@ class CliTests(unittest.TestCase):
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli._confirm_project_removal", return_value=False),
             patch("egdo.cli.save_config") as save_config_mock,
-            patch("sys.stdout", output),
+            patch(
+                "egdo.cli.console",
+                Console(file=output, force_terminal=False, color_system=None),
+            ),
         ):
             exit_code = main(["project", "remove", "Demo"])
 
@@ -597,16 +627,22 @@ class CliTests(unittest.TestCase):
         config = Config(
             projects={"Main": Path("/tmp/main"), "Minecraft": Path("/tmp/minecraft")}
         )
+        output = StringIO()
 
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.prompt_project_form", return_value="Minecraft"),
             patch("egdo.cli.save_config") as save_mock,
+            patch(
+                "egdo.cli.console",
+                Console(file=output, force_terminal=False, color_system=None),
+            ),
         ):
             exit_code = main(["project"])
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(save_mock.call_args.args[0].active_project, "Minecraft")
+        self.assertEqual(output.getvalue(), "✓ Selected project “Minecraft”\n")
 
     def test_bare_edit_uses_interactive_form(self) -> None:
         config = Config(projects={"Main": Path("/tmp/main")})
@@ -862,7 +898,9 @@ class CliTests(unittest.TestCase):
         create_task_mock.assert_called_once_with(
             Path("/tmp/notes/egdo"), mocked_today, "{ERRANDS} Call the DMV", done=True
         )
-        self.assertIn("✓ Added done “{ERRANDS} Call the DMV”", output.getvalue())
+        self.assertIn(
+            "✓ Added completed task “{ERRANDS} Call the DMV”", output.getvalue()
+        )
 
     def test_main_move_command_prints_destination(self) -> None:
         config = type(

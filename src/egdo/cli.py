@@ -48,6 +48,7 @@ from egdo.store import (
     untag_tasks,
 )
 from egdo.render import render_list_header as _render_list_header
+from egdo.render import render_confirmation as _render_confirmation
 from egdo.render import render_project_line as _render_project_line
 from egdo.render import render_separator as _render_separator
 from egdo.render import render_section_header as _render_section_header
@@ -491,22 +492,24 @@ def _run_project(args: argparse.Namespace, config: object | None) -> int:
             return 0
         updated = use_project(config, name)
         save_config(updated, CONFIG_PATH)
-        console.print(f'Active project set to "{updated.project_name}"')
+        console.print(_render_confirmation("Selected project", updated.project_name))
         return 0
     if args.project_command == "use":
         updated = use_project(config, args.name)
         save_config(updated, CONFIG_PATH)
-        print(f'Active project set to "{updated.project_name}"')
+        console.print(_render_confirmation("Selected project", updated.project_name))
         return 0
     if args.project_command == "remove":
         project_name = config.select(args.name).project_name
         assert project_name is not None
         if not args.force and not _confirm_project_removal(project_name):
-            print("Canceled project removal.")
+            console.print("Canceled project removal.")
             return 0
         updated = remove_project(config, project_name)
         save_config(updated, CONFIG_PATH)
-        print(f'Unregistered project "{project_name}"; its files were not deleted')
+        console.print(
+            _render_confirmation("Unregistered project", project_name, detail="files kept")
+        )
         return 0
     raise ValueError(f"Unknown project action: {args.project_command}")
 
@@ -530,9 +533,13 @@ def _run_init(name: str, config: object | None, directory: Path) -> int:
 
     project_name = updated.select(name).project_name
     if not config_changed and not marker_created:
-        print(f'Project "{project_name}" is already initialized at {initialized_root}')
+        console.print(f"Project “{project_name}” is already initialized at {initialized_root}.")
     else:
-        print(f'Initialized egdo project "{project_name}" in {initialized_root}')
+        console.print(
+            _render_confirmation(
+                "Initialized project", project_name, detail=str(initialized_root)
+            )
+        )
     return 0
 
 

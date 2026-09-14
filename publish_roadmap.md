@@ -26,8 +26,6 @@ unambiguous, and safe.
 
 ### CLI UX and command language
 
-- Decide whether common mistakes such as `egdo --add` deserve a friendlier error path.
-- Make success and failure messages consistent.
 - Add `--version`.
 - Add `--no-color` and respect the `NO_COLOR` environment variable.
 - Send machine-readable errors to stderr and use reliable exit codes.

@@ -14,6 +14,7 @@ from egdo.markdown_store import (
     split_task_prefix,
     task_identifiers,
 )
+from egdo.render import render_confirmation
 from rich.console import Console
 from rich.text import Text
 
@@ -88,7 +89,7 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
         if scheduled != target_date:
             create_kwargs["scheduled_date"] = scheduled
         task = deps.create_task(config.root, target_date, task_text, **create_kwargs)
-        action = "Added" if not args.done else "Added done"
+        action = "Added" if not args.done else "Added completed task"
         suffix = f" -> {scheduled.isoformat()}" if scheduled != target_date else ""
         return _finish_task_mutation(
             config,
@@ -532,13 +533,8 @@ def _print_task_message(
     console: Console, action: str, _date_label: str, text: str, suffix: str = ""
 ) -> None:
     """Print a compact, consistently styled confirmation banner."""
-    message = Text("✓ ", style="bold green")
-    message.append(action, style="bold")
-    message.append(f" “{text}”")
-    if suffix:
-        destination = suffix.removeprefix(" -> ")
-        message.append(f" → {destination}", style="dim")
-    console.print(message)
+    destination = suffix.removeprefix(" -> ") if suffix else None
+    console.print(render_confirmation(action, text, destination=destination))
 
 
 def _finish_task_mutation(

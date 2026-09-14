@@ -15,6 +15,27 @@ TAG_COLUMN_WIDTH = 12
 TAG_STYLE = "dim cyan"
 
 
+def render_confirmation(
+    action: str,
+    subject: str,
+    *,
+    detail: str | None = None,
+    destination: str | None = None,
+) -> Text:
+    """Render one restrained, consistently structured success message."""
+    if detail is not None and destination is not None:
+        raise ValueError("A confirmation cannot have both a detail and a destination")
+    message = Text()
+    message.append("✓ ", style="bold green")
+    message.append(action, style="bold")
+    message.append(f" “{subject}”")
+    if destination is not None:
+        message.append(f" → {destination}", style="dim")
+    elif detail is not None:
+        message.append(f" — {detail}", style="dim")
+    return message
+
+
 def render_list_header(target_date, project_name: str = "Main") -> Text:
     header = Text()
     header.append("Project: ", style="dim")
