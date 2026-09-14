@@ -139,7 +139,6 @@ Recurrence looks obvious, but it introduces identity, duplication, completion, e
 
 ## Test Expansion
 
-- Add CI across supported Python versions.
 - Fix the repo-local environment and test-installation instructions.
 - Test installation from a built wheel in a completely clean environment.
 - Add tests for unusual manual edits and recovery behavior.
@@ -215,14 +214,13 @@ Once a public installation path is ready:
 
 ## Recommended Release Sequence
 
-1. Add CI.
-2. Expand tests around manual edits, recovery, and rollover edge cases.
-3. Test installation from a wheel in a clean environment.
-4. Clean up packaging metadata and document supported Python versions.
-5. Publish to GitHub as a `0.1.x` release candidate.
-6. Use it for several weeks before choosing between search and recurrence.
-7. Evaluate PyPI publication after one more installation pass.
+1. Expand tests around manual edits, recovery, and rollover edge cases.
+2. Test installation from a wheel in a clean environment.
+3. Clean up packaging metadata and document supported Python versions.
+4. Publish to GitHub as a `0.1.x` release candidate.
+5. Use it for several weeks before choosing between search and recurrence.
+6. Evaluate PyPI publication after one more installation pass.
 
-If only three things are done next, prioritize CI, clean-install testing, and the remaining
-CLI release basics. Those changes reinforce trust in the Markdown archive and make the
-existing product safer to distribute.
+If only three things are done next, prioritize clean-install testing, the remaining test
+gaps, and the CLI release basics. Those changes reinforce trust in the Markdown archive and
+make the existing product safer to distribute.
