@@ -113,7 +113,8 @@ CLI, configuration, and Markdown storage expectations are considered stable.
 Maintain an `Unreleased` section in `CHANGELOG.md` as user-facing behavior changes. For a
 release:
 
-1. Run the full test suite and clean-install checks.
+1. Run the full test suite and the clean-install checks in the
+   [build and installation guide](build-vs-install.md).
 2. Update `__version__` in `src/egdo/__init__.py`.
 3. Rename the changelog's `Unreleased` content to the version and release date, then add a
    new empty `Unreleased` section.

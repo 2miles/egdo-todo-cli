@@ -46,10 +46,19 @@
 
 ## Verification
 
+See `docs/build-vs-install.md` for the complete development and release workflows.
+
+Bootstrap the ignored repository-local environment when needed:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip setuptools wheel
+.venv/bin/python -m pip install -e '.[dev]'
+```
+
 Run these before finishing:
 
 ```bash
-source .venv/bin/activate
-python3 -m unittest discover -s tests
-python3 -m compileall src tests
+.venv/bin/python -m unittest discover -s tests
+.venv/bin/python -m compileall src tests
 ```

@@ -134,12 +134,31 @@ egdo add --help
 ## Development
 
 See the [architecture overview](docs/architecture.md) for the codebase structure and the
-boundaries between command handling, storage, Markdown parsing, projects, and terminal UI.
+[build and installation guide](docs/build-vs-install.md) for a comparison of packaging
+commands and complete contributor and release workflows.
+Create the repository-local environment with any supported Python interpreter; substitute a
+specific command such as `python3.14` when needed:
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip setuptools wheel
+.venv/bin/python -m pip install -e '.[dev]'
+```
+
+Run the standard verification commands from the repository root:
 
 ```bash
 .venv/bin/python -m unittest discover -s tests
 .venv/bin/python -m compileall src tests
 ```
+
+Build the source distribution and wheel with:
+
+```bash
+.venv/bin/python -m build
+```
+
+Build artifacts are written to `dist/` and are not committed.
 
 ## License
 
