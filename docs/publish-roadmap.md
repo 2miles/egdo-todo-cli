@@ -33,12 +33,7 @@ unambiguous, and safe.
 Consider a future `egdo undo` command if accidental mutations become a recurring problem.
 It should reverse the most recent mutation without replacing an entire month file or
 overwriting unrelated manual edits. Design the recovery record and conflict behavior before
-adding the command; do not imply that undo is currently available.
-
-### Edge cases
-
-- Review rollover behavior around sparse files and unusual manual edits.
-- Verify behavior when tasks are manually checked or unchecked after creation.
+adding the command, and cover both with tests; do not imply that undo is currently available.
 
 ### Modest search
 
@@ -141,8 +136,6 @@ Recurrence looks obvious, but it introduces identity, duplication, completion, e
 
 - Fix the repo-local environment and test-installation instructions.
 - Test installation from a built wheel in a completely clean environment.
-- Add tests for unusual manual edits and recovery behavior.
-- Add tests for month and year boundaries if they are not already covered well enough.
 - Add tests focused on user-facing error messages where failures are intentional.
 
 ## GitHub Readiness
@@ -208,12 +201,11 @@ Once a public installation path is ready:
 
 ## Recommended Release Sequence
 
-1. Expand tests around manual edits, recovery, and rollover edge cases.
-2. Test installation from a wheel in a clean environment.
-3. Clean up packaging metadata and document supported Python versions.
-4. Publish to GitHub as a `0.1.x` release candidate.
-5. Use it for several weeks before choosing between search and recurrence.
-6. Evaluate PyPI publication after one more installation pass.
+1. Test installation from a wheel in a clean environment.
+2. Clean up packaging metadata and document supported Python versions.
+3. Publish to GitHub as a `0.1.x` release candidate.
+4. Use it for several weeks before choosing between search and recurrence.
+5. Evaluate PyPI publication after one more installation pass.
 
 If only three things are done next, prioritize clean-install testing, the remaining test
 gaps, and the CLI release basics. Those changes reinforce trust in the Markdown archive and
