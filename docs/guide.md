@@ -372,6 +372,11 @@ notes in `### Notes`. Safe manual changes include:
 - Adding a leading `!` to mark a task important
 - Editing notes
 
+Checking a task manually keeps it in its historical day and prevents it from rolling
+forward. Unchecking it makes it active again, so the next access rolls it forward normally.
+Checking a parent also completes its descendants; unchecking a parent does not reopen
+descendants that remain checked.
+
 Keep checklist items under the correct `### Tasks` heading and notes under `### Notes`.
 Avoid changing day headers or creation-date suffixes. If you add a plain checklist item,
 egdo fills in its creation date from the surrounding day the next time it reads the file.

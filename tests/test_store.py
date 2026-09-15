@@ -302,6 +302,101 @@ class StoreTests(unittest.TestCase):
             self.assertIn("- [ ] Recent task (04-13)", content)
             self.assertIn("- [ ] Older task (04-12)", content)
 
+    def test_manually_checked_task_stays_on_its_historical_day(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            created = date(2026, 4, 4)
+            today = date(2026, 4, 8)
+            path = file_path(notes_dir, created)
+            add_task(notes_dir, created, "Finished by hand")
+            path.write_text(
+                path.read_text(encoding="utf-8").replace("- [ ]", "- [x]"),
+                encoding="utf-8",
+            )
+
+            active = list_tasks(notes_dir, today)
+            completed = list_completed_tasks(notes_dir, created)
+
+            self.assertEqual(active, [])
+            self.assertEqual([task.text for task in completed], ["Finished by hand"])
+            self.assertIn("- [x] Finished by hand (04-04)", path.read_text(encoding="utf-8"))
+
+    def test_manually_unchecked_task_rolls_forward_on_next_access(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            created = date(2026, 4, 4)
+            today = date(2026, 4, 8)
+            path = file_path(notes_dir, created)
+            add_task(notes_dir, created, "Reopened by hand")
+            complete_task(notes_dir, created, 1)
+            path.write_text(
+                path.read_text(encoding="utf-8").replace("- [x]", "- [ ]"),
+                encoding="utf-8",
+            )
+
+            active = list_tasks(notes_dir, today)
+
+            self.assertEqual([task.text for task in active], ["Reopened by hand"])
+            self.assertEqual(active[0].created, created)
+            current = file_path(notes_dir, today).read_text(encoding="utf-8")
+            self.assertIn("- [ ] Reopened by hand (04-04)", current)
+
+    def test_manually_checked_parent_completes_its_descendants(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            created = date(2026, 4, 4)
+            path = file_path(notes_dir, created)
+            create_task(notes_dir, created, "Parent", done=False)
+            create_task(notes_dir, created, "Child", done=False, parent="1")
+            path.write_text(
+                path.read_text(encoding="utf-8").replace("- [ ] Parent", "- [x] Parent"),
+                encoding="utf-8",
+            )
+
+            completed = list_completed_tasks(notes_dir, created)
+            active = list_tasks(notes_dir, date(2026, 4, 5))
+
+            self.assertEqual([task.text for task in completed], ["Parent", "Child"])
+            self.assertEqual(active, [])
+
+    def test_manually_reopened_parent_leaves_completed_child_in_history(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            created = date(2026, 4, 4)
+            today = date(2026, 4, 5)
+            path = file_path(notes_dir, created)
+            create_task(notes_dir, created, "Parent", done=False)
+            create_task(notes_dir, created, "Child", done=False, parent="1")
+            complete_task(notes_dir, created, 1)
+            path.write_text(
+                path.read_text(encoding="utf-8").replace("- [x] Parent", "- [ ] Parent"),
+                encoding="utf-8",
+            )
+
+            active = list_tasks(notes_dir, today)
+            completed = list_completed_tasks(notes_dir, created)
+
+            self.assertEqual([task.text for task in active], ["Parent"])
+            self.assertEqual([task.text for task in completed], ["Child"])
+
+    def test_rollover_crosses_year_and_ignores_notes_only_gap(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            created = date(2026, 12, 20)
+            notes_date = date(2027, 1, 12)
+            today = date(2027, 2, 3)
+            add_task(notes_dir, created, "Carry across the gap")
+            add_note(notes_dir, notes_date, "January context only.")
+
+            active = list_tasks(notes_dir, today)
+
+            self.assertEqual([task.text for task in active], ["Carry across the gap"])
+            self.assertEqual(active[0].created, created)
+            january = file_path(notes_dir, notes_date).read_text(encoding="utf-8")
+            february = file_path(notes_dir, today).read_text(encoding="utf-8")
+            self.assertIn("January context only.", january)
+            self.assertIn("- [ ] Carry across the gap (12-20)", february)
+
     def test_render_omits_day_headers_between_populated_days(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)
