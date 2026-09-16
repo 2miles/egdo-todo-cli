@@ -29,6 +29,27 @@ class TaskRef:
     root_created: date | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class TaskSearchResult:
+    """A task paired with the journal day where it is stored."""
+    day: date
+    task: Task
+
+
+@dataclass(frozen=True, slots=True)
+class NoteSearchResult:
+    """A matching note paragraph paired with its journal day."""
+    day: date
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class ArchiveSearchResults:
+    """Task and note matches collected during one read-only archive scan."""
+    tasks: list[TaskSearchResult]
+    notes: list[NoteSearchResult]
+
+
 def add_task(notes_dir: Path, target_date: date, text: str) -> Task:
     return create_task(notes_dir, target_date, text, done=False)
 
@@ -177,6 +198,78 @@ def list_task_refs_readonly(notes_dir: Path, target_date: date) -> list[TaskRef]
     pairs = [(target_date, task) for task in active]
     pairs.extend(list_future_tasks(notes_dir, target_date))
     return _identify_task_refs(pairs)
+
+
+def search_tasks(
+    notes_dir: Path,
+    query: str | None = None,
+    *,
+    tag: str | None = None,
+    completed_only: bool = False,
+) -> list[TaskSearchResult]:
+    """Search stored tasks without rolling the journal forward or writing files."""
+    return search_archive(
+        notes_dir,
+        query,
+        tag=tag,
+        completed_only=completed_only,
+        include_notes=False,
+    ).tasks
+
+
+def search_archive(
+    notes_dir: Path,
+    query: str | None = None,
+    *,
+    tag: str | None = None,
+    completed_only: bool = False,
+    include_tasks: bool = True,
+    include_notes: bool = True,
+) -> ArchiveSearchResults:
+    """Search task text and note paragraphs in one read-only archive scan."""
+    if not notes_dir.exists():
+        return ArchiveSearchResults([], [])
+
+    needle = query.strip().casefold() if query is not None else None
+    normalized_tag = tag.strip().casefold() if tag is not None else None
+    task_results: list[TaskSearchResult] = []
+    note_results: list[NoteSearchResult] = []
+    for path in sorted(notes_dir.rglob("*.md")):
+        if not is_month_file(path):
+            continue
+        state = ensure_state(path)
+        for day_date, day in state.days.items():
+            if include_tasks:
+                for task in day.tasks:
+                    if completed_only and not task.done:
+                        continue
+                    if normalized_tag is not None and task.tag != normalized_tag:
+                        continue
+                    if needle is not None and needle not in task.text.casefold():
+                        continue
+                    task_results.append(TaskSearchResult(day_date, _copy_task(task)))
+            if include_notes and needle is not None:
+                for paragraph in _note_paragraphs(day.notes):
+                    if needle in paragraph.casefold():
+                        note_results.append(NoteSearchResult(day_date, paragraph))
+
+    return ArchiveSearchResults(
+        sorted(task_results, key=lambda result: result.day, reverse=True),
+        sorted(note_results, key=lambda result: result.day, reverse=True),
+    )
+
+
+def _note_paragraphs(lines: list[str]) -> list[str]:
+    """Return complete non-empty paragraphs from stored note lines."""
+    paragraphs: list[str] = []
+    current: list[str] = []
+    for line in [*lines, ""]:
+        if line.strip():
+            current.append(line)
+        elif current:
+            paragraphs.append("\n".join(current))
+            current = []
+    return paragraphs
 
 
 def complete_task(notes_dir: Path, target_date: date, index: str | int) -> Task:

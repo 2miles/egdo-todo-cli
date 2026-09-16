@@ -27,7 +27,13 @@ from egdo.interactive import (
     PriorityFormResult,
     TagFormResult,
 )
-from egdo.store import TaskRef
+from egdo.markdown_store import Task
+from egdo.store import (
+    ArchiveSearchResults,
+    NoteSearchResult,
+    TaskRef,
+    TaskSearchResult,
+)
 from egdo.render import (
     render_confirmation,
     render_list_header,
@@ -73,6 +79,7 @@ class CliTests(unittest.TestCase):
             (["project", "remove", "--help"], "without deleting its Markdown archive"),
             (["add", "--help"], "text, tag, priority, and schedule interactively"),
             (["list", "--help"], "today's active tasks by default"),
+            (["search", "--help"], "case-insensitively"),
             (["done", "--help"], "IDs shown by egdo list"),
             (["edit", "--help"], "provide both values directly"),
             (["move", "--help"], "move future tasks back to today"),
@@ -1262,6 +1269,107 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 1)
         self.assertIn("cannot be combined", error.getvalue())
+
+    def test_search_groups_readonly_results_by_project_and_date(self) -> None:
+        config = Config(
+            projects={
+                "Main": Path("/tmp/main/egdo"),
+                "Minecraft": Path("/tmp/minecraft/egdo"),
+            }
+        )
+        output = StringIO()
+
+        def results(root: Path, query: str, **kwargs) -> ArchiveSearchResults:
+            self.assertEqual(query, "village")
+            self.assertEqual(
+                kwargs,
+                {
+                    "tag": None,
+                    "completed_only": False,
+                    "include_tasks": True,
+                    "include_notes": True,
+                },
+            )
+            if root == Path("/tmp/main/egdo"):
+                return ArchiveSearchResults([], [])
+            return ArchiveSearchResults(
+                tasks=[
+                    TaskSearchResult(
+                        date(2026, 9, 4),
+                        Task("{BUILD} Finish village", date(2026, 9, 1), True),
+                    ),
+                    TaskSearchResult(
+                        date(2026, 8, 29),
+                        Task("Plan village", date(2026, 8, 29), False),
+                    ),
+                ],
+                notes=[
+                    NoteSearchResult(
+                        date(2026, 9, 4), "Village plans\nCheck material list"
+                    )
+                ],
+            )
+
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("egdo.cli.search_archive", side_effect=results) as search_mock,
+            patch(
+                "egdo.cli.console",
+                Console(file=output, force_terminal=False, color_system=None),
+            ),
+        ):
+            exit_code = main(["search", "village", "--all-projects"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(search_mock.call_count, 2)
+        rendered = output.getvalue()
+        self.assertNotIn("Project: Main", rendered)
+        self.assertIn("Project: Minecraft", rendered)
+        self.assertIn("Friday, September 4, 2026", rendered)
+        self.assertIn("Saturday, August 29, 2026", rendered)
+        self.assertIn("[x]", rendered)
+        self.assertIn("[ ]", rendered)
+        self.assertIn("Note   Village plans", rendered)
+        self.assertIn("Check material list", rendered)
+        self.assertNotRegex(rendered, r"\b1\.")
+
+    def test_search_requires_text_or_a_tag(self) -> None:
+        config = Config(projects={"Main": Path("/tmp/main/egdo")})
+        error = StringIO()
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("sys.stderr", error),
+        ):
+            exit_code = main(["search", "--completed"])
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("requires TEXT or --tag TAG", error.getvalue())
+
+    def test_search_rejects_project_override_with_all_projects(self) -> None:
+        config = Config(projects={"Main": Path("/tmp/main/egdo")})
+        error = StringIO()
+        with (
+            patch("egdo.cli.load_config", return_value=config),
+            patch("sys.stderr", error),
+        ):
+            exit_code = main(["-P", "Main", "search", "task", "--all-projects"])
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("cannot be combined", error.getvalue())
+
+    def test_notes_search_rejects_task_only_filters(self) -> None:
+        config = Config(projects={"Main": Path("/tmp/main/egdo")})
+        for task_filter in (["--tag", "work"], ["--completed"]):
+            with self.subTest(task_filter=task_filter):
+                error = StringIO()
+                with (
+                    patch("egdo.cli.load_config", return_value=config),
+                    patch("sys.stderr", error),
+                ):
+                    exit_code = main(["search", "meeting", "--notes", *task_filter])
+
+                self.assertEqual(exit_code, 1)
+                self.assertIn("--notes cannot be combined", error.getvalue())
 
     def test_main_list_completed_renders_completed_tasks(self) -> None:
         config = type(

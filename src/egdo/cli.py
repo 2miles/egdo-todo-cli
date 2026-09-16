@@ -49,6 +49,7 @@ from egdo.store import (
     list_task_refs_readonly,
     move_tasks,
     prioritize_tasks,
+    search_archive,
     tag_tasks,
     untag_tasks,
 )
@@ -57,6 +58,8 @@ from egdo.render import render_confirmation as _render_confirmation
 from egdo.render import render_project_line as _render_project_line
 from egdo.render import render_separator as _render_separator
 from egdo.render import render_section_header as _render_section_header
+from egdo.render import render_search_task_line as _render_search_task_line
+from egdo.render import render_search_note as _render_search_note
 from egdo.render import render_task_line as _render_task_line
 from egdo.render import task_wrap_width as _task_wrap_width
 from rich.console import Console
@@ -72,9 +75,7 @@ class EgdoArgumentParser(argparse.ArgumentParser):
         parsed = super().parse_args(args, namespace)
         if getattr(parsed, "command", None) == "move":
             values = parsed.move_values
-            if len(values) == 1 and re.fullmatch(
-                r"\d+[a-z]{0,2}", values[0], re.IGNORECASE
-            ):
+            if len(values) == 1 and re.fullmatch(r"\d+[a-z]{0,2}", values[0], re.IGNORECASE):
                 parsed.indexes, parsed.when = values, None
             else:
                 parsed.indexes = values[:-1] if values else []
@@ -92,9 +93,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the complete CLI grammar and its command-specific help text."""
     parser = EgdoArgumentParser(
         prog="egdo",
-        description=(
-            "A rolling Markdown work journal. Run without a command to show your tasks."
-        ),
+        description=("A rolling Markdown work journal. Run without a command to show your tasks."),
         epilog=(
             "Examples:\n"
             "  egdo init Main\n"
@@ -145,9 +144,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog="Example:\n  cd ~/Notes\n  egdo init Main",
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    init_parser.add_argument(
-        "name", metavar="NAME", help="Display name, such as Main or Minecraft"
-    )
+    init_parser.add_argument("name", metavar="NAME", help="Display name, such as Main or Minecraft")
 
     project_parser = subparsers.add_parser(
         "project",
@@ -189,16 +186,10 @@ def build_parser() -> argparse.ArgumentParser:
             "Unregister a configured project without deleting its Markdown archive. "
             "Confirmation is required unless --force is supplied."
         ),
-        epilog=(
-            "Examples:\n"
-            "  egdo project remove Demo\n"
-            "  egdo project remove Demo --force"
-        ),
+        epilog=("Examples:\n" "  egdo project remove Demo\n" "  egdo project remove Demo --force"),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    project_remove_parser.add_argument(
-        "name", metavar="NAME", help="Configured project name"
-    )
+    project_remove_parser.add_argument("name", metavar="NAME", help="Configured project name")
     project_remove_parser.add_argument(
         "--force",
         action="store_true",
@@ -266,14 +257,43 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser.add_argument(
         "--all-projects",
         action="store_true",
-        help=(
-            "Read tasks from every project; cannot be combined with other list filters"
-        ),
+        help=("Read tasks from every project; cannot be combined with other list filters"),
     )
     list_view = list_parser.add_mutually_exclusive_group()
     list_view.add_argument("--future", action="store_true", help="Show only future tasks")
-    list_view.add_argument(
-        "--completed", action="store_true", help="Show today's completed tasks"
+    list_view.add_argument("--completed", action="store_true", help="Show today's completed tasks")
+
+    search_parser = subparsers.add_parser(
+        "search",
+        help="Search archived tasks",
+        description=(
+            "Search tasks and notes case-insensitively across the selected project's archive. "
+            "Results are read-only and grouped by date."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  egdo search dentist\n"
+            "  egdo search --tag work\n"
+            "  egdo search --completed application\n"
+            "  egdo search dentist --notes\n"
+            "  egdo search dentist --all-projects"
+        ),
+        formatter_class=RawDescriptionRichHelpFormatter,
+    )
+    search_parser.add_argument(
+        "query", nargs="?", metavar="TEXT", help="Text to find in task descriptions"
+    )
+    search_parser.add_argument(
+        "-t", "--tag", metavar="TAG", help="Show only tasks with this leading tag"
+    )
+    search_parser.add_argument(
+        "--completed", action="store_true", help="Show only completed matches"
+    )
+    search_kind = search_parser.add_mutually_exclusive_group()
+    search_kind.add_argument("--tasks", action="store_true", help="Search task text only")
+    search_kind.add_argument("--notes", action="store_true", help="Search note paragraphs only")
+    search_parser.add_argument(
+        "--all-projects", action="store_true", help="Search every configured project"
     )
 
     done_parser = subparsers.add_parser(
@@ -303,12 +323,8 @@ def build_parser() -> argparse.ArgumentParser:
         epilog='Examples:\n  egdo edit\n  egdo edit 2\n  egdo edit 2 "Buy oat milk"',
         formatter_class=RawDescriptionRichHelpFormatter,
     )
-    edit_parser.add_argument(
-        "index", nargs="?", metavar="ID", help="Task ID shown by egdo list"
-    )
-    edit_parser.add_argument(
-        "text", nargs="?", metavar="TEXT", help="Replacement task text"
-    )
+    edit_parser.add_argument("index", nargs="?", metavar="ID", help="Task ID shown by egdo list")
+    edit_parser.add_argument("text", nargs="?", metavar="TEXT", help="Replacement task text")
 
     move_parser = subparsers.add_parser(
         "move",
@@ -403,10 +419,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Append text to today's Notes section, or omit TEXT to compose a multiline "
             "note in $VISUAL or $EDITOR."
         ),
-        epilog=(
-            'Examples:\n  egdo note\n'
-            '  egdo note "Need to test villager trading setup"'
-        ),
+        epilog=("Examples:\n  egdo note\n" '  egdo note "Need to test villager trading setup"'),
         formatter_class=RawDescriptionRichHelpFormatter,
     )
     note_parser.add_argument(
@@ -465,7 +478,7 @@ def main(argv: list[str] | None = None) -> int:
             return _run_project(args, config)
         config = load_config()
         _configure_console(config)
-        if not (args.command == "list" and args.all_projects):
+        if not (args.command in {"list", "search"} and getattr(args, "all_projects", False)):
             if args.selected_project is not None:
                 config = config.select(args.selected_project)
         target_date = date.today()
@@ -494,7 +507,10 @@ def main(argv: list[str] | None = None) -> int:
             render_list_header=_render_list_header,
             render_separator=_render_separator,
             render_section_header=_render_section_header,
+            render_search_task_line=_render_search_task_line,
+            render_search_note=_render_search_note,
             render_task_line=_render_task_line,
+            search_archive=search_archive,
             tag_tasks=tag_tasks,
             task_wrap_width=_task_wrap_width,
             untag_tasks=untag_tasks,
@@ -534,9 +550,7 @@ def _parse_open_month(values: list[str], today: date) -> date:
         month = _month_number(values[0])
         if month is not None and re.fullmatch(r"\d{4}", values[1]):
             return _replace_month(today, int(values[1]), month)
-    raise ValueError(
-        "Invalid month. Use YYYY-MM, MONTH, or MONTH YYYY, such as `jan 2026`."
-    )
+    raise ValueError("Invalid month. Use YYYY-MM, MONTH, or MONTH YYYY, such as `jan 2026`.")
 
 
 def _month_number(value: str) -> int | None:
@@ -575,9 +589,7 @@ def _run_project(args: argparse.Namespace, config: object | None) -> int:
         console.print()
         for name, root in config.projects.items():
             console.print(
-                _render_project_line(
-                    name, str(root), is_active=name == config.active_project
-                )
+                _render_project_line(name, str(root), is_active=name == config.active_project)
             )
         return 0
     if args.project_command is None:
@@ -615,9 +627,7 @@ def _run_init(name: str, config: object | None, directory: Path) -> int:
     if marker_path.exists():
         existing = read_local_project(marker_path)
         if existing.name.casefold() != name.strip().casefold():
-            raise ValueError(
-                f"{marker_path} already identifies project “{existing.name}”"
-            )
+            raise ValueError(f"{marker_path} already identifies project “{existing.name}”")
         name = existing.name
 
     root = directory.resolve() / "egdo"
@@ -631,9 +641,7 @@ def _run_init(name: str, config: object | None, directory: Path) -> int:
         console.print(f"Project “{project_name}” is already initialized at {initialized_root}.")
     else:
         console.print(
-            _render_confirmation(
-                "Initialized project", project_name, detail=str(initialized_root)
-            )
+            _render_confirmation("Initialized project", project_name, detail=str(initialized_root))
         )
     return 0
 
@@ -649,9 +657,7 @@ def _confirm_project_removal(name: str) -> bool:
         raise ValueError(
             "Project removal requires confirmation in a terminal; use --force to continue"
         )
-    answer = input(
-        f"Unregister project “{name}”? Its files will not be deleted. [y/N] "
-    )
+    answer = input(f"Unregister project “{name}”? Its files will not be deleted. [y/N] ")
     return answer.strip().casefold() in {"y", "yes"}
 
 

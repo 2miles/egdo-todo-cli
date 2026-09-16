@@ -3,19 +3,6 @@
 These are possibilities rather than release requirements. Reconsider them after real usage
 shows a repeated need.
 
-### Modest search
-
-Search is the highest-priority missing user feature because it makes the archive substantially more valuable:
-Search could make the archive substantially more valuable:
-
-```bash
-egdo search dentist
-egdo search --tag work
-egdo search --completed application
-```
-
-A simple text, tag, and date search is enough. Egdo does not need a query language.
-
 ### Completed work by date
 
 A read-only retrospective command could answer “What did I accomplish on this date?” across

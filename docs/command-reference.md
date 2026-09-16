@@ -2,20 +2,21 @@
 
 ## Commands
 
-| Command | Purpose | Interactive |
-| --- | --- | --- |
-| [`egdo init NAME`](#egdo-init) | Initialize a journal | No |
-| [`egdo project`](#egdo-project) | Choose or manage projects | Yes |
-| [`egdo open`](#egdo-open) | Open a monthly Markdown file | No |
-| [`egdo add`](#egdo-add) | Add a task | Yes |
-| [`egdo`](#egdo-list) / [`egdo list`](#egdo-list) | Show tasks and filtered views | No |
-| [`egdo done`](#egdo-done) | Complete tasks | Yes |
-| [`egdo edit`](#egdo-edit) | Edit a task | Yes |
-| [`egdo move`](#egdo-move) | Reschedule tasks | Yes |
-| [`egdo delete`](#egdo-delete) | Delete tasks | Yes |
-| [`egdo tag`](#egdo-tag) | Set or remove tags | Yes |
-| [`egdo priority`](#egdo-priority) | Set task priority | Yes |
-| [`egdo note`](#egdo-note) | Add a note | Yes |
+| Command                                          | Purpose                         | Interactive |
+| ------------------------------------------------ | ------------------------------- | ----------- |
+| [`egdo init NAME`](#egdo-init)                   | Initialize a journal            | No          |
+| [`egdo project`](#egdo-project)                  | Choose or manage projects       | Yes         |
+| [`egdo open`](#egdo-open)                        | Open a monthly Markdown file    | No          |
+| [`egdo add`](#egdo-add)                          | Add a task                      | Yes         |
+| [`egdo`](#egdo-list) / [`egdo list`](#egdo-list) | Show tasks and filtered views   | No          |
+| [`egdo search`](#egdo-search)                    | Search archived tasks and notes | No          |
+| [`egdo done`](#egdo-done)                        | Complete tasks                  | Yes         |
+| [`egdo edit`](#egdo-edit)                        | Edit a task                     | Yes         |
+| [`egdo move`](#egdo-move)                        | Reschedule tasks                | Yes         |
+| [`egdo delete`](#egdo-delete)                    | Delete tasks                    | Yes         |
+| [`egdo tag`](#egdo-tag)                          | Set or remove tags              | Yes         |
+| [`egdo priority`](#egdo-priority)                | Set task priority               | Yes         |
+| [`egdo note`](#egdo-note)                        | Add a note                      | Yes         |
 
 Interactive commands open a guided prompt when required input is omitted.
 
@@ -157,6 +158,29 @@ egdo list --all-projects
 This view is grouped by project and strictly read-only. IDs remain local to each project;
 select a project before changing one of its tasks, for example `egdo -P Minecraft done 2`.
 It cannot be combined with `-P/--project` or another list filter.
+
+## `egdo search`
+
+Search task text and note paragraphs case-insensitively across the selected project's
+monthly archive:
+
+```bash
+egdo search dentist
+egdo search --tag work
+egdo search --completed application
+egdo search dentist --notes
+egdo -P Minecraft search village
+egdo search dentist --all-projects
+```
+
+Ordinary text search includes tasks and notes. Use `--tasks` or `--notes` to search only one
+kind. Multiline note matches display the complete matching paragraph. Task search includes
+active and completed tasks by default; use `-t/--tag` for an exact tag filter and
+`--completed` to restrict matches to completed tasks. Those task-only filters imply
+`--tasks` and cannot be combined with `--notes`. Either search text or a tag is required.
+
+`--all-projects` searches every configured project and cannot be combined with
+`-P/--project`.
 
 ## `egdo done`
 

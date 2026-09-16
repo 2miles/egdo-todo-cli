@@ -91,6 +91,10 @@ your configured editor.
 **Rollover keeps work visible.** Incomplete tasks move into the current day while retaining
 their original creation dates; completed tasks and notes stay in history.
 
+**History stays searchable.** Run `egdo search dentist` to search the selected project's
+tasks and notes, or add `--all-projects` to search every configured journal without
+modifying their files.
+
 **Project selection is explicit.** Running `egdo init NAME` creates a local marker and an
 `egdo/` archive. Choose the active project once and Egdo keeps using it until you switch.
 

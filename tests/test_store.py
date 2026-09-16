@@ -32,6 +32,8 @@ from egdo.store import (
     move_tasks,
     prioritize_task,
     prioritize_tasks,
+    search_archive,
+    search_tasks,
     tag_task,
     tag_tasks,
     untag_tasks,
@@ -39,6 +41,50 @@ from egdo.store import (
 
 
 class StoreTests(unittest.TestCase):
+    def test_search_tasks_filters_text_tag_and_completion_without_writing(self) -> None:
+        with TemporaryDirectory() as tmp:
+            notes_dir = Path(tmp)
+            first_day = date(2026, 8, 3)
+            second_day = date(2026, 9, 5)
+            create_task(notes_dir, first_day, "{HEALTH} Call Dentist", done=True)
+            create_task(notes_dir, second_day, "{WORK} Dentist reimbursement", done=False)
+            create_task(notes_dir, second_day, "{HEALTH} Book physical", done=False)
+            add_note(
+                notes_dir,
+                second_day,
+                "Discuss dentist options\nBring insurance card\n\nUnrelated note",
+            )
+            before = {path: path.read_bytes() for path in notes_dir.rglob("*.md")}
+
+            text_matches = search_tasks(notes_dir, "DENTIST")
+            completed = search_tasks(notes_dir, "dentist", completed_only=True)
+            tagged = search_tasks(notes_dir, tag="health")
+            archive = search_archive(notes_dir, "dentist")
+
+            self.assertEqual(
+                [(result.day, result.task.text) for result in text_matches],
+                [
+                    (second_day, "{WORK} Dentist reimbursement"),
+                    (first_day, "{HEALTH} Call Dentist"),
+                ],
+            )
+            self.assertEqual(
+                [(result.day, result.task.text) for result in completed],
+                [(first_day, "{HEALTH} Call Dentist")],
+            )
+            self.assertEqual(
+                [result.task.text for result in tagged],
+                ["{HEALTH} Book physical", "{HEALTH} Call Dentist"],
+            )
+            self.assertEqual(
+                [(result.day, result.text) for result in archive.notes],
+                [(second_day, "Discuss dentist options\nBring insurance card")],
+            )
+            self.assertEqual(
+                {path: path.read_bytes() for path in notes_dir.rglob("*.md")},
+                before,
+            )
+
     def test_readonly_project_lists_compute_rollover_without_writing(self) -> None:
         with TemporaryDirectory() as tmp:
             notes_dir = Path(tmp)

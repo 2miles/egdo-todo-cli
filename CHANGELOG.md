@@ -12,5 +12,6 @@ move those entries under a version and release date when publishing a release.
 - Direct and interactive task workflows with named project support.
 - Persistent display preferences for color and post-mutation refreshes.
 - Monthly file opening through `$VISUAL`, `$EDITOR`, or `vi`.
+- Read-only task and note search across one project or every configured project.
 - Actionable Markdown diagnostics, atomic writes, and optional debug tracebacks.
 - Continuous integration across Python 3.10 through 3.14.

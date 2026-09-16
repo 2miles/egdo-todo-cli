@@ -119,6 +119,23 @@ with `display.refresh_after_mutation = false` unambiguous.
 `--all-projects` cannot be combined with `-P/--project`, `--future`, `--completed`, or
 `--tag`.
 
+Search the selected project's complete task archive without changing any files:
+
+```bash
+egdo search dentist
+egdo search --tag work
+egdo search --completed application
+egdo search dentist --notes
+egdo search dentist --all-projects
+```
+
+Search is case-insensitive and searches both task text and complete note paragraphs by
+default. Use `--tasks` or `--notes` to narrow the result type. `--tag` and `--completed` are
+task-only filters and cannot be combined with `--notes`. Matches are grouped by project and
+journal date. Use `-P/--project` to search one non-active project or `--all-projects` to
+search them all. Search results do not show task IDs because they are a read-only historical
+view.
+
 Open a project's monthly Markdown file directly in your editor:
 
 ```bash
