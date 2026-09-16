@@ -44,7 +44,10 @@ class HandlerDeps:
     render_list_header: Any
     render_separator: Any
     render_section_header: Any
+    render_search_note: Any
+    render_search_task_line: Any
     render_task_line: Any
+    search_archive: Any
     tag_tasks: Any
     task_wrap_width: Any
     untag_tasks: Any
@@ -101,6 +104,9 @@ def dispatch_command(args: Any, config: Any, target_date: date, console: Console
 
     if args.command == "list":
         return _handle_list(args, config, target_date, console, deps)
+
+    if args.command == "search":
+        return _handle_search(args, config, console, deps)
 
     if args.command == "done":
         indexes = args.indexes
@@ -323,6 +329,84 @@ def _handle_list(args: Any, config: Any, target_date: date, console: Console, de
     return _render_active_list(
         indexed_refs, args, config, target_date, console, deps
     )
+
+
+def _handle_search(
+    args: Any, config: Any, console: Console, deps: HandlerDeps
+) -> int:
+    """Search one or every project and render non-actionable archive results."""
+    query = args.query.strip() if args.query is not None else None
+    tag = args.tag.strip() if args.tag is not None else None
+    if not query and not tag:
+        raise ValueError("Search requires TEXT or --tag TAG")
+    if args.notes and (tag or args.completed):
+        raise ValueError("--notes cannot be combined with --tag or --completed")
+    if args.all_projects and getattr(args, "selected_project", None) is not None:
+        raise ValueError("--project cannot be combined with --all-projects")
+
+    projects = (
+        config.projects.items()
+        if args.all_projects
+        else [(_project_name(config), config.root)]
+    )
+    rendered = False
+    for name, root in projects:
+        try:
+            results = deps.search_archive(
+                root,
+                query,
+                tag=tag,
+                completed_only=args.completed,
+                include_tasks=not args.notes,
+                include_notes=not args.tasks and tag is None and not args.completed,
+            )
+        except (OSError, ValueError) as exc:
+            if args.all_projects:
+                raise ValueError(f"Project “{name}” at {root}: {exc}") from exc
+            raise
+        if not results.tasks and not results.notes:
+            continue
+        _render_search_results(name, results, console, deps)
+        rendered = True
+
+    if not rendered:
+        console.print()
+        console.print(Text("No matching tasks or notes.", style="dim"))
+    return 0
+
+
+def _render_search_results(
+    project_name: str, results: Any, console: Console, deps: HandlerDeps
+) -> None:
+    """Render one project's search results grouped by stored journal day."""
+    wrap_width = deps.task_wrap_width(console)
+    console.print()
+    heading = Text("Project: ", style="dim")
+    heading.append(project_name, style="bold cyan")
+    console.print(heading)
+    days = sorted(
+        {result.day for result in results.tasks + results.notes}, reverse=True
+    )
+    for position, day in enumerate(days):
+        if position:
+            console.print()
+        label = day.strftime("%A, %B ") + f"{day.day}, {day.year}"
+        console.print(deps.render_section_header(label, wrap_width))
+        for result in results.tasks:
+            if result.day == day:
+                console.print(
+                    deps.render_search_task_line(
+                        result.task.text,
+                        result.task.done,
+                        wrap_width=wrap_width,
+                        depth=result.task.depth,
+                    )
+                )
+        for result in results.notes:
+            if result.day == day:
+                console.print(
+                    deps.render_search_note(result.text, wrap_width=wrap_width)
+                )
 
 
 def _filter_indexed_refs(

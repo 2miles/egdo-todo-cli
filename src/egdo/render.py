@@ -123,6 +123,45 @@ def render_task_line(
     return table
 
 
+def render_search_task_line(
+    task_text: str,
+    done: bool,
+    wrap_width: int = 88,
+    depth: int = 0,
+) -> Table:
+    """Render an archive result with task state but no actionable task ID."""
+    priority, tag, body = split_task_prefix(task_text)
+    description_width = max(8, max(20, wrap_width) - 4 - 3 - TAG_COLUMN_WIDTH)
+    table = Table.grid(padding=0)
+    table.add_column(width=4, no_wrap=True)
+    table.add_column(width=3, no_wrap=True)
+    table.add_column(width=TAG_COLUMN_WIDTH, no_wrap=True)
+    table.add_column(width=description_width)
+
+    description = Text()
+    if depth > 0:
+        description.append("  " * (depth - 1))
+        description.append("· ", style="dim")
+    description.append(_capitalize_first_letter(body))
+    table.add_row(
+        Text("[x] " if done else "[ ] ", style="green" if done else "dim"),
+        Text("●  " if priority else "   "),
+        Text(_truncate_tag(tag) if tag else "", style=TAG_STYLE),
+        description,
+        style="dim" if done else None,
+    )
+    return table
+
+
+def render_search_note(text: str, wrap_width: int = 88) -> Table:
+    """Render a complete matching note paragraph with a visible type label."""
+    table = Table.grid(padding=0)
+    table.add_column(width=7, no_wrap=True, style="dim cyan")
+    table.add_column(width=max(8, max(20, wrap_width) - 7))
+    table.add_row("Note", Text(text))
+    return table
+
+
 def render_picker_task_line(
     identifier: str,
     task_text: str,
