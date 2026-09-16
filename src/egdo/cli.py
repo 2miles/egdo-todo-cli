@@ -1,4 +1,4 @@
-"""Command-line parser, dependency wiring, and process-level error handling."""
+"""Command-line parsing, process setup, and error handling."""
 
 from __future__ import annotations
 
@@ -22,46 +22,14 @@ from egdo.config import (
     save_config,
     use_project,
 )
-from egdo.dates import parse_future_date as _parse_future_date
-from egdo.handlers import HandlerDeps
 from egdo.handlers import dispatch_command
 from egdo.interactive import (
     open_editor,
-    prompt_add_form,
-    prompt_delete_form,
-    prompt_done_form,
-    prompt_edit_form,
-    prompt_move_form,
-    prompt_note_form,
-    prompt_priority_form,
     prompt_project_form,
-    prompt_tag_form,
 )
 from egdo.markdown_store import file_path
-from egdo.store import (
-    add_note,
-    complete_tasks,
-    create_task,
-    delete_tasks,
-    edit_task,
-    list_completed_tasks,
-    list_task_refs,
-    list_task_refs_readonly,
-    move_tasks,
-    prioritize_tasks,
-    search_archive,
-    tag_tasks,
-    untag_tasks,
-)
-from egdo.render import render_list_header as _render_list_header
 from egdo.render import render_confirmation as _render_confirmation
 from egdo.render import render_project_line as _render_project_line
-from egdo.render import render_separator as _render_separator
-from egdo.render import render_section_header as _render_section_header
-from egdo.render import render_search_task_line as _render_search_task_line
-from egdo.render import render_search_note as _render_search_note
-from egdo.render import render_task_line as _render_task_line
-from egdo.render import task_wrap_width as _task_wrap_width
 from rich.console import Console
 from rich_argparse import RawDescriptionRichHelpFormatter
 
@@ -484,38 +452,7 @@ def main(argv: list[str] | None = None) -> int:
         target_date = date.today()
         if args.command == "open":
             return _run_open(args.month_values, config, target_date)
-        deps = HandlerDeps(
-            add_note=add_note,
-            complete_tasks=complete_tasks,
-            create_task=create_task,
-            delete_tasks=delete_tasks,
-            edit_task=edit_task,
-            list_completed_tasks=list_completed_tasks,
-            list_task_refs=list_task_refs,
-            list_task_refs_readonly=list_task_refs_readonly,
-            move_tasks=move_tasks,
-            parse_future_date=_parse_future_date,
-            prompt_add_form=prompt_add_form,
-            prompt_delete_form=prompt_delete_form,
-            prompt_done_form=prompt_done_form,
-            prompt_edit_form=prompt_edit_form,
-            prompt_move_form=prompt_move_form,
-            prompt_note_form=prompt_note_form,
-            prompt_priority_form=prompt_priority_form,
-            prompt_tag_form=prompt_tag_form,
-            prioritize_tasks=prioritize_tasks,
-            render_list_header=_render_list_header,
-            render_separator=_render_separator,
-            render_section_header=_render_section_header,
-            render_search_task_line=_render_search_task_line,
-            render_search_note=_render_search_note,
-            render_task_line=_render_task_line,
-            search_archive=search_archive,
-            tag_tasks=tag_tasks,
-            task_wrap_width=_task_wrap_width,
-            untag_tasks=untag_tasks,
-        )
-        return dispatch_command(args, config, target_date, console, deps)
+        return dispatch_command(args, config, target_date, console)
     except Exception as exc:  # noqa: BLE001
         if args.debug:
             raise

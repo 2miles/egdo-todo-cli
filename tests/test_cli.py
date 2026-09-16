@@ -464,7 +464,7 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.edit_task", return_value=edited_task) as edit_task_mock,
+            patch("egdo.handlers.store.edit_task", return_value=edited_task) as edit_task_mock,
             patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -491,7 +491,7 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.create_task", return_value=created_task) as create_task_mock,
+            patch("egdo.handlers.store.create_task", return_value=created_task) as create_task_mock,
             patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -518,9 +518,9 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.create_task", return_value=created_task),
+            patch("egdo.handlers.store.create_task", return_value=created_task),
             patch(
-                "egdo.cli.list_task_refs",
+                "egdo.handlers.store.list_task_refs",
                 return_value=[TaskRef(mocked_today, created_task)],
             ) as list_task_refs_mock,
             patch(
@@ -554,8 +554,8 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.create_task", return_value=created_task),
-            patch("egdo.cli.list_task_refs") as list_task_refs_mock,
+            patch("egdo.handlers.store.create_task", return_value=created_task),
+            patch("egdo.handlers.store.list_task_refs") as list_task_refs_mock,
             patch(
                 "egdo.cli.console",
                 Console(file=output, force_terminal=True, color_system=None, width=80),
@@ -583,7 +583,7 @@ class CliTests(unittest.TestCase):
 
         with (
             patch("egdo.cli.load_config", return_value=config),
-            patch("egdo.cli.add_note") as add_note_mock,
+            patch("egdo.handlers.store.add_note") as add_note_mock,
             patch(
                 "egdo.cli.console",
                 Console(file=output, force_terminal=False, color_system=None),
@@ -608,7 +608,7 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.list_task_refs", return_value=[]) as list_task_refs_mock,
+            patch("egdo.handlers.store.list_task_refs", return_value=[]) as list_task_refs_mock,
             patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -639,7 +639,7 @@ class CliTests(unittest.TestCase):
                 patch("egdo.cli.load_config", return_value=config),
                 patch("egdo.cli._current_directory", return_value=directory),
                 patch("egdo.cli.date") as date_mock,
-                patch("egdo.cli.list_task_refs", return_value=[]) as refs_mock,
+                patch("egdo.handlers.store.list_task_refs", return_value=[]) as refs_mock,
                 patch(
                     "egdo.cli.console",
                     Console(file=output, force_terminal=False, color_system=None),
@@ -832,12 +832,12 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.list_task_refs", return_value=[]),
+            patch("egdo.handlers.store.list_task_refs", return_value=[]),
             patch(
-                "egdo.cli.prompt_edit_form",
+                "egdo.handlers.interactive.prompt_edit_form",
                 return_value=EditFormResult("2", "New text"),
             ),
-            patch("egdo.cli.edit_task", return_value=edited) as edit_mock,
+            patch("egdo.handlers.store.edit_task", return_value=edited) as edit_mock,
         ):
             date_mock.today.return_value = today
             exit_code = main(["edit"])
@@ -854,12 +854,12 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.list_task_refs", return_value=[]),
+            patch("egdo.handlers.store.list_task_refs", return_value=[]),
             patch(
-                "egdo.cli.prompt_move_form",
+                "egdo.handlers.interactive.prompt_move_form",
                 return_value=MoveFormResult(["3"], destination),
             ),
-            patch("egdo.cli.move_tasks", return_value=[moved]) as move_mock,
+            patch("egdo.handlers.store.move_tasks", return_value=[moved]) as move_mock,
         ):
             date_mock.today.return_value = today
             exit_code = main(["move"])
@@ -875,9 +875,9 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.list_task_refs", return_value=[]),
-            patch("egdo.cli.prompt_delete_form", return_value=["4"]),
-            patch("egdo.cli.delete_tasks", return_value=[deleted]) as delete_mock,
+            patch("egdo.handlers.store.list_task_refs", return_value=[]),
+            patch("egdo.handlers.interactive.prompt_delete_form", return_value=["4"]),
+            patch("egdo.handlers.store.delete_tasks", return_value=[deleted]) as delete_mock,
         ):
             date_mock.today.return_value = today
             exit_code = main(["delete"])
@@ -893,12 +893,12 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.list_task_refs", return_value=[]),
+            patch("egdo.handlers.store.list_task_refs", return_value=[]),
             patch(
-                "egdo.cli.prompt_tag_form",
+                "egdo.handlers.interactive.prompt_tag_form",
                 return_value=TagFormResult(["5"], "work"),
             ),
-            patch("egdo.cli.tag_tasks", return_value=[tagged]) as tag_mock,
+            patch("egdo.handlers.store.tag_tasks", return_value=[tagged]) as tag_mock,
         ):
             date_mock.today.return_value = today
             exit_code = main(["tag"])
@@ -914,12 +914,12 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.list_task_refs", return_value=[]),
+            patch("egdo.handlers.store.list_task_refs", return_value=[]),
             patch(
-                "egdo.cli.prompt_priority_form",
+                "egdo.handlers.interactive.prompt_priority_form",
                 return_value=PriorityFormResult(["6"], "important"),
             ),
-            patch("egdo.cli.prioritize_tasks", return_value=[task]) as priority_mock,
+            patch("egdo.handlers.store.prioritize_tasks", return_value=[task]) as priority_mock,
         ):
             date_mock.today.return_value = today
             exit_code = main(["priority"])
@@ -936,8 +936,8 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.prompt_note_form", return_value="Remember this") as prompt_mock,
-            patch("egdo.cli.add_note") as note_mock,
+            patch("egdo.handlers.interactive.prompt_note_form", return_value="Remember this") as prompt_mock,
+            patch("egdo.handlers.store.add_note") as note_mock,
         ):
             date_mock.today.return_value = today
             exit_code = main(["note"])
@@ -982,8 +982,8 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.prompt_add_form", return_value=form) as prompt_mock,
-            patch("egdo.cli.create_task", return_value=created_task) as create_task_mock,
+            patch("egdo.handlers.interactive.prompt_add_form", return_value=form) as prompt_mock,
+            patch("egdo.handlers.store.create_task", return_value=created_task) as create_task_mock,
             patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -1014,7 +1014,7 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.create_task", return_value=created_task) as create_task_mock,
+            patch("egdo.handlers.store.create_task", return_value=created_task) as create_task_mock,
             patch("egdo.cli.console", Console(file=StringIO(), force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -1042,7 +1042,7 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.create_task", return_value=created_task) as create_task_mock,
+            patch("egdo.handlers.store.create_task", return_value=created_task) as create_task_mock,
             patch("egdo.cli.console", Console(file=StringIO(), force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -1068,7 +1068,7 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.create_task", return_value=created_task) as create_task_mock,
+            patch("egdo.handlers.store.create_task", return_value=created_task) as create_task_mock,
             patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -1096,7 +1096,7 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.move_tasks", return_value=[moved_task, second_moved_task]) as move_tasks_mock,
+            patch("egdo.handlers.store.move_tasks", return_value=[moved_task, second_moved_task]) as move_tasks_mock,
             patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -1120,7 +1120,7 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.delete_tasks", return_value=tasks) as delete_tasks_mock,
+            patch("egdo.handlers.store.delete_tasks", return_value=tasks) as delete_tasks_mock,
             patch("egdo.cli.console", Console(file=StringIO(), force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -1140,7 +1140,7 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.untag_tasks", return_value=tasks) as untag_tasks_mock,
+            patch("egdo.handlers.store.untag_tasks", return_value=tasks) as untag_tasks_mock,
             patch("egdo.cli.console", Console(file=StringIO(), force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -1166,7 +1166,7 @@ class CliTests(unittest.TestCase):
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
             patch(
-                "egdo.cli.list_task_refs",
+                "egdo.handlers.store.list_task_refs",
                 return_value=[
                     TaskRef(mocked_today, object()),
                     TaskRef(mocked_today, object()),
@@ -1218,10 +1218,10 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.list_task_refs") as mutating_list_mock,
+            patch("egdo.handlers.store.list_task_refs") as mutating_list_mock,
             patch("egdo.cli.save_config") as save_config_mock,
             patch(
-                "egdo.cli.list_task_refs_readonly", side_effect=snapshots
+                "egdo.handlers.store.list_task_refs_readonly", side_effect=snapshots
             ) as readonly_list_mock,
             patch(
                 "egdo.cli.console",
@@ -1312,7 +1312,7 @@ class CliTests(unittest.TestCase):
 
         with (
             patch("egdo.cli.load_config", return_value=config),
-            patch("egdo.cli.search_archive", side_effect=results) as search_mock,
+            patch("egdo.handlers.store.search_archive", side_effect=results) as search_mock,
             patch(
                 "egdo.cli.console",
                 Console(file=output, force_terminal=False, color_system=None),
@@ -1384,7 +1384,7 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.list_completed_tasks", return_value=[completed_task]) as list_completed_tasks_mock,
+            patch("egdo.handlers.store.list_completed_tasks", return_value=[completed_task]) as list_completed_tasks_mock,
             patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -1415,7 +1415,7 @@ class CliTests(unittest.TestCase):
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
             patch(
-                "egdo.cli.list_task_refs",
+                "egdo.handlers.store.list_task_refs",
                 return_value=[
                     TaskRef(mocked_today, todays_task),
                     TaskRef(mocked_today, carried_task),
@@ -1454,7 +1454,7 @@ class CliTests(unittest.TestCase):
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
             patch(
-                "egdo.cli.list_task_refs",
+                "egdo.handlers.store.list_task_refs",
                 return_value=[
                     TaskRef(mocked_today, todays_task),
                     TaskRef(date(2026, 4, 7), tomorrow_task),
@@ -1533,7 +1533,7 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.complete_tasks", return_value=[first_task, second_task]) as complete_tasks_mock,
+            patch("egdo.handlers.store.complete_tasks", return_value=[first_task, second_task]) as complete_tasks_mock,
             patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -1556,9 +1556,9 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.list_task_refs", return_value=[ref]),
-            patch("egdo.cli.prompt_done_form", return_value=["1"]) as prompt_mock,
-            patch("egdo.cli.complete_tasks", return_value=[task]) as complete_mock,
+            patch("egdo.handlers.store.list_task_refs", return_value=[ref]),
+            patch("egdo.handlers.interactive.prompt_done_form", return_value=["1"]) as prompt_mock,
+            patch("egdo.handlers.store.complete_tasks", return_value=[task]) as complete_mock,
             patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -1579,7 +1579,7 @@ class CliTests(unittest.TestCase):
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
             patch(
-                "egdo.cli.complete_tasks", return_value=[active_task, future_one, future_two]
+                "egdo.handlers.store.complete_tasks", return_value=[active_task, future_one, future_two]
             ) as complete_mock,
             patch("egdo.cli.console", Console(file=StringIO(), force_terminal=False, color_system=None)),
         ):
@@ -1602,7 +1602,7 @@ class CliTests(unittest.TestCase):
         with (
             patch("egdo.cli.load_config", return_value=config),
             patch("egdo.cli.date") as date_mock,
-            patch("egdo.cli.move_tasks", return_value=[moved_task]) as move_tasks_mock,
+            patch("egdo.handlers.store.move_tasks", return_value=[moved_task]) as move_tasks_mock,
             patch("egdo.cli.console", Console(file=output, force_terminal=False, color_system=None)),
         ):
             date_mock.today.return_value = mocked_today
@@ -1617,7 +1617,7 @@ class CliTests(unittest.TestCase):
     def test_main_defaults_to_list_when_no_command_is_given(self) -> None:
         with (
             patch("egdo.cli.load_config") as load_config_mock,
-            patch("egdo.cli.list_task_refs", return_value=[]),
+            patch("egdo.handlers.store.list_task_refs", return_value=[]),
             patch("egdo.cli.console", Console(file=StringIO(), force_terminal=False, color_system=None)),
         ):
             load_config_mock.return_value = type(

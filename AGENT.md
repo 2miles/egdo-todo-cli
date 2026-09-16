@@ -27,7 +27,7 @@
 
 ## Code Map
 
-- `src/egdo/cli.py`: argument parsing, dependency wiring, and process entrypoint
+- `src/egdo/cli.py`: argument parsing, process setup, and entrypoint
 - `src/egdo/handlers.py`: command dispatch and terminal-facing workflows
 - `src/egdo/config.py`: config load/write
 - `src/egdo/dates.py`: date parsing and display formatting
