@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import calendar
 from datetime import date
 import os
 from pathlib import Path
@@ -11,6 +10,7 @@ import re
 import sys
 
 from egdo import __version__
+from egdo import dates
 from egdo.config import (
     CONFIG_PATH,
     LOCAL_CONFIG_NAME,
@@ -465,49 +465,11 @@ def main(argv: list[str] | None = None) -> int:
 
 def _run_open(month_values: list[str], config: object, today: date) -> int:
     """Open the selected project's requested monthly Markdown file."""
-    selected_month = _parse_open_month(month_values, today)
+    selected_month = dates.parse_open_month(month_values, today)
     path = file_path(config.root, selected_month)
     path.parent.mkdir(parents=True, exist_ok=True)
     open_editor(path)
     return 0
-
-
-def _parse_open_month(values: list[str], today: date) -> date:
-    """Parse the friendly month forms accepted by ``egdo open``."""
-    if not values:
-        return today.replace(day=1)
-    if len(values) == 1:
-        iso_match = re.fullmatch(r"(\d{4})-(\d{2})", values[0])
-        if iso_match:
-            return _replace_month(today, int(iso_match[1]), int(iso_match[2]))
-        month = _month_number(values[0])
-        if month is not None:
-            return today.replace(month=month, day=1)
-    elif len(values) == 2:
-        month = _month_number(values[0])
-        if month is not None and re.fullmatch(r"\d{4}", values[1]):
-            return _replace_month(today, int(values[1]), month)
-    raise ValueError("Invalid month. Use YYYY-MM, MONTH, or MONTH YYYY, such as `jan 2026`.")
-
-
-def _month_number(value: str) -> int | None:
-    normalized = value.casefold()
-    for month in range(1, 13):
-        if normalized in {
-            calendar.month_abbr[month].casefold(),
-            calendar.month_name[month].casefold(),
-        }:
-            return month
-    return None
-
-
-def _replace_month(today: date, year: int, month: int) -> date:
-    try:
-        return today.replace(year=year, month=month, day=1)
-    except ValueError as exc:
-        raise ValueError(
-            "Invalid month. Use YYYY-MM, MONTH, or MONTH YYYY, such as `jan 2026`."
-        ) from exc
 
 
 def _configure_console(config: object | None) -> None:

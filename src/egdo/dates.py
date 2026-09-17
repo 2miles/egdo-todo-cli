@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
+import calendar
 from datetime import date, timedelta
+import re
+
+
+INVALID_MONTH_MESSAGE = (
+    "Invalid month. Use YYYY-MM, MONTH, or MONTH YYYY, such as `jan 2026`."
+)
 
 
 def format_display_date(value: date) -> str:
@@ -44,6 +51,42 @@ def parse_future_date(value: str, today: date) -> date:
     if parsed <= today:
         raise ValueError("Move destination must be a future date")
     return parsed
+
+
+def parse_open_month(values: list[str], today: date) -> date:
+    """Parse the friendly month forms accepted by ``egdo open``."""
+    if not values:
+        return today.replace(day=1)
+    if len(values) == 1:
+        iso_match = re.fullmatch(r"(\d{4})-(\d{2})", values[0])
+        if iso_match:
+            return _replace_month(today, int(iso_match[1]), int(iso_match[2]))
+        month = _month_number(values[0])
+        if month is not None:
+            return today.replace(month=month, day=1)
+    elif len(values) == 2:
+        month = _month_number(values[0])
+        if month is not None and re.fullmatch(r"\d{4}", values[1]):
+            return _replace_month(today, int(values[1]), month)
+    raise ValueError(INVALID_MONTH_MESSAGE)
+
+
+def _month_number(value: str) -> int | None:
+    normalized = value.casefold()
+    for month in range(1, 13):
+        if normalized in {
+            calendar.month_abbr[month].casefold(),
+            calendar.month_name[month].casefold(),
+        }:
+            return month
+    return None
+
+
+def _replace_month(today: date, year: int, month: int) -> date:
+    try:
+        return today.replace(year=year, month=month, day=1)
+    except ValueError as exc:
+        raise ValueError(INVALID_MONTH_MESSAGE) from exc
 
 
 def parse_weekday_name(value: str) -> int | None:
