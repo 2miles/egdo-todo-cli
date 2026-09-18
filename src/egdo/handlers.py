@@ -11,267 +11,281 @@ from egdo import dates, interactive, render, store
 from egdo.markdown_store import (
     merge_priority_into_text,
     merge_tag_into_text,
-    split_task_prefix,
     task_identifiers,
 )
 from rich.console import Console
 from rich.text import Text
 
-def dispatch_command(args: Any, config: Any, target_date: date, console: Console) -> int:
-    """Route one parsed command while keeping process setup out of handlers."""
-    if args.command == "add":
-        scheduled = target_date
-        text = args.text
-        tag = args.tag
-        priority = args.priority
-        if text is None:
-            known_tags = {
-                ref.task.tag
-                for ref in store.list_task_refs(config.root, target_date)
-                if ref.task.tag is not None
-            }
-            form = interactive.prompt_add_form(
-                config,
-                target_date,
-                console,
-                dates.parse_future_date,
-                initial_tag=tag,
-                initial_priority=priority,
-                known_tags=sorted(known_tags),
-            )
-            if form is None:
-                console.print("Canceled task creation.")
-                return 0
-            text, tag, priority, scheduled = (
-                form.text,
-                form.tag,
-                form.priority,
-                form.scheduled,
-            )
-        task_text = merge_tag_into_text(text, tag)
-        task_text = merge_priority_into_text(task_text, priority)
-        create_kwargs = {"done": args.done}
-        if args.parent is not None:
-            create_kwargs["parent"] = args.parent
-        if scheduled != target_date:
-            create_kwargs["scheduled_date"] = scheduled
-        task = store.create_task(config.root, target_date, task_text, **create_kwargs)
-        action = "Added" if not args.done else "Added completed task"
-        destination = scheduled.isoformat() if scheduled != target_date else ""
-        return _finish_task_mutation(
-            config,
-            target_date,
-            console,
-            [(action, task.created.isoformat(), task.text, destination)],
-        )
 
+def dispatch_command(args: Any, config: Any, target_date: date, console: Console) -> int:
+    """Route one parsed command to its command-specific handler."""
+    if args.command == "add":
+        return _handle_add(args, config, target_date, console)
     if args.command == "list":
         return _handle_list(args, config, target_date, console)
-
     if args.command == "search":
         return _handle_search(args, config, console)
-
     if args.command == "done":
-        indexes = args.indexes
-        if not indexes:
-            indexes = interactive.prompt_done_form(
-                store.list_task_refs(
-                    config.root, target_date
-                ),
-                target_date,
-                console,
-                project_name=_project_name(config),
-            )
-            if not indexes:
-                console.print("Canceled task completion.")
-                return 0
-        tasks = store.complete_tasks(config.root, target_date, _normalize_task_ids(indexes))
-        return _finish_task_mutation(
-            config,
-            target_date,
-            console,
-            [("Completed", target_date.isoformat(), task.text, "") for task in tasks],
-        )
-
+        return _handle_done(args, config, target_date, console)
     if args.command == "edit":
-        if args.index is None or args.text is None:
-            form = interactive.prompt_edit_form(
-                store.list_task_refs(config.root, target_date),
-                target_date,
-                console,
-                _project_name(config),
-                initial_identifier=str(args.index) if args.index is not None else None,
-            )
-            if form is None:
-                console.print("Canceled task editing.")
-                return 0
-            args.index, args.text = form.identifier, form.text
-        task = store.edit_task(
-            config.root,
-            target_date,
-            _parse_task_id(str(args.index)),
-            args.text,
-        )
-        return _finish_task_mutation(
-            config,
-            target_date,
-            console,
-            [("Edited", task.created.isoformat(), task.text, "")],
-        )
-
+        return _handle_edit(args, config, target_date, console)
     if args.command == "move":
-        if not args.indexes or args.when is None:
-            initial_scheduled = None
-            if args.when is not None:
-                initial_scheduled = (
-                    target_date
-                    if args.when.strip().lower() == "today"
-                    else dates.parse_future_date(args.when, target_date)
-                )
-            form = interactive.prompt_move_form(
-                store.list_task_refs(config.root, target_date),
-                target_date,
-                console,
-                _project_name(config),
-                dates.parse_future_date,
-                initial_identifiers=[str(value) for value in args.indexes] or None,
-                initial_scheduled=initial_scheduled,
-            )
-            if form is None:
-                console.print("Canceled task move.")
-                return 0
-            args.indexes, args.when = form.identifiers, form.scheduled.isoformat()
-        destination_date = (
-            target_date
-            if args.when.strip().lower() == "today"
-            else dates.parse_future_date(args.when, target_date)
-        )
-        tasks = store.move_tasks(
-            config.root, target_date, _normalize_task_ids(args.indexes), destination_date
-        )
-        return _finish_task_mutation(
-            config,
-            target_date,
-            console,
-            [
-                ("Moved", task.created.isoformat(), task.text, destination_date.isoformat())
-                for task in tasks
-            ],
-        )
-
+        return _handle_move(args, config, target_date, console)
     if args.command == "delete":
-        if not args.indexes:
-            args.indexes = interactive.prompt_delete_form(
-                store.list_task_refs(config.root, target_date),
-                target_date,
-                console,
-                _project_name(config),
-            )
-            if not args.indexes:
-                console.print("Canceled task deletion.")
-                return 0
-        tasks = store.delete_tasks(config.root, target_date, _normalize_task_ids(args.indexes))
-        return _finish_task_mutation(
-            config,
-            target_date,
-            console,
-            [("Deleted", target_date.isoformat(), task.text, "") for task in tasks],
-        )
-
+        return _handle_delete(args, config, target_date, console)
     if args.command == "tag":
-        interactive_tag = not args.values or (
-            not args.remove
-            and all(TASK_ID_RE.fullmatch(value.lower()) for value in args.values)
-        )
-        if interactive_tag:
-            refs = store.list_task_refs(config.root, target_date)
-            known_tags = sorted(
-                {ref.task.tag for ref in refs if ref.task.tag is not None}
-            )
-            form = interactive.prompt_tag_form(
-                refs,
-                target_date,
-                console,
-                _project_name(config),
-                known_tags,
-                remove_only=args.remove,
-                initial_identifiers=args.values or None,
-            )
-            if form is None:
-                console.print("Canceled task tagging.")
-                return 0
-            args.values = form.identifiers
-            args.remove = form.tag is None
-            if form.tag is not None:
-                args.values = [*args.values, form.tag]
-        if args.remove:
-            indexes = _parse_indexes(args.values, "tag removal")
-            tasks = store.untag_tasks(
-                config.root,
-                target_date,
-                indexes,
-            )
-            action = "Untagged"
-        else:
-            indexes, tags = _split_indexed_values(args.values, "tag")
-            if len(tags) != 1:
-                raise ValueError("Exactly one tag is required")
-            tasks = store.tag_tasks(
-                config.root,
-                target_date,
-                indexes,
-                tags[0],
-            )
-            action = "Tagged"
-        return _finish_task_mutation(
-            config,
-            target_date,
-            console,
-            [(action, target_date.isoformat(), task.text, "") for task in tasks],
-        )
-
+        return _handle_tag(args, config, target_date, console)
     if args.command == "priority":
-        if not args.indexes or args.level is None:
-            form = interactive.prompt_priority_form(
-                store.list_task_refs(config.root, target_date),
-                target_date,
-                console,
-                _project_name(config),
-                initial_identifiers=[str(value) for value in args.indexes] or None,
-            )
-            if form is None:
-                console.print("Canceled task prioritization.")
-                return 0
-            args.indexes, args.level = form.identifiers, form.priority
-        tasks = store.prioritize_tasks(
-            config.root, target_date, _normalize_task_ids(args.indexes), args.level
-        )
-        return _finish_task_mutation(
+        return _handle_priority(args, config, target_date, console)
+    if args.command == "note":
+        return _handle_note(args, config, target_date, console)
+    raise ValueError(f"Unknown command: {args.command}")
+
+
+def _handle_add(args: Any, config: Any, target_date: date, console: Console) -> int:
+    """Create a task from direct arguments or the interactive add form."""
+    scheduled = target_date
+    text = args.text
+    tag = args.tag
+    priority = args.priority
+    if text is None:
+        known_tags = {
+            ref.task.tag
+            for ref in store.list_task_refs(config.root, target_date)
+            if ref.task.tag is not None
+        }
+        form = interactive.prompt_add_form(
             config,
             target_date,
             console,
-            [("Prioritized", target_date.isoformat(), task.text, "") for task in tasks],
+            dates.parse_future_date,
+            initial_tag=tag,
+            initial_priority=priority,
+            known_tags=sorted(known_tags),
         )
+        if form is None:
+            console.print("Canceled task creation.")
+            return 0
+        text, tag, priority, scheduled = (
+            form.text,
+            form.tag,
+            form.priority,
+            form.scheduled,
+        )
+    task_text = merge_tag_into_text(text, tag)
+    task_text = merge_priority_into_text(task_text, priority)
+    create_kwargs = {"done": args.done}
+    if args.parent is not None:
+        create_kwargs["parent"] = args.parent
+    if scheduled != target_date:
+        create_kwargs["scheduled_date"] = scheduled
+    task = store.create_task(config.root, target_date, task_text, **create_kwargs)
+    action = "Added" if not args.done else "Added completed task"
+    destination = scheduled.isoformat() if scheduled != target_date else ""
+    return _finish_task_mutation(
+        config,
+        target_date,
+        console,
+        [(action, task.created.isoformat(), task.text, destination)],
+    )
 
-    if args.command == "note":
-        if args.text is None:
-            args.text = interactive.prompt_note_form(
-                console, _project_name(config), target_date
-            )
-            if args.text is None:
-                console.print("Canceled note creation.")
-                return 0
-        store.add_note(config.root, target_date, args.text)
-        _print_task_message(
+
+def _handle_done(args: Any, config: Any, target_date: date, console: Console) -> int:
+    """Complete tasks selected directly or through the interactive form."""
+    indexes = args.indexes
+    if not indexes:
+        indexes = interactive.prompt_done_form(
+            store.list_task_refs(config.root, target_date),
+            target_date,
             console,
-            "Noted",
-            target_date.isoformat(),
-            args.text,
-            project=_confirmation_project(config),
+            project_name=_project_name(config),
         )
-        return 0
+        if not indexes:
+            console.print("Canceled task completion.")
+            return 0
+    tasks = store.complete_tasks(config.root, target_date, _normalize_task_ids(indexes))
+    return _finish_task_mutation(
+        config,
+        target_date,
+        console,
+        [("Completed", target_date.isoformat(), task.text, "") for task in tasks],
+    )
 
-    raise ValueError(f"Unknown command: {args.command}")
+
+def _handle_edit(args: Any, config: Any, target_date: date, console: Console) -> int:
+    """Edit a task selected directly or through the interactive form."""
+    if args.index is None or args.text is None:
+        form = interactive.prompt_edit_form(
+            store.list_task_refs(config.root, target_date),
+            target_date,
+            console,
+            _project_name(config),
+            initial_identifier=str(args.index) if args.index is not None else None,
+        )
+        if form is None:
+            console.print("Canceled task editing.")
+            return 0
+        args.index, args.text = form.identifier, form.text
+    task = store.edit_task(
+        config.root,
+        target_date,
+        _parse_task_id(str(args.index)),
+        args.text,
+    )
+    return _finish_task_mutation(
+        config,
+        target_date,
+        console,
+        [("Edited", task.created.isoformat(), task.text, "")],
+    )
+
+
+def _handle_move(args: Any, config: Any, target_date: date, console: Console) -> int:
+    """Move tasks to a date supplied directly or through the interactive form."""
+    if not args.indexes or args.when is None:
+        initial_scheduled = None
+        if args.when is not None:
+            initial_scheduled = (
+                target_date
+                if args.when.strip().lower() == "today"
+                else dates.parse_future_date(args.when, target_date)
+            )
+        form = interactive.prompt_move_form(
+            store.list_task_refs(config.root, target_date),
+            target_date,
+            console,
+            _project_name(config),
+            dates.parse_future_date,
+            initial_identifiers=[str(value) for value in args.indexes] or None,
+            initial_scheduled=initial_scheduled,
+        )
+        if form is None:
+            console.print("Canceled task move.")
+            return 0
+        args.indexes, args.when = form.identifiers, form.scheduled.isoformat()
+    destination_date = (
+        target_date
+        if args.when.strip().lower() == "today"
+        else dates.parse_future_date(args.when, target_date)
+    )
+    tasks = store.move_tasks(
+        config.root, target_date, _normalize_task_ids(args.indexes), destination_date
+    )
+    return _finish_task_mutation(
+        config,
+        target_date,
+        console,
+        [
+            ("Moved", task.created.isoformat(), task.text, destination_date.isoformat())
+            for task in tasks
+        ],
+    )
+
+
+def _handle_delete(args: Any, config: Any, target_date: date, console: Console) -> int:
+    """Delete tasks selected directly or through the interactive form."""
+    if not args.indexes:
+        args.indexes = interactive.prompt_delete_form(
+            store.list_task_refs(config.root, target_date),
+            target_date,
+            console,
+            _project_name(config),
+        )
+        if not args.indexes:
+            console.print("Canceled task deletion.")
+            return 0
+    tasks = store.delete_tasks(config.root, target_date, _normalize_task_ids(args.indexes))
+    return _finish_task_mutation(
+        config,
+        target_date,
+        console,
+        [("Deleted", target_date.isoformat(), task.text, "") for task in tasks],
+    )
+
+
+def _handle_tag(args: Any, config: Any, target_date: date, console: Console) -> int:
+    """Set or remove tags using direct values or the interactive form."""
+    interactive_tag = not args.values or (
+        not args.remove and all(TASK_ID_RE.fullmatch(value.lower()) for value in args.values)
+    )
+    if interactive_tag:
+        refs = store.list_task_refs(config.root, target_date)
+        known_tags = sorted({ref.task.tag for ref in refs if ref.task.tag is not None})
+        form = interactive.prompt_tag_form(
+            refs,
+            target_date,
+            console,
+            _project_name(config),
+            known_tags,
+            remove_only=args.remove,
+            initial_identifiers=args.values or None,
+        )
+        if form is None:
+            console.print("Canceled task tagging.")
+            return 0
+        args.values = form.identifiers
+        args.remove = form.tag is None
+        if form.tag is not None:
+            args.values = [*args.values, form.tag]
+    if args.remove:
+        indexes = _parse_indexes(args.values, "tag removal")
+        tasks = store.untag_tasks(config.root, target_date, indexes)
+        action = "Untagged"
+    else:
+        indexes, tags = _split_indexed_values(args.values, "tag")
+        if len(tags) != 1:
+            raise ValueError("Exactly one tag is required")
+        tasks = store.tag_tasks(config.root, target_date, indexes, tags[0])
+        action = "Tagged"
+    return _finish_task_mutation(
+        config,
+        target_date,
+        console,
+        [(action, target_date.isoformat(), task.text, "") for task in tasks],
+    )
+
+
+def _handle_priority(args: Any, config: Any, target_date: date, console: Console) -> int:
+    """Set task priority using direct values or the interactive form."""
+    if not args.indexes or args.level is None:
+        form = interactive.prompt_priority_form(
+            store.list_task_refs(config.root, target_date),
+            target_date,
+            console,
+            _project_name(config),
+            initial_identifiers=[str(value) for value in args.indexes] or None,
+        )
+        if form is None:
+            console.print("Canceled task prioritization.")
+            return 0
+        args.indexes, args.level = form.identifiers, form.priority
+    tasks = store.prioritize_tasks(
+        config.root, target_date, _normalize_task_ids(args.indexes), args.level
+    )
+    return _finish_task_mutation(
+        config,
+        target_date,
+        console,
+        [("Prioritized", target_date.isoformat(), task.text, "") for task in tasks],
+    )
+
+
+def _handle_note(args: Any, config: Any, target_date: date, console: Console) -> int:
+    """Add a note supplied directly or through the interactive editor."""
+    if args.text is None:
+        args.text = interactive.prompt_note_form(console, _project_name(config), target_date)
+        if args.text is None:
+            console.print("Canceled note creation.")
+            return 0
+    store.add_note(config.root, target_date, args.text)
+    _print_task_message(
+        console,
+        "Noted",
+        target_date.isoformat(),
+        args.text,
+        project=_confirmation_project(config),
+    )
+    return 0
 
 
 def _handle_list(args: Any, config: Any, target_date: date, console: Console) -> int:
@@ -298,9 +312,7 @@ def _handle_search(args: Any, config: Any, console: Console) -> int:
         raise ValueError("--project cannot be combined with --all-projects")
 
     projects = (
-        config.projects.items()
-        if args.all_projects
-        else [(_project_name(config), config.root)]
+        config.projects.items() if args.all_projects else [(_project_name(config), config.root)]
     )
     rendered = False
     for name, root in projects:
@@ -335,9 +347,7 @@ def _render_search_results(project_name: str, results: Any, console: Console) ->
     heading = Text("Project: ", style="dim")
     heading.append(project_name, style="bold cyan")
     console.print(heading)
-    days = sorted(
-        {result.day for result in results.tasks + results.notes}, reverse=True
-    )
+    days = sorted({result.day for result in results.tasks + results.notes}, reverse=True)
     for position, day in enumerate(days):
         if position:
             console.print()
@@ -355,14 +365,10 @@ def _render_search_results(project_name: str, results: Any, console: Console) ->
                 )
         for result in results.notes:
             if result.day == day:
-                console.print(
-                    render.render_search_note(result.text, wrap_width=wrap_width)
-                )
+                console.print(render.render_search_note(result.text, wrap_width=wrap_width))
 
 
-def _filter_indexed_refs(
-    refs: list[Any], args: Any, target_date: date
-) -> list[tuple[str, Any]]:
+def _filter_indexed_refs(refs: list[Any], args: Any, target_date: date) -> list[tuple[str, Any]]:
     """Filter refs while retaining identifiers from the unfiltered project list."""
     return [
         (ref.identifier or str(position), ref)
@@ -431,16 +437,12 @@ def _render_active_list(
     return 0
 
 
-def _handle_all_projects(
-    args: Any, config: Any, target_date: date, console: Console
-) -> int:
+def _handle_all_projects(args: Any, config: Any, target_date: date, console: Console) -> int:
     """Render independent project snapshots without modifying any archive."""
     if getattr(args, "selected_project", None) is not None:
         raise ValueError("--project cannot be combined with --all-projects")
     if args.future or args.completed or args.tag is not None:
-        raise ValueError(
-            "--all-projects cannot be combined with --future, --completed, or --tag"
-        )
+        raise ValueError("--all-projects cannot be combined with --future, --completed, or --tag")
 
     rendered = False
     for name, root in config.projects.items():
@@ -488,9 +490,7 @@ def _render_indexed_tasks(
         )
 
 
-def _handle_completed(
-    args: Any, config: Any, target_date: date, console: Console
-) -> int:
+def _handle_completed(args: Any, config: Any, target_date: date, console: Console) -> int:
     """Load completed tasks and render them through the shared collection path."""
     tasks = store.list_completed_tasks(config.root, target_date, tag=args.tag)
     return _render_task_collection(
